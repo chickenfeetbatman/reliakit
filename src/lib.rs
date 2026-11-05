@@ -1,19 +1,17 @@
-//! ReliaKit: reliability engineering toolkit in Rust.
+//! ReliaKit: reliability engineering in Rust.
 //!
-//! A Rust rewrite of the Python ReliaKit suite. Includes life-data
-//! analysis (Weibull++ style), limited-data methods (hierarchical
-//! shrinkage, shape bias correction, split-conformal bounds),
-//! Bayesian MCMC, degradation analysis,
-//! accelerated life testing, reliability growth, system reliability
-//! with standby redundancy and availability simulation (BlockSim
-//! style), fault trees, FMEA worksheets, warranty analysis,
+//! A rewrite of the Python ReliaKit suite. Life-data analysis
+//! (Weibull++ style), limited-data methods (hierarchical shrinkage,
+//! shape bias correction, split-conformal bounds), Bayesian MCMC,
+//! degradation, accelerated life testing, reliability growth,
+//! system reliability with standby redundancy and availability
+//! simulation (BlockSim style), fault trees, FMEA, warranty,
 //! parts-count prediction, and two-level factorial DOE.
 //!
-//! Everything is self-contained: special functions, optimisation, a
-//! seedable RNG and an adaptive Metropolis sampler are implemented in
-//! this crate. No proprietary handbook data is included anywhere; the
-//! prediction module computes only from failure rates the user
-//! supplies.
+//! The crate has its own special functions, optimizer, seeded RNG,
+//! and adaptive Metropolis sampler. No proprietary handbook data is
+//! bundled; the prediction module computes from failure rates the
+//! user supplies.
 
 pub mod alt;
 pub mod bayes;

@@ -1,17 +1,14 @@
 # ReliaKit (Rust)
 
-A reliability engineering suite written in Rust: one library, a
-scriptable command line tool, and a desktop application. It is a
-ground-up Rust rewrite of an earlier Python suite of the same name,
-built for speed on simulation and Bayesian workloads while keeping
-the same mathematics and the same JSON diagram format.
+A reliability engineering suite in Rust: a library, a CLI, and a
+desktop app. It rewrites an earlier Python suite of the same name.
+Same math, same JSON diagram format, much faster on simulation and
+MCMC workloads.
 
-Everything statistical is implemented in the crate itself (special
-functions, optimisation, a seedable RNG, an adaptive Metropolis
-sampler), so results are reproducible run to run. No proprietary
-data of any kind is bundled: where a calculation needs reference
-data (for example reliability prediction rates), the user supplies
-it and the framework computes with what the user supplied.
+The crate has its own special functions, optimizer, seeded RNG, and
+Metropolis sampler, so runs repeat exactly. No proprietary data is
+bundled. Where a calculation needs reference data (prediction
+rates, for example), you supply it.
 
 ## Try it in two minutes
 
@@ -47,49 +44,47 @@ cargo run --release --example example5_alt_and_competing
 ./target/release/reliakit-app --headless   # desktop binary smoke check
 ```
 
-Full captured outputs for every example are in
-[examples/OUTPUTS.md](examples/OUTPUTS.md). The desktop app ships
-with an Examples page that loads each example into the matching
-screen, so a downloaded binary can be explored without any data of
-your own.
+Full outputs: [examples/OUTPUTS.md](examples/OUTPUTS.md). The
+desktop app has an Examples page that loads each one into its
+screen, so the downloaded binary runs without data of your own.
 
 ## Downloads
 
-- From source: clone this repository and run
+- From source: clone this repo and run
   `cargo run --release --bin reliakit-app` for the desktop app or
   `cargo run --release --bin reliakit` for the CLI.
-- Release binaries: when a version tag (for example `v0.1.0`) is
-  pushed, the release workflow builds the desktop app and CLI for
-  Windows, macOS, and Linux and attaches them to the GitHub Release.
-  Download the binary for your platform from the Releases page once
-  a release is published.
+- Binaries: the [v0.1.0 release](https://github.com/chickenfeetbatman/reliakit/releases/tag/v0.1.0)
+  has the desktop app and CLI for Windows, macOS, and Linux. New
+  version tags build new releases the same way.
 
 ## Desktop application
 
-`reliakit-app` is a single compiled binary (egui/eframe, no server).
+`reliakit-app` is one compiled binary (egui/eframe, no server).
 Screens: Life Data (CSV load, fit, reliability curve drawn on a
 canvas), Limited Data, MCMC, Degradation, ALT, Growth, Competing
 Risks, System RBD, Fault Tree, FMEA, Warranty, Prediction, DOE,
-Flowchart, and Examples. The System RBD screen has a drag-and-drop
-canvas: blocks are dragged with the mouse and carry name,
-distribution, parameters, MTBF/MTTR, and mode (active, hot standby,
-cold standby, warm with dormancy); the topology evaluates live,
-availability is computed, and diagrams save and load as the same
-JSON the library and CLI accept. Run `reliakit-app --headless` for
-a no-window smoke check that builds the Example 3 diagram and
-prints its reliability and availability.
+Flowchart, and Examples.
+
+On the System RBD screen you drag blocks with the mouse. Each block
+carries a name, distribution, parameters, MTBF/MTTR, and a mode
+(active, hot standby, cold standby, warm with dormancy). The
+topology evaluates as you edit, availability is computed on the
+same screen, and diagrams save and load as the JSON the library and
+CLI accept. `reliakit-app --headless` runs a no-window check: it
+builds the Example 3 diagram and prints its reliability and
+availability.
 
 ## Command line
 
 `reliakit` prints JSON results for: `fit`, `rel`, `rbd`,
 `availability`, `growth`, `af`, `alt-mle`, `competing`, `standby`,
 `flow`, `fmea`, `warranty`, `faulttree`, `predict`, `doe`, and
-`selftest`. Run `reliakit <command> --help` for exact arguments.
+`selftest`. `reliakit <command> --help` shows the arguments.
 
 ## ReliaSoft parity matrix
 
-Status key: Implemented = real, tested implementation. Limited =
-implemented with the stated limit, named exactly.
+Implemented means tested code. Limited means the limit is stated
+in the row.
 
 | ReliaSoft area | Rust implementation | Status |
 | --- | --- | --- |
@@ -114,13 +109,12 @@ implemented with the stated limit, named exactly.
 | Competing risks / failure-mode analysis, cause-specific cumulative incidence | `competing` | Implemented (independent risks; a failure with unknown mode is treated as its own "unknown" mode category) |
 | XFMEA: worksheet with severity, occurrence, detection, RPN, actions, revised RPN, CSV import/export | `fmea` | Implemented |
 | Warranty: Nevada-table aggregation, Weibull fit to returns, forecast for units in service | `warranty` | Implemented |
-| Lambda Predict style prediction: parts-count and parts-stress framework, user-entered base rates and stress / quality / environment factors, series roll-up | `prediction` | Implemented as an engine. The handbook datasets themselves (MIL-HDBK-217, Telcordia SR-332, IEC 62380 numeric tables) are user-supplied data and are not bundled; nothing is reproduced from memory |
+| Lambda Predict style prediction: parts-count and parts-stress framework, user-entered base rates and stress / quality / environment factors, series roll-up | `prediction` | Engine implemented. The handbook tables (MIL-HDBK-217, Telcordia SR-332, IEC 62380) are not bundled; you supply the numbers |
 | DOE++ basics: two-level factorial designs, effect estimates, sums of squares | `doe` | Implemented for 2^k designs (main effects and interactions); no fractional factorials or response surfaces |
 | RENO style flowchart simulation: start, task, decision, loop/counter, end blocks, Monte Carlo run-time and cost distributions | `flowchart` | Implemented (JSON-defined flows; no graphical flow editor) |
 
-Every row above is covered by at least one automated test with a
-known or cross-checked value; see FEATURE_TEST_LEDGER.md for the
-feature-by-feature list.
+Each row has at least one test with a known or cross-checked
+value. FEATURE_TEST_LEDGER.md lists them feature by feature.
 
 ## Tests
 
@@ -128,8 +122,8 @@ feature-by-feature list.
 cargo test
 ```
 
-73 integration tests across 8 files, all passing, plus the CLI
-self test:
+73 integration tests in 8 files, all passing, plus the CLI self
+test:
 
 | Test file | Tests |
 | --- | --- |
@@ -148,8 +142,8 @@ test functions.
 
 ## Benchmarks
 
-Same workloads, same parameters, same machine (release build;
-Python numbers from the original suite, script in `bench/`):
+Same workloads, same parameters, same machine. Python numbers come
+from the original suite; the script is in `bench/`.
 
 | Workload | Python | Rust | Speedup |
 | --- | --- | --- | --- |
@@ -193,16 +187,14 @@ bench/              the Python benchmark script used above
 tests/              the test files listed above
 ```
 
-Dependencies are deliberately few and mainstream: serde,
-serde_json, clap, and eframe/egui for the desktop app. Random
-number generation is the crate's own seeded xoshiro256**.
+Four dependencies: serde, serde_json, clap, and eframe/egui for
+the desktop app. The RNG is the crate's own seeded xoshiro256**.
 
 ## Toolchain
 
-Built with rustc 1.99.1 (58cf8f9c3 2026-10-13) and cargo 1.99.1
-(5f94df478 2026-08-27), installed with the official rustup script
-(`curl https://sh.rustup.rs`) on Ubuntu 24.04. CI runs `cargo test`
-on Linux; the release workflow builds Windows, macOS, and Linux
+Built with rustc 1.99.1 and cargo 1.99.1, installed from the
+official rustup script on Ubuntu 24.04. CI runs `cargo test` on
+Linux. The release workflow builds Windows, macOS, and Linux
 binaries on version tags.
 
 ## License

@@ -1,13 +1,8 @@
 # ReliaKit Rust: Feature Test Ledger
 
-Compiled by Stream 6 (QA) from tests/ported_tests.rs,
-tests/parity_tests.rs, and tests/qa_tests.rs, and completed by the
-coordinator after streams 1 to 5 landed (test files
-tests/alt_mle_tests.rs, tests/competing_tests.rs,
-tests/standby_tests.rs, tests/flowchart_tests.rs,
-tests/coverage_tests.rs) and after the specfunc accuracy fix.
-Final gate run: every test in every file passes; see the totals in
-the README.
+Every feature in the crate, the test file that covers it, and the
+result in the final full test run: 73 passed, 0 failed. Totals are
+in the README.
 
 Status meanings:
 
