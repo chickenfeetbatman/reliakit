@@ -1,0 +1,4 @@
+item,function,failure_mode,effect,cause,severity,occurrence,detection,rpn,recommended_action,revised_severity,revised_occurrence,revised_detection,revised_rpn
+Pump,seal the shaft,seal leaks,loss of coolant flow,seal wear,8,5,4,160,replace seal material,,2,,64
+Power supply,deliver 24V,output drops,controller resets,capacitor ageing,7,4,5,140,use higher rated capacitors,,2,,70
+Controller,run control loop,watchdog timeout,system halts,firmware defect,9,2,3,54,add external watchdog,,,,

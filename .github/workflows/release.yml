@@ -1,0 +1,54 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            artifact: reliakit-app-linux
+            binary: reliakit-app
+          - os: windows-latest
+            artifact: reliakit-app-windows
+            binary: reliakit-app.exe
+          - os: macos-latest
+            artifact: reliakit-app-macos
+            binary: reliakit-app
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install Linux GUI build dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libxcb-render0-dev libxcb-shape0-dev libxcb-xfixes0-dev libxkbcommon-dev libssl-dev
+      - name: Build release binaries
+        run: cargo build --release --bins
+      - name: Package (Linux and macOS)
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          mkdir -p dist
+          cp target/release/reliakit-app "dist/${{ matrix.artifact }}"
+          cp target/release/reliakit "dist/reliakit-cli-${{ runner.os }}"
+      - name: Package (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force dist
+          Copy-Item target/release/reliakit-app.exe "dist/${{ matrix.artifact }}.exe"
+          Copy-Item target/release/reliakit.exe "dist/reliakit-cli-Windows.exe"
+      - name: Attach to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
