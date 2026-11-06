@@ -151,3 +151,57 @@ as their neighbours, and the diagram JSON carries the real
 topology. At the default window size the FMEA worksheet table is
 wider than the center panel, so its row action buttons are partly
 clipped until the window is widened.
+
+## v0.3.0 correction: Tauri pivot (supersedes the Slint section)
+
+The Slint build above was completed and briefly carried the
+v0.3.0 tag. Before the version was announced, the user directed a
+toolkit change: use whatever engine makes the product feel modern
+and fast, with Stripe's site as the polish benchmark and a live
+browser demo on GitHub Pages. The parent settled the question:
+the shipped v0.3.0 is a Tauri 2 app with a web UI. The tag was
+moved to the Tauri commit and the release assets were rebuilt.
+The Slint section above stays as the record of that attempt; its
+screenshots were replaced in the v030 set by the Tauri captures
+of the same screens.
+
+What shipped: the engine moved, logic unchanged, from the Slint
+crate into a new workspace crate, engine/ (package
+reliakit-engine): the same Work state, computes, project format,
+and data flows, exposed through one JSON dispatcher
+(engine/src/handle.rs, contract in engine/API.md). Chart series
+are computed as data in engine/src/series.rs and drawn by the
+front end as inline SVG. The desktop host (gui/src-tauri/) is a
+thin Tauri 2 shell with a single dispatch command. The front end
+(gui/index.html, gui/src/, gui/styles/, gui/assets/) is vanilla
+JavaScript modules and hand-written CSS; the Slint icon set,
+logo, hero artwork, and Inter fonts carried over. The same front
+end runs in the browser from site/demo/ against the engine
+compiled to WebAssembly (wasm/ crate, raw FFI, no wasm-bindgen),
+deployed by .github/workflows/pages.yml.
+
+Verification for the shipped build: cargo build --release
+--workspace clean; cargo test --release --workspace reports the
+same 167 passed, 0 failed; git diff on src/ (the library) is
+empty. A Node smoke test drove the WASM module with the front
+end's exact protocol: Example 3 gives RBD reliability 0.9214,
+Example 1 fits to headline R(1000) = 0.9172 with a 121 point
+series, dataset cards load from the embedded fallback, and
+project_open_data round-trips a four item project. The Tauri
+binary ran under Xvfb with its WebKitGTK webview and stayed up
+with no panic. The screenshot pass was repeated on the Tauri app
+(start page with the gradient hero and the Quickstart panel,
+About view, Life Data fit, wizard, RBD placement and drag with
+the inspector, MCMC, Markov, FRACAS), and the browser demo and
+landing page were captured headlessly as 12-demo.png and
+13-landing.png in the same set.
+
+Behavior notes for the shipped build. Keyboard shortcuts are
+Ctrl+S (save), Ctrl+O (open), and Delete for the selected RBD
+block or table row; there is no Ctrl+Z undo shortcut, the RBD
+inspector keeps its Undo button. In the browser demo, project
+save downloads a file and open uses a file picker; controls that
+need a local file path on desktop show a short note in the demo
+instead. The Linux desktop build needs the system WebKitGTK
+runtime (libwebkit2gtk-4.1); the macOS download is a raw binary,
+not an .app bundle.

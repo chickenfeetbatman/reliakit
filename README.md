@@ -1,16 +1,69 @@
-# ReliaKit (Rust)
+# ReliaKit
 
-A reliability engineering suite in Rust: a library, a CLI, and a
-desktop app. It rewrites an earlier Python suite of the same name.
-Same math, same JSON diagram format, much faster on simulation and
-MCMC workloads.
+Reliability engineering, in one project workspace.
 
-The crate has its own special functions, optimizer, seeded RNG, and
-Metropolis sampler, so runs repeat exactly. No proprietary data is
-bundled. The MIL-HDBK-217F Notice 2 prediction library is bundled
-because the handbook is a public US government document. Data
-tables from licensed standards are not bundled; you load your own
-through the local library import.
+![ReliaKit start page](docs/images/start-page.png)
+
+ReliaKit is a reliability engineering suite for engineers who fit life
+data, build system reliability models, run FMEA and warranty analyses,
+and predict failure rates. Every analysis lives as an item in a single
+project file: a Life Data fit, an RBD diagram, an FMEA worksheet, a
+Markov model, and fourteen more kinds. Items send results to each
+other, so a fit can drive a block diagram, a quick calculation, and a
+prediction without retyping. The math is a Rust library with its own
+special functions, optimizer, seeded RNG, and Metropolis sampler, so
+runs repeat exactly. A command line tool prints the same results as
+JSON for scripts.
+
+Try it now:
+
+- Live demo: https://chickenfeetbatman.github.io/reliakit/demo/ runs
+  the full workspace in your browser, with the engine compiled to
+  WebAssembly. No install, and nothing is uploaded.
+- Download v0.3.0: https://github.com/chickenfeetbatman/reliakit/releases/tag/v0.3.0
+  has the desktop app and the command line tool for Windows, macOS,
+  and Linux.
+- User guide: [docs/USER_GUIDE.md](docs/USER_GUIDE.md) covers every
+  item kind, the data flows, the Prediction standards, file formats,
+  keyboard shortcuts, and platform notes.
+
+## What it does
+
+- Life data analysis for 14 distributions, with censored maximum
+  likelihood, rank regression, Fisher matrix bounds, probability
+  plots, Kaplan-Meier, and a distribution wizard that ranks candidates
+  by AIC, BIC, and Anderson-Darling.
+- Limited data methods for small lots: Weibull shape bias correction,
+  hierarchical shrinkage, split-conformal bounds, and Bayesian MCMC
+  with R-hat and ESS diagnostics.
+- Degradation path analysis, accelerated life testing (Arrhenius,
+  inverse power law, Eyring, two-stress loglinear, step-stress),
+  reliability growth, and competing risks.
+- System RBD with series, parallel, k-out-of-n, and standby groups,
+  dormancy and switch reliability, CTMC and Monte Carlo availability,
+  and reliability importance measures.
+- Fault trees with minimal cut sets, and continuous time Markov models
+  with steady state, transient, and mean time to absorption results.
+- FMEA worksheets (Design, Process, System) with RPN, FMECA
+  criticality, DVP&R, and control plan export; an RCM worksheet with
+  task selection; and a FRACAS incident log.
+- Warranty analysis with Nevada table aggregation and a returns
+  forecast.
+- Prediction: parts-count and parts-stress, reliability allocation,
+  and derating checks. The MIL-HDBK-217F Notice 2 library is built in
+  from the public handbook, with the source table recorded per
+  category. SR-332 and 62380-style methods run on data you supply.
+  Local component libraries import from CSV.
+- DOE for two-level factorial and related designs, flowchart process
+  simulation, and a QCP quick calculation pad.
+- Six data flows between items: a Life Data fit to an RBD block, to
+  QCP, and to Prediction; an FMEA row to an RCM row; FRACAS incidents
+  to a Life Data item; and the wizard Use action applying a ranked
+  distribution to the current fit.
+- Sixteen bundled datasets with documented sources, and eight worked
+  examples that load from the start page.
+- No proprietary data is bundled. Data tables from licensed standards
+  are not bundled; you load your own through the local library import.
 
 ## Try it in two minutes
 
@@ -46,53 +99,63 @@ cargo run --release --example example5_alt_and_competing
 ./target/release/reliakit-app --headless   # desktop binary smoke check
 ```
 
-Full outputs: [examples/OUTPUTS.md](examples/OUTPUTS.md). The
-desktop app has an Examples page that loads each one into its
-screen, so the downloaded binary runs without data of your own.
+Full outputs: [examples/OUTPUTS.md](examples/OUTPUTS.md). The desktop
+app and the browser demo have a start page that loads each example into
+its screen, so a downloaded binary runs without data of your own.
 
 ## Downloads
 
+- Live demo: https://chickenfeetbatman.github.io/reliakit/demo/
+- Release: the [v0.3.0 release](https://github.com/chickenfeetbatman/reliakit/releases/tag/v0.3.0)
+  has the desktop app and the CLI for Windows, macOS, and Linux (six
+  files). New version tags build new releases the same way.
 - From source: clone this repo and run
   `cargo run --release -p reliakit-gui` for the desktop app or
-  `cargo run --release --bin reliakit` for the CLI.
-- Binaries: the [v0.3.0 release](https://github.com/chickenfeetbatman/reliakit/releases/tag/v0.3.0)
-  has the desktop app and CLI for Windows, macOS, and Linux. New
-  version tags build new releases the same way.
+  `cargo run --release --bin reliakit` for the CLI. The desktop build
+  also needs the Tauri prerequisites for your platform, including the
+  WebKitGTK runtime packages on Linux; see the user guide platform
+  notes.
 
-## Desktop application
+## Desktop application and browser demo
 
-`reliakit-app` is one compiled binary (Slint UI, no server).
-The interface is built with [Slint](https://slint.dev), used under
-the Slint royalty-free license; the app's About dialog carries the
-AboutSlint attribution widget that license asks for. Inter, the
-bundled user interface font, is licensed under the SIL Open Font
-License 1.1 (see gui/ui/fonts/OFL.txt).
-It opens as one project workspace: a start page with example and
-dataset cards, a project tree in the sidebar, the plot, diagram,
-or table in the center, and an inspector with headline result
-cards on the right. Item kinds:
-Life Data (CSV load, fit, reliability curve and probability
-plot), Limited Data, MCMC, Degradation, ALT, Growth, Competing
-Risks, System RBD, Fault Tree, FMEA, Warranty, Prediction, DOE,
-Flowchart, Markov, QCP, RCM, and FRACAS. Each item keeps its own
-inputs and results. Results move between items: a Life Data fit
-can be assigned to an RBD block or sent to QCP and Prediction
-items, an FMEA row can create an RCM row, and FRACAS incidents
-can be exported to a Life Data item. One JSON project file saves
-and loads the whole project in ReliaKit own format. The design
-system is documented in docs/DESIGN.md.
+One interface, two hosts. The desktop app is a Tauri shell around a
+web front end (plain JavaScript modules and hand-written CSS in gui/);
+the browser demo serves the same front end with the same engine
+compiled to WebAssembly. Project files, screens, and results are
+identical between the two. In the demo, project Save downloads
+reliakit-project.json, project Open and CSV import use a file picker,
+and controls that need a local file path on the desktop show a short
+note with a working picker or download instead.
 
-On the System RBD screen you arm a palette item (single block,
-standby group, parallel group, k-out-of-n group), click the
-canvas to place it, drag blocks to move them, and click a block
-to select it and edit its properties in the inspector. Each block
-carries a name, distribution, parameters, MTBF/MTTR, and a mode
-(active, hot standby, cold standby, warm with dormancy). The
-topology evaluates as you edit, availability is computed on the
-same screen, and diagrams save and load as the JSON the library and
-CLI accept. `reliakit-app --headless` runs a no-window check: it
-builds the Example 3 diagram and prints its reliability and
-availability.
+The workspace is a start page with example and dataset cards, a
+project source list in the sidebar, the plot, diagram, or table in the
+center, and an inspector with headline result cards on the right. Item
+kinds: Life Data (CSV load, fit, reliability curve and probability
+plot), Limited Data, MCMC, Degradation, ALT, Growth, Competing Risks,
+System RBD, Fault Tree, FMEA, Warranty, Prediction, DOE, Flowchart,
+Markov, QCP, RCM, and FRACAS. Each item keeps its own inputs and
+results. One JSON project file saves and loads the whole project in
+the reliakit-project-2 format. The design system is documented in
+docs/DESIGN.md, and the full manual is docs/USER_GUIDE.md.
+
+On the System RBD screen you arm a palette item (single block, standby
+group, parallel group, k-out-of-n group), click the canvas to place
+it, drag blocks to move them, and click a block to select it and edit
+its properties in the inspector. Each block carries a name,
+distribution, parameters, MTBF/MTTR, and a mode (active, hot standby,
+cold standby, warm with dormancy). The topology evaluates as you edit,
+availability is computed on the same screen, and diagrams save and
+load as the JSON the library and CLI accept. Keyboard shortcuts:
+Ctrl+S saves the project, Ctrl+O opens one, and Delete removes the
+selected RBD block or table row. `reliakit-app --headless` runs a
+no-window check: it builds the Example 3 diagram and prints its
+reliability and availability.
+
+Attribution: the desktop shell is built with
+[Tauri](https://tauri.app), used under the MIT and Apache-2.0
+licenses. Inter, the bundled user interface font, is licensed under
+the SIL Open Font License 1.1 (see gui/assets/OFL.txt in the app
+bundle and gui/ui/fonts/OFL.txt in this repository).
 
 ## Command line
 
@@ -236,7 +299,7 @@ src/
   datasets.rs       synthetic example data generators (labelled synthetic)
   bin/reliakit.rs       CLI
   bin/reliakit_bench.rs benchmarks
-gui/                desktop app crate (Slint), binary reliakit-app
+gui/                desktop app crate (Tauri shell, web front end in gui/src and gui/styles, WASM demo build), binary reliakit-app
 examples/           worked examples with captured outputs (OUTPUTS.md)
 datasets/           16 bundled sourced CSV datasets (see FEATURE_RESEARCH.md)
 libraries/mil217/   MIL-HDBK-217F Notice 2 library, one JSON file per category
@@ -245,9 +308,13 @@ tests/              the test files listed above
 ```
 
 The library depends on serde, serde_json, and clap. The desktop
-app crate adds slint and plotters (charts are rendered to an image
-buffer with plotters). The RNG is the crate's own seeded
-xoshiro256**.
+app crate adds the Tauri shell; the front end is plain JavaScript and
+CSS with no bundler, and charts are drawn as inline SVG by the front
+end from the series the engine returns. The RNG is the crate's own
+seeded xoshiro256**.
+
+Interface history: v0.3.0 replaced the GUI toolkit with the Tauri and
+web front end above; earlier releases used other toolkits.
 
 ## Toolchain
 

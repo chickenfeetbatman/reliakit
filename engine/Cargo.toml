@@ -1,0 +1,16 @@
+[package]
+name = "reliakit-engine"
+version = "0.3.0"
+edition = "2021"
+license = "MIT"
+description = "ReliaKit host-independent engine: project workspace state, computations, chart series, and the JSON dispatch contract shared by the Tauri app and the WASM browser demo"
+authors = ["chickenfeetbatman"]
+
+[lib]
+name = "reliakit_engine"
+path = "src/lib.rs"
+
+[dependencies]
+reliakit = { path = ".." }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"

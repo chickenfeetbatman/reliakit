@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ReliaKit - Reliability engineering suite</title>
+<meta name="description" content="ReliaKit is a reliability engineering suite in one project workspace: life data, RBD, fault trees, FMEA, warranty, prediction, DOE, Markov, QCP, RCM, and FRACAS. Try the live demo or download v0.3.0.">
+<style>
+:root{--bg:#0b0e13;--panel:#14181f;--panel2:#1a1f28;--line:rgba(255,255,255,.09);--text:#f2f2f7;--muted:#a7a7ad;--faint:#7a7f89;--tint:#0a84ff;--tint2:#64d2ff;--green:#30d158;--radius:14px}
+*{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;line-height:1.55;-webkit-font-smoothing:antialiased}
+a{color:var(--tint2)}img{max-width:100%}
+.wrap{max-width:1120px;margin:0 auto;padding:0 24px}
+nav{display:flex;align-items:center;gap:14px;padding:18px 0}
+nav .brand{display:flex;align-items:center;gap:10px;font-weight:700;font-size:18px;color:var(--text);text-decoration:none}
+nav .sp{flex:1}nav a.navlink{color:var(--muted);text-decoration:none;font-size:14.5px;margin-left:20px}nav a.navlink:hover{color:var(--text)}
+.btn{display:inline-block;padding:12px 22px;border-radius:10px;font-weight:600;font-size:15px;text-decoration:none;border:1px solid transparent;transition:transform .18s ease,box-shadow .18s ease,background .18s ease}
+.btn:hover{transform:translateY(-1px)}
+.btn-primary{background:var(--tint);color:#fff;box-shadow:0 6px 24px rgba(10,132,255,.35)}.btn-primary:hover{background:#1b90ff}
+.btn-ghost{background:rgba(255,255,255,.04);color:var(--text);border-color:var(--line)}.btn-ghost:hover{background:rgba(255,255,255,.08)}
+.hero{position:relative;overflow:hidden;border-radius:20px;padding:64px 40px 56px;text-align:center;background:linear-gradient(140deg,#0a1b33 0%,#0d2a52 45%,#0a4d8f 80%,#0a84ff 135%);border:1px solid rgba(255,255,255,.10)}
+.hero:before,.hero:after{content:"";position:absolute;border-radius:50%;filter:blur(70px);pointer-events:none}
+.hero:before{width:380px;height:380px;background:radial-gradient(circle,rgba(100,210,255,.5),rgba(10,132,255,0) 70%);top:-160px;right:6%}
+.hero:after{width:340px;height:340px;background:radial-gradient(circle,rgba(191,90,242,.32),rgba(191,90,242,0) 70%);bottom:-180px;left:22%}
+.hero>*{position:relative;z-index:1}
+.hero h1{font-size:52px;line-height:1.08;letter-spacing:-.03em;margin:18px auto 14px;max-width:760px}
+.hero p.lede{font-size:19px;color:#c9dcf5;max-width:680px;margin:0 auto 30px}
+.hero .cta{display:flex;gap:14px;justify-content:center;flex-wrap:wrap}
+.hero .fine{margin-top:18px;font-size:13.5px;color:#9db9d9}
+section{padding:64px 0 8px}h2{font-size:32px;letter-spacing:-.02em;margin:0 0 10px}h2+p.sub{color:var(--muted);font-size:17px;max-width:720px;margin:0 0 28px}
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:22px;transition:transform .2s ease,box-shadow .2s ease,border-color .2s ease}
+.card:hover{transform:translateY(-3px);box-shadow:0 12px 32px rgba(0,0,0,.35);border-color:rgba(255,255,255,.16)}
+.card h3{margin:0 0 6px;font-size:16.5px}.card p{margin:0;color:var(--muted);font-size:14.5px}
+.shots{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.shot{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden}
+.shot img{display:block;width:100%;height:auto;background:var(--panel2)}
+.shot figcaption{padding:12px 16px;color:var(--muted);font-size:14px}
+.dl{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+.dl .card a{font-weight:600;text-decoration:none}.dl .card a:hover{text-decoration:underline}
+.kicker{font-size:12.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--tint2)}
+footer{margin-top:72px;border-top:1px solid var(--line);padding:28px 0 40px;color:var(--faint);font-size:13.5px}
+footer a{color:var(--muted)}
+@media(max-width:860px){.grid,.dl{grid-template-columns:1fr}.shots{grid-template-columns:1fr}.hero{padding:44px 22px}.hero h1{font-size:36px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<nav>
+<a class="brand" href="./"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="30" height="30" aria-hidden="true"><rect x="3" y="3" width="42" height="42" rx="10" fill="none" stroke="#0A84FF" stroke-width="2.6"/><path d="M11 13c8 1.5 14 5.5 19 12 2.4 3.1 4.2 5.6 7 7.5" fill="none" stroke="#F2F2F7" stroke-width="2.6" stroke-linecap="round"/><circle cx="11" cy="13" r="3" fill="#0A84FF"/></svg> ReliaKit</a>
+<span class="sp"></span>
+<a class="navlink" href="#features">Features</a>
+<a class="navlink" href="#screenshots">Screenshots</a>
+<a class="navlink" href="#download">Download</a>
+<a class="navlink" href="https://github.com/chickenfeetbatman/reliakit">GitHub</a>
+</nav>
+
+<header class="hero">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="64" height="64" aria-hidden="true"><rect x="3" y="3" width="42" height="42" rx="10" fill="none" stroke="#0A84FF" stroke-width="2.6"/><path d="M11 13c8 1.5 14 5.5 19 12 2.4 3.1 4.2 5.6 7 7.5" fill="none" stroke="#F2F2F7" stroke-width="2.6" stroke-linecap="round"/><circle cx="11" cy="13" r="3" fill="#0A84FF"/></svg>
+<h1>Reliability analysis, in one workspace.</h1>
+<p class="lede">ReliaKit fits life data, builds system diagrams, runs FMEA and warranty forecasts, and predicts failure rates, with every analysis kept as an item in a single project file. Results move between items, so a fit can drive a diagram, a calculator, and a prediction without retyping.</p>
+<div class="cta">
+<a class="btn btn-primary" href="./demo/">Try the live demo</a>
+<a class="btn btn-ghost" href="https://github.com/chickenfeetbatman/reliakit/releases/tag/v0.3.0">Download v0.3.0</a>
+</div>
+<p class="fine">Free and open source under the MIT license. Desktop app for Windows, macOS, and Linux, plus a command line tool. The demo runs the same engine in your browser.</p>
+</header>
+
+<section id="features">
+<p class="kicker">What is inside</p>
+<h2>Eighteen analyses, one project file</h2>
+<p class="sub">Add an item for each analysis. Each item holds its own inputs and results, and the project saves to one JSON file you can keep with the rest of your engineering records.</p>
+<div class="grid">
+<div class="card"><h3>Life Data</h3><p>Fit 14 distributions to failure and suspension times by maximum likelihood or rank regression, with Fisher matrix bounds, probability plots, Kaplan-Meier, and a distribution wizard that ranks candidates by AIC, BIC, and Anderson-Darling.</p></div>
+<div class="card"><h3>Limited Data and MCMC</h3><p>Small lot methods that stay honest about sample size: Weibull shape bias correction, hierarchical shrinkage, split-conformal bounds, and Bayesian MCMC with R-hat and ESS diagnostics.</p></div>
+<div class="card"><h3>Degradation and ALT</h3><p>Path fits and pseudo-failure times for degradation data, plus accelerated life testing with Arrhenius, inverse power law, and Eyring models, including censored maximum likelihood and step-stress profiles.</p></div>
+<div class="card"><h3>Growth and Competing Risks</h3><p>Crow-AMSAA, Duane, Gompertz, and Lloyd-Lipow growth models, and cause-specific competing risk fits with cumulative incidence per failure mode.</p></div>
+<div class="card"><h3>System RBD</h3><p>Series, parallel, and k-out-of-n diagrams with standby groups, dormancy, and switch reliability. CTMC and Monte Carlo availability, plus Birnbaum, criticality, and Fussell-Vesely importance.</p></div>
+<div class="card"><h3>Fault Tree and Markov</h3><p>Gate trees with top event probability and minimal cut sets, and continuous time Markov models with steady state, transient probabilities, and mean time to absorption.</p></div>
+<div class="card"><h3>FMEA, RCM, and FRACAS</h3><p>Design, Process, and System worksheets with RPN and FMECA criticality, DVP&amp;R and control plan export, an RCM worksheet with task selection, and a FRACAS incident log with MTBF summary.</p></div>
+<div class="card"><h3>Warranty</h3><p>Nevada table aggregation from sales and returns, a Weibull fit to returns, and a forecast of returns for units still in service.</p></div>
+<div class="card"><h3>Prediction</h3><p>Parts-count and parts-stress prediction, reliability allocation, and derating checks. The MIL-HDBK-217F Notice 2 library is built in from the public handbook. SR-332 and 62380-style methods run on data you supply, and local library files import in CSV.</p></div>
+<div class="card"><h3>DOE and Flowchart</h3><p>Two-level factorial designs with effects and sums of squares, plus fractional, Plackett-Burman, Taguchi, and response surface designs. Flowchart simulation gives run time and cost distributions for process networks.</p></div>
+<div class="card"><h3>QCP</h3><p>A quick calculation pad for any distribution: reliability, unreliability, hazard, mean life, pdf, and Bx life at a mission time.</p></div>
+<div class="card"><h3>Data flows between items</h3><p>Send a Life Data fit to an RBD block, to QCP, or to Prediction. Turn an FMEA row into an RCM row. Export FRACAS incidents to a Life Data item. Six flows in all, each one click from the source item.</p></div>
+</div>
+</section>
+
+<section id="screenshots">
+<p class="kicker">Screenshots</p>
+<h2>The desktop app and the browser demo</h2>
+<p class="sub">The same interface runs as a desktop app and as a live demo in the browser. The demo below is the real engine, compiled to WebAssembly.</p>
+<div class="shots">
+<figure class="shot"><img src="assets/shots/01-start.png" alt="ReliaKit start page with example and dataset cards"><figcaption>Start page: examples and bundled datasets load as items in the current project.</figcaption></figure>
+<figure class="shot"><img src="assets/shots/03-life-fit.png" alt="Life Data screen with a fitted reliability curve and result cards"><figcaption>Life Data: a fitted reliability curve with headline and result cards.</figcaption></figure>
+<figure class="shot"><img src="assets/shots/07-rbd-drag-selected.png" alt="System RBD canvas with a selected block and its inspector"><figcaption>System RBD: place blocks from the palette, drag to arrange, and edit the selected block in the inspector.</figcaption></figure>
+<figure class="shot"><img src="assets/shots/12-demo.png" alt="ReliaKit running as a demo in a web browser"><figcaption>The browser demo: the full workspace with no install.</figcaption></figure>
+</div>
+<p style="margin-top:20px"><a class="btn btn-primary" href="./demo/">Open the live demo</a></p>
+</section>
+
+<section id="download">
+<p class="kicker">Download</p>
+<h2>Get v0.3.0</h2>
+<p class="sub">Six files: the desktop app and the command line tool for each platform. Source code and build instructions are on <a href="https://github.com/chickenfeetbatman/reliakit">GitHub</a>. The full notes are in the <a href="https://github.com/chickenfeetbatman/reliakit/releases/tag/v0.3.0">v0.3.0 release</a>.</p>
+<div class="dl">
+<div class="card"><h3>Windows</h3><p><a href="https://github.com/chickenfeetbatman/reliakit/releases/download/v0.3.0/reliakit-app-windows.exe">Desktop app (.exe)</a><br><a href="https://github.com/chickenfeetbatman/reliakit/releases/download/v0.3.0/reliakit-cli-Windows.exe">Command line (.exe)</a></p><p style="margin-top:8px">The app is unsigned, so SmartScreen may ask you to confirm before the first run.</p></div>
+<div class="card"><h3>macOS</h3><p><a href="https://github.com/chickenfeetbatman/reliakit/releases/download/v0.3.0/reliakit-app-macos">Desktop app (raw binary)</a><br><a href="https://github.com/chickenfeetbatman/reliakit/releases/download/v0.3.0/reliakit-cli-macOS">Command line</a></p><p style="margin-top:8px">The download is a raw binary, not an .app bundle. Mark it executable after downloading, then run it from a terminal.</p></div>
+<div class="card"><h3>Linux</h3><p><a href="https://github.com/chickenfeetbatman/reliakit/releases/download/v0.3.0/reliakit-app-linux">Desktop app</a><br><a href="https://github.com/chickenfeetbatman/reliakit/releases/download/v0.3.0/reliakit-cli-Linux">Command line</a></p><p style="margin-top:8px">The desktop app needs the WebKitGTK runtime. Mark the file executable after downloading.</p></div>
+</div>
+</section>
+
+<footer>
+<p>ReliaKit is MIT licensed. Interface font: Inter by Rasmus Andersson, SIL Open Font License 1.1. Desktop shell: Tauri, MIT and Apache-2.0. The MIL-HDBK-217F Notice 2 library is transcribed from the public US government handbook, with the source table recorded for each category. No proprietary data is bundled.</p>
+<p><a href="./demo/">Live demo</a> · <a href="https://github.com/chickenfeetbatman/reliakit/releases/tag/v0.3.0">v0.3.0 release</a> · <a href="https://github.com/chickenfeetbatman/reliakit">Source on GitHub</a></p>
+</footer>
+</div>
+</body>
+</html>

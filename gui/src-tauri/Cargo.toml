@@ -1,0 +1,19 @@
+[package]
+name = "reliakit-app"
+version = "0.3.0"
+edition = "2021"
+license = "MIT"
+description = "ReliaKit desktop application (Tauri shell over the reliakit-engine JSON dispatcher)"
+authors = ["chickenfeetbatman"]
+
+[[bin]]
+name = "reliakit-app"
+path = "src/main.rs"
+
+[dependencies]
+tauri = { version = "2", features = ["image-png"] }
+reliakit-engine = { path = "../../engine" }
+serde_json = "1"
+
+[build-dependencies]
+tauri-build = "2"

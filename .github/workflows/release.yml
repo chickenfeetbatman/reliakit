@@ -16,39 +16,69 @@ jobs:
       matrix:
         include:
           - os: ubuntu-latest
-            artifact: reliakit-app-linux
-            binary: reliakit-app
-          - os: windows-latest
-            artifact: reliakit-app-windows
-            binary: reliakit-app.exe
+            app_artifact: reliakit-app-linux
+            app_binary: reliakit-app
+            cli_artifact: reliakit-cli-Linux
+            cli_binary: reliakit
           - os: macos-latest
-            artifact: reliakit-app-macos
-            binary: reliakit-app
+            app_artifact: reliakit-app-macos
+            app_binary: reliakit-app
+            cli_artifact: reliakit-cli-macOS
+            cli_binary: reliakit
+          - os: windows-latest
+            app_artifact: reliakit-app-windows.exe
+            app_binary: reliakit-app.exe
+            cli_artifact: reliakit-cli-Windows.exe
+            cli_binary: reliakit.exe
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
-      - name: Install Linux GUI build dependencies
+      - name: Install Tauri Linux dependencies
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y libxcb-render0-dev libxcb-shape0-dev libxcb-xfixes0-dev libxkbcommon-dev libssl-dev libfontconfig1-dev pkg-config
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libsoup-3.0-dev libayatana-appindicator3-dev librsvg2-dev
       - name: Build release binaries
-        run: cargo build --release --workspace --bins
+        run: |
+          cargo build --release -p reliakit
+          cargo build --release -p reliakit-app
       - name: Package (Linux and macOS)
         if: runner.os != 'Windows'
         shell: bash
         run: |
           mkdir -p dist
-          cp target/release/reliakit-app "dist/${{ matrix.artifact }}"
-          cp target/release/reliakit "dist/reliakit-cli-${{ runner.os }}"
+          cp "target/release/${{ matrix.app_binary }}" "dist/${{ matrix.app_artifact }}"
+          cp "target/release/${{ matrix.cli_binary }}" "dist/${{ matrix.cli_artifact }}"
       - name: Package (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force dist
-          Copy-Item target/release/reliakit-app.exe "dist/${{ matrix.artifact }}.exe"
-          Copy-Item target/release/reliakit.exe "dist/reliakit-cli-Windows.exe"
+          Copy-Item "target/release/${{ matrix.app_binary }}" "dist/${{ matrix.app_artifact }}"
+          Copy-Item "target/release/${{ matrix.cli_binary }}" "dist/${{ matrix.cli_artifact }}"
       - name: Attach to GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           files: dist/*
+          body: |
+            ## ReliaKit v0.3.0
+
+            What is new in v0.3.0:
+
+            - The desktop app is now a Tauri 2 shell with a web user interface, replacing the egui front end from v0.2.0.
+            - A new start page with the project workspace, examples, and bundled datasets.
+            - All modules carried over: life data, limited data, MCMC, degradation, ALT, reliability growth, competing risks, RBD with a canvas editor, fault trees, FMEA and FMECA, warranty, prediction (MIL-HDBK-217F library plus clean-room SR-332 and 62380-style methods), DOE, flowchart simulation, Markov, QCP, RCM, and FRACAS.
+            - A live browser demo of the same engine runs on the project site (GitHub Pages), built from the same Rust code as WebAssembly. No install needed to try it.
+            - The project file format is unchanged (reliakit-project-2), so v0.2.0 projects open as before.
+
+            Downloads:
+
+            - Windows: reliakit-app-windows.exe is the desktop app, reliakit-cli-Windows.exe is the command line tool.
+            - macOS: reliakit-app-macos is the desktop app, reliakit-cli-macOS is the command line tool.
+            - Linux: reliakit-app-linux is the desktop app, reliakit-cli-Linux is the command line tool.
+
+            Unsigned binary notes:
+
+            - Windows SmartScreen: the binaries are not code signed. If Windows shows a warning, choose More info, then Run anyway.
+            - macOS Gatekeeper: the binaries are not code signed or notarized. Right-click the file and choose Open to run it the first time. The macOS download is a raw binary, not an .app bundle, so run it from Terminal (for example: chmod +x reliakit-app-macos, then ./reliakit-app-macos).
+            - Linux: the app needs the WebKitGTK runtime installed (the libwebkit2gtk-4.1 package on Debian and Ubuntu). The CLI tool has no such dependency.
