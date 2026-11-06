@@ -1034,12 +1034,279 @@ fn str_json(v: &[&str]) -> Value {
 
 const BLOCK_W: f32 = 128.0;
 const BLOCK_H: f32 = 56.0;
+const RAIL_OFFSET: f32 = 18.0;
+const FRAME_PAD: f32 = 14.0;
 
-fn block_geom_json(w: &Work, idx: usize) -> Option<Value> {
+// ---- RBD topology drawing (v0.3.1) ----
+// Geometry is derived from the spec tree itself, using FINAL leaf
+// positions: a leaf's stored pos if present (user placement or a
+// drag wins), else its topology layout slot from
+// Work::rbd_layout_slots. Group bounding boxes are unions of their
+// children's final boxes, so connectors, frames and ghosts stay
+// faithful even after blocks are dragged.
+
+#[derive(Clone, Copy, Debug)]
+struct BBox {
+    x: f32,
+    y: f32,
+    w: f32,
+    h: f32,
+}
+impl BBox {
+    fn right(&self) -> f32 {
+        self.x + self.w
+    }
+    fn bottom(&self) -> f32 {
+        self.y + self.h
+    }
+    fn cy(&self) -> f32 {
+        self.y + self.h / 2.0
+    }
+    fn union(a: BBox, b: BBox) -> BBox {
+        let x = a.x.min(b.x);
+        let y = a.y.min(b.y);
+        let r = a.right().max(b.right());
+        let bot = a.bottom().max(b.bottom());
+        BBox { x, y, w: r - x, h: bot - y }
+    }
+}
+
+struct RbdDrawing {
+    finals: Vec<(f32, f32)>,
+    bboxes: std::collections::HashMap<Vec<usize>, BBox>,
+    inout: std::collections::HashMap<Vec<usize>, ((f32, f32), (f32, f32))>,
+}
+
+fn build_bbox(
+    node: &Value,
+    path: &mut Vec<usize>,
+    leaf_index: &std::collections::HashMap<Vec<usize>, usize>,
+    finals: &[(f32, f32)],
+    bboxes: &mut std::collections::HashMap<Vec<usize>, BBox>,
+) -> Option<BBox> {
+    let ty = node.get("type").and_then(|v| v.as_str()).unwrap_or("");
+    if ty == "block" || ty == "standby_group" {
+        let idx = leaf_index.get(path.as_slice())?;
+        let (x, y) = finals.get(*idx).copied().unwrap_or((30.0, 90.0));
+        let bb = BBox { x, y, w: BLOCK_W, h: BLOCK_H };
+        bboxes.insert(path.clone(), bb);
+        return Some(bb);
+    }
+    let children = node.get("children").and_then(|v| v.as_array())?;
+    let mut acc: Option<BBox> = None;
+    for (i, c) in children.iter().enumerate() {
+        path.push(i);
+        if let Some(cb) = build_bbox(c, path, leaf_index, finals, bboxes) {
+            acc = Some(match acc {
+                None => cb,
+                Some(a) => BBox::union(a, cb),
+            });
+        }
+        path.pop();
+    }
+    if let Some(bb) = acc {
+        bboxes.insert(path.clone(), bb);
+    }
+    acc
+}
+
+fn build_inout(
+    node: &Value,
+    path: &mut Vec<usize>,
+    bboxes: &std::collections::HashMap<Vec<usize>, BBox>,
+    inout: &mut std::collections::HashMap<Vec<usize>, ((f32, f32), (f32, f32))>,
+) -> Option<((f32, f32), (f32, f32))> {
+    let bb = bboxes.get(path.as_slice()).copied()?;
+    let ty = node.get("type").and_then(|v| v.as_str()).unwrap_or("");
+    let result = match ty {
+        "block" | "standby_group" => ((bb.x, bb.cy()), (bb.right(), bb.cy())),
+        "parallel" | "kofn" => {
+            // Populate child in/out points first; the rails and
+            // stubs in gen_segments are drawn to those points.
+            if let Some(children) = node.get("children").and_then(|v| v.as_array()).cloned() {
+                for (i, c) in children.iter().enumerate() {
+                    path.push(i);
+                    let _ = build_inout(c, path, bboxes, inout);
+                    path.pop();
+                }
+            }
+            (
+                (bb.x - RAIL_OFFSET, bb.cy()),
+                (bb.right() + RAIL_OFFSET, bb.cy()),
+            )
+        }
+        "series" => {
+            let children = node.get("children").and_then(|v| v.as_array())?;
+            if children.is_empty() {
+                ((bb.x, bb.cy()), (bb.right(), bb.cy()))
+            } else {
+                let mut first: Option<(f32, f32)> = None;
+                let mut last: Option<(f32, f32)> = None;
+                for (i, c) in children.iter().enumerate() {
+                    path.push(i);
+                    if let Some((cin, cout)) = build_inout(c, path, bboxes, inout) {
+                        if first.is_none() {
+                            first = Some(cin);
+                        }
+                        last = Some(cout);
+                    }
+                    path.pop();
+                }
+                // A series subtree enters through its first child
+                // and leaves through its last child. Those points
+                // share the group's left and right edges; their y
+                // follows the actual first/last component rather
+                // than the bbox centre when child heights differ.
+                match (first, last) {
+                    (Some(fi), Some(lo)) => (fi, lo),
+                    _ => ((bb.x, bb.cy()), (bb.right(), bb.cy())),
+                }
+            }
+        }
+        _ => {
+            if let Some(children) = node.get("children").and_then(|v| v.as_array()).cloned() {
+                for (i, c) in children.iter().enumerate() {
+                    path.push(i);
+                    let _ = build_inout(c, path, bboxes, inout);
+                    path.pop();
+                }
+            }
+            ((bb.x, bb.cy()), (bb.right(), bb.cy()))
+        }
+    };
+    inout.insert(path.clone(), result);
+    Some(result)
+}
+
+fn rbd_drawing(w: &Work) -> RbdDrawing {
+    let paths = Work::leaf_paths(&w.rbd_spec);
+    let slots = Work::rbd_layout_slots(&w.rbd_spec);
+    let mut leaf_index = std::collections::HashMap::new();
+    let mut finals: Vec<(f32, f32)> = Vec::new();
+    for (i, p) in paths.iter().enumerate() {
+        leaf_index.insert(p.clone(), i);
+        let node = Work::node_at(&w.rbd_spec, p);
+        let pos = node
+            .as_ref()
+            .and_then(|n| Work::stored_pos(n))
+            .or_else(|| slots.get(i).copied())
+            .unwrap_or((30.0 + (i as f32) * 160.0, 90.0));
+        finals.push(pos);
+    }
+    let mut bboxes = std::collections::HashMap::new();
+    build_bbox(&w.rbd_spec.clone(), &mut Vec::new(), &leaf_index, &finals, &mut bboxes);
+    let mut inout = std::collections::HashMap::new();
+    build_inout(&w.rbd_spec.clone(), &mut Vec::new(), &bboxes, &mut inout);
+    RbdDrawing { finals, bboxes, inout }
+}
+
+fn push_bar(out: &mut Vec<Value>, x: f32, y: f32, wdt: f32, hgt: f32) {
+    if wdt > 0.0 && hgt > 0.0 {
+        out.push(json!({"x": x, "y": y, "w": wdt, "h": hgt}));
+    }
+}
+
+fn push_elbow(out: &mut Vec<Value>, from: (f32, f32), to: (f32, f32)) {
+    const T: f32 = 2.0;
+    if (from.1 - to.1).abs() < 1.0 {
+        let (hx, hw) = if to.0 >= from.0 { (from.0, to.0 - from.0) } else { (to.0, from.0 - to.0) };
+        push_bar(out, hx, from.1 - T / 2.0, hw, T);
+    } else {
+        let mid = if to.0 >= from.0 { (from.0 + to.0) / 2.0 } else { from.0 + 16.0 };
+        let (hx, hw) = if mid >= from.0 { (from.0, mid - from.0) } else { (mid, from.0 - mid) };
+        push_bar(out, hx, from.1 - T / 2.0, hw, T);
+        let (top, bot) = if from.1 < to.1 { (from.1, to.1) } else { (to.1, from.1) };
+        push_bar(out, mid - T / 2.0, top, T, bot - top);
+        let (hx2, hw2) = if to.0 >= mid { (mid, to.0 - mid) } else { (to.0, mid - to.0) };
+        push_bar(out, hx2, to.1 - T / 2.0, hw2, T);
+    }
+}
+
+fn gen_segments(
+    node: &Value,
+    path: &mut Vec<usize>,
+    drawing: &RbdDrawing,
+    out: &mut Vec<Value>,
+) {
+    const T: f32 = 2.0;
+    let ty = node.get("type").and_then(|v| v.as_str()).unwrap_or("");
+    if ty == "block" || ty == "standby_group" {
+        return;
+    }
+    let children: Vec<Value> = node
+        .get("children")
+        .and_then(|v| v.as_array())
+        .cloned()
+        .unwrap_or_default();
+    if children.is_empty() {
+        return;
+    }
+    // Child paths and points, in tree order.
+    let mut child_paths: Vec<Vec<usize>> = Vec::new();
+    for i in 0..children.len() {
+        let mut p = path.clone();
+        p.push(i);
+        child_paths.push(p);
+    }
+    match ty {
+        "series" => {
+            for pair in child_paths.windows(2) {
+                if let (Some(a), Some(b)) = (
+                    drawing.inout.get(pair[0].as_slice()),
+                    drawing.inout.get(pair[1].as_slice()),
+                ) {
+                    push_elbow(out, a.1, b.0);
+                }
+            }
+        }
+        "parallel" | "kofn" => {
+            if let Some(bb) = drawing.bboxes.get(path.as_slice()).copied() {
+                let split_x = bb.x - RAIL_OFFSET;
+                let merge_x = bb.right() + RAIL_OFFSET;
+                let mut ins: Vec<(f32, f32)> = Vec::new();
+                let mut outs: Vec<(f32, f32)> = Vec::new();
+                for cp in &child_paths {
+                    if let Some((cin, cout)) = drawing.inout.get(cp.as_slice()) {
+                        ins.push(*cin);
+                        outs.push(*cout);
+                    }
+                }
+                if ins.len() >= 2 {
+                    let first_y = ins[0].1;
+                    let last_y = ins[ins.len() - 1].1;
+                    let (top, bot) = if first_y < last_y { (first_y, last_y) } else { (last_y, first_y) };
+                    push_bar(out, split_x - T / 2.0, top, T, bot - top);
+                    let first_o = outs[0].1;
+                    let last_o = outs[outs.len() - 1].1;
+                    let (top2, bot2) = if first_o < last_o { (first_o, last_o) } else { (last_o, first_o) };
+                    push_bar(out, merge_x - T / 2.0, top2, T, bot2 - top2);
+                } else if ins.len() == 1 {
+                    // Single branch: rails degenerate to stubs below.
+                }
+                for cin in &ins {
+                    let (hx, hw) = if cin.0 >= split_x { (split_x, cin.0 - split_x) } else { (cin.0, split_x - cin.0) };
+                    push_bar(out, hx, cin.1 - T / 2.0, hw, T);
+                }
+                for cout in &outs {
+                    let (hx, hw) = if merge_x >= cout.0 { (cout.0, merge_x - cout.0) } else { (merge_x, cout.0 - merge_x) };
+                    push_bar(out, hx, cout.1 - T / 2.0, hw, T);
+                }
+            }
+        }
+        _ => {}
+    }
+    for (i, c) in children.iter().enumerate() {
+        path.push(i);
+        gen_segments(c, path, drawing, out);
+        path.pop();
+    }
+}
+
+fn block_geom_json_with(w: &Work, idx: usize, drawing: &RbdDrawing) -> Option<Value> {
     let paths = Work::leaf_paths(&w.rbd_spec);
     let path = paths.get(idx)?;
     let node = Work::node_at(&w.rbd_spec, path)?;
-    let (x, y) = Work::leaf_pos(&node, idx);
+    let (x, y) = drawing.finals.get(idx).copied().unwrap_or((30.0, 90.0));
     let ty = node.get("type").and_then(|v| v.as_str()).unwrap_or("");
     let name = node.get("name").and_then(|v| v.as_str()).unwrap_or("block").to_string();
     let sub = if ty == "standby_group" {
@@ -1063,52 +1330,74 @@ fn block_geom_json(w: &Work, idx: usize) -> Option<Value> {
 }
 
 fn rbd_geoms_json(w: &Work) -> Value {
+    let drawing = rbd_drawing(w);
     let n = Work::leaf_paths(&w.rbd_spec).len();
-    Value::Array((0..n).filter_map(|i| block_geom_json(w, i)).collect())
+    Value::Array((0..n).filter_map(|i| block_geom_json_with(w, i, &drawing)).collect())
 }
 
-/// Connector bars between blocks, ported from segments_vec.
+/// Structural connectors generated from the spec tree.
 fn segments_json(w: &Work) -> Value {
-    const T: f32 = 2.0;
+    let drawing = rbd_drawing(w);
     let mut out: Vec<Value> = Vec::new();
-    let mut bar = |x: f32, y: f32, wdt: f32, hgt: f32, out: &mut Vec<Value>| {
-        if wdt > 0.0 && hgt > 0.0 {
-            out.push(json!({"x": x, "y": y, "w": wdt, "h": hgt}));
+    gen_segments(&w.rbd_spec.clone(), &mut Vec::new(), &drawing, &mut out);
+    Value::Array(out)
+}
+
+fn collect_frames(
+    node: &Value,
+    path: &mut Vec<usize>,
+    is_root: bool,
+    drawing: &RbdDrawing,
+    out: &mut Vec<Value>,
+) {
+    let ty = node.get("type").and_then(|v| v.as_str()).unwrap_or("");
+    let is_group = ty == "series" || ty == "parallel" || ty == "kofn";
+    if is_group && !(is_root && ty == "series") {
+        if let Some(bb) = drawing.bboxes.get(path.as_slice()).copied() {
+            let label = match ty {
+                "series" => "Series".to_string(),
+                "parallel" => "Parallel".to_string(),
+                _ => {
+                    let k = node.get("k").and_then(|v| v.as_u64()).unwrap_or(1);
+                    let n = node.get("children").and_then(|v| v.as_array()).map(|a| a.len()).unwrap_or(0);
+                    format!("k-out-of-n ({} of {})", k, n)
+                }
+            };
+            out.push(json!({
+                "x": bb.x - FRAME_PAD,
+                "y": bb.y - FRAME_PAD,
+                "w": bb.w + FRAME_PAD * 2.0,
+                "h": bb.h + FRAME_PAD * 2.0,
+                "label": label,
+            }));
         }
-    };
+    }
+    if let Some(children) = node.get("children").and_then(|v| v.as_array()).cloned() {
+        for (i, c) in children.iter().enumerate() {
+            path.push(i);
+            collect_frames(c, path, false, drawing, out);
+            path.pop();
+        }
+    }
+}
+
+fn frames_json(w: &Work) -> Value {
+    let drawing = rbd_drawing(w);
+    let mut out: Vec<Value> = Vec::new();
+    collect_frames(&w.rbd_spec.clone(), &mut Vec::new(), true, &drawing, &mut out);
+    Value::Array(out)
+}
+
+fn ghosts_json(w: &Work) -> Value {
+    let drawing = rbd_drawing(w);
     let paths = Work::leaf_paths(&w.rbd_spec);
-    for pair in paths.windows(2) {
-        let (a, b) = (&pair[0], &pair[1]);
-        let ia = paths.iter().position(|p| p == a).unwrap_or(0);
-        let ib = ia + 1;
-        let _ = b;
-        let (ga, gb) = match (block_geom_json(w, ia), block_geom_json(w, ib)) {
-            (Some(x), Some(y)) => (x, y),
-            _ => continue,
-        };
-        let gx = |v: &Value| v.get("x").and_then(|x| x.as_f64()).unwrap_or(0.0) as f32;
-        let gy = |v: &Value| v.get("y").and_then(|x| x.as_f64()).unwrap_or(0.0) as f32;
-        let (x1, y1) = (gx(&ga) + BLOCK_W, gy(&ga) + BLOCK_H / 2.0);
-        let (x2, y2) = (gx(&gb), gy(&gb) + BLOCK_H / 2.0);
-        if y2 > y1 + BLOCK_H {
-            let sx = gx(&ga) + BLOCK_W / 2.0;
-            let sy = gy(&ga) + BLOCK_H;
-            let tx = gx(&gb) + BLOCK_W / 2.0;
-            let ty = gy(&gb);
-            let midy = (sy + ty) / 2.0;
-            bar(sx - T / 2.0, sy, T, midy - sy, &mut out);
-            let (hx, hw) = if sx < tx { (sx, tx - sx) } else { (tx, sx - tx) };
-            bar(hx, midy - T / 2.0, hw, T, &mut out);
-            bar(tx - T / 2.0, midy, T, ty - midy, &mut out);
-        } else if (y1 - y2).abs() < 1.0 && x2 >= x1 {
-            bar(x1, y1 - T / 2.0, x2 - x1, T, &mut out);
-        } else {
-            let mid = if x2 >= x1 { (x1 + x2) / 2.0 } else { x1 + 16.0 };
-            bar(x1, y1 - T / 2.0, mid - x1, T, &mut out);
-            let (top, bot) = if y1 < y2 { (y1, y2) } else { (y2, y1) };
-            bar(mid - T / 2.0, top, T, bot - top, &mut out);
-            let (hx, hw) = if x2 >= mid { (mid, x2 - mid) } else { (x2, mid - x2) };
-            bar(hx, y2 - T / 2.0, hw, T, &mut out);
+    let mut out: Vec<Value> = Vec::new();
+    for (i, p) in paths.iter().enumerate() {
+        if let Some(node) = Work::node_at(&w.rbd_spec, p) {
+            if node.get("type").and_then(|v| v.as_str()) == Some("standby_group") {
+                let (x, y) = drawing.finals.get(i).copied().unwrap_or((30.0, 90.0));
+                out.push(json!({"x": x + 7.0, "y": y - 7.0, "w": BLOCK_W, "h": BLOCK_H, "idx": i}));
+            }
         }
     }
     Value::Array(out)
@@ -1560,6 +1849,8 @@ pub fn build_state(w: &Work) -> Value {
             "armed": w.rbd_armed.clone().unwrap_or_default(),
             "blocks": rbd_geoms_json(w),
             "segments": segments_json(w),
+            "frames": frames_json(w),
+            "ghosts": ghosts_json(w),
             "spec": w.rbd_spec,
             "has-selection": w.rbd_sel.is_some(),
             "sel-title": sel_title,

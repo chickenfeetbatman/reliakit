@@ -1,5 +1,52 @@
 # Changelog
 
+## v0.3.1
+
+A fix and navigation update. The engine, the project file format
+(reliakit-project-2), and all 18 item kinds are unchanged.
+
+- Fixed RBD dragging. In v0.3.0, blocks could not be dragged to new
+  positions. Now the whole block drags smoothly, and the new position
+  is saved in the project file and restored when the project is
+  reopened.
+- Fixed RBD drawing (correctness). Diagrams now draw the topology
+  that is actually evaluated. Parallel and k-out-of-n groups draw as
+  branches between split and merge rails, standby groups show their
+  standby unit, and nested groups are framed and labeled, so the
+  picture matches the model. In v0.3.0 the bundled Example 3 drew
+  its parallel controllers in series.
+- Visual picker. Add item now opens a picker with a card for each of
+  the 18 analysis kinds, grouped by family (Life data analysis,
+  System modeling, Risk and maintenance, Prediction and design),
+  each card with an icon and a one-line description. An optional name
+  field sits at the top of the picker.
+- Grouped project tree. The item list in the project panel is grouped
+  under the same four family headings, with a count per family. Each
+  group can be collapsed and expanded.
+- Quick switcher. Ctrl+K (Cmd+K on macOS) opens a Jump to box that
+  lists the project items, a New entry for each of the 18 kinds,
+  Add item, Save project, Open project, Start page, and Tours. Type
+  to filter, use the arrow keys and Enter, or click an entry.
+- Item screen header. Every item screen now has the same header: an
+  editable item name, the kind label, a one-line description, a
+  Tour this screen button, and a Remove button.
+- Start page. A Start an analysis section adds cards for Life Data,
+  RBD, FMEA, Prediction, Markov, and FRACAS that create that kind of
+  item in one click.
+- Guided tours. A Tours button in the toolbar opens a list of tours
+  for all 18 kinds, grouped by family with a step count per tour.
+  Each tour sets up its own new item named Tour: plus the kind name,
+  loads an example or starts fresh, and walks through one analysis
+  step by step with a highlighted target and Back, Next, and Finish
+  controls. Your existing items are not changed. Every item screen
+  also has a Tour this screen button that starts the tour for that
+  kind.
+- First project wizard. The start page has a New here? Build your
+  first project card with three goal paths: Analyze failure data
+  (starts the Life Data tour), Model a system (starts the RBD tour),
+  and Track failures and maintenance (starts the FRACAS tour).
+- Browser demo updated with all of the above.
+
 ## v0.3.0
 
 ReliaKit has a new interface, and it now runs in the browser as well as

@@ -5,6 +5,7 @@
 // data-row-act, data-card or data-field hook that app.js dispatches.
 import { escapeHtml, chartCardHtml } from "./charts.js";
 import { rbdCanvasHtml } from "./rbd.js";
+import { KIND_META, kindIndex } from "./kinds.js";
 
 export const ALL_DISTS = ["weibull2", "weibull3", "lognormal", "normal", "exponential", "gamma", "gumbel", "loglogistic", "logistic", "gompertz", "gengamma", "weibull1", "exponential2", "mixed_weibull"];
 export const MCMC_DISTS = ["weibull2", "lognormal"];
@@ -37,7 +38,9 @@ function rowBtn(act, index, text) {
   return '<button type="button" class="btn small" data-row-act="' + E(act) + '" data-row-index="' + Number(index || 0) + '">' + E(text) + "</button>";
 }
 function titleBlock(title, sub) {
-  return '<div><h2 class="screen-title">' + E(title) + '</h2><p class="screen-sub">' + E(sub) + "</p></div>";
+  // The app header now carries the item name, kind label, and kind
+  // description, so screens keep only their guidance text as a caption.
+  return sub ? '<p class="caption screen-caption">' + E(sub) + "</p>" : "";
 }
 function section(t) { return '<h3 class="section-title">' + E(t) + "</h3>"; }
 function caption(t) { return t ? '<p class="caption">' + E(t) + "</p>" : ""; }
@@ -112,22 +115,36 @@ export function renderStart(state, ui) {
   const quick = ui.quickstartDismissed ? "" :
     '<div class="card quickstart"><div class="btn-row" style="justify-content:space-between"><h3 class="section-title">Quickstart</h3><button type="button" class="btn small" data-local="dismiss-quickstart">Dismiss</button></div>' +
     "<ol><li><strong>Projects hold items.</strong> One project file holds every analysis item, and each item keeps its own inputs and results.</li>" +
-    "<li><strong>Add an item.</strong> Pick a kind in the project panel on the left, give it a name if you want one, and choose Add item.</li>" +
+    "<li><strong>Add an item.</strong> Choose Add item and pick the kind of analysis from the visual picker, give it a name if you want one, and the new item opens ready to use.</li>" +
     "<li><strong>Load data or an example.</strong> Type or paste data, load a bundled dataset, or open an example card below.</li>" +
     "<li><strong>Run.</strong> Use the primary button on the item screen. Results appear as cards and in the status bar.</li>" +
     "<li><strong>Send results between items.</strong> A Life Data fit can go to an RBD block, QCP, or Prediction. An FMEA row can create an RCM row, and FRACAS incidents can go to Life Data.</li></ol></div>";
+  const startKeys = ["life", "rbd", "fmea", "prediction", "markov", "fracas"];
+  const startCards = '<div class="cards-grid start-analysis-grid">' + startKeys.map((key) => {
+    const m = KIND_META.find((k) => k.key === key);
+    return '<button type="button" class="card hoverable start-card start-analysis-card" data-add-kind="' + kindIndex(key) + '"><img src="assets/icons/' + E(m.icon) + '.svg" alt=""><span><span class="sc-title">' + E(m.label) + '</span><br><span class="sc-sub">' + E(m.desc) + "</span></span></button>";
+  }).join("") + "</div>";
+  const wizard = '<div class="card wizard-card"><h3 class="section-title">New here? Build your first project</h3>' +
+    '<p class="caption">Each path sets up a starter item and walks you through it, step by step. Your existing items are not changed.</p>' +
+    '<div class="btn-row wizard-paths">' +
+    '<button type="button" class="btn btn-primary" data-wizard-path="failure-data">Analyze failure data</button>' +
+    '<button type="button" class="btn" data-wizard-path="system">Model a system</button>' +
+    '<button type="button" class="btn" data-wizard-path="maintenance">Track failures and maintenance</button>' +
+    "</div></div>";
   return '<div class="start-scroll">' +
     '<div class="hero"><div class="hero-inner"><div class="hero-top"><img class="logo-lg" src="assets/logo.svg" alt="ReliaKit logo"><div><h1>ReliaKit</h1><p class="hero-sub">One project workspace. Each item holds its own analysis, and items send results to each other.</p></div></div>' +
     '<div class="hero-art"><img src="assets/hero.svg" alt="Reliability curve and block diagram"></div></div></div>' +
+    wizard +
     quick +
     '<div class="start-grid">' +
     '<div class="card start-box"><h3 class="section-title">New project</h3><p class="caption">Start empty, then add analysis items from the project panel.</p>' + btn("new-project", "New project", { primary: true }) + "</div>" +
     '<div class="card start-box"><h3 class="section-title">Open project</h3><p class="caption">Project file: ' + E(state.projectPath || "reliakit_project.json") + "</p>" + btn("open-project", "Open project") + "</div>" +
     '<div class="card start-box"><h3 class="section-title">This project</h3><p class="caption">' + E(count === 0 ? "No items yet. Load an example or a dataset below, or add an item from the project panel." : count + " items. Click one in the project panel to open it.") + "</p>" + btn("save-project", "Save project") + "</div>" +
     "</div>" +
+    '<div style="display:flex;flex-direction:column;gap:10px"><h3 class="section-title">Start an analysis</h3>' + startCards + "</div>" +
     '<div style="display:flex;flex-direction:column;gap:10px"><h3 class="section-title">Examples</h3><p class="caption">Each example loads as a new item in this project.</p>' + exRows + "</div>" +
     '<div style="display:flex;flex-direction:column;gap:10px"><h3 class="section-title">Bundled datasets</h3><p class="caption">Documented example datasets from the ReliaSoft documentation and public textbooks, each with its source recorded in datasets/README.md. Life files go to Life Data, ALT files to ALT, degradation files to Degradation, growth files to Growth, and the Nevada warranty file to Warranty.</p>' + dsRows + "</div>" +
-    '<div class="card start-box"><h3 class="section-title">About ReliaKit</h3><p class="caption">ReliaKit v0.3.0. Reliability engineering suite: life data, Bayesian methods, degradation, ALT, growth, RBD, fault trees, FMEA, warranty, prediction, DOE, Markov, RCM, and FRACAS.</p><p class="caption">Built with Tauri (MIT/Apache-2.0). Inter font, SIL Open Font License 1.1. ReliaKit is MIT licensed.</p><div class="btn-row"><button type="button" class="btn" data-local="open-about">About and attributions</button><button type="button" class="btn" data-local="show-quickstart">Show Quickstart</button></div></div>' +
+    '<div class="card start-box"><h3 class="section-title">About ReliaKit</h3><p class="caption">ReliaKit v0.3.1. Reliability engineering suite: life data, Bayesian methods, degradation, ALT, growth, RBD, fault trees, FMEA, warranty, prediction, DOE, Markov, RCM, and FRACAS.</p><p class="caption">Built with Tauri (MIT/Apache-2.0). Inter font, SIL Open Font License 1.1. ReliaKit is MIT licensed.</p><div class="btn-row"><button type="button" class="btn" data-local="open-about">About and attributions</button><button type="button" class="btn" data-local="show-quickstart">Show Quickstart</button></div></div>' +
     "</div>";
 }
 

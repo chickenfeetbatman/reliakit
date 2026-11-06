@@ -20,7 +20,7 @@ Try it now:
 - Live demo: https://chickenfeetbatman.github.io/reliakit/demo/ runs
   the full workspace in your browser, with the engine compiled to
   WebAssembly. No install, and nothing is uploaded.
-- Download v0.3.0: https://github.com/chickenfeetbatman/reliakit/releases/tag/v0.3.0
+- Download v0.3.1: https://github.com/chickenfeetbatman/reliakit/releases/tag/v0.3.1
   has the desktop app and the command line tool for Windows, macOS,
   and Linux.
 - User guide: [docs/USER_GUIDE.md](docs/USER_GUIDE.md) covers every
@@ -106,11 +106,11 @@ its screen, so a downloaded binary runs without data of your own.
 ## Downloads
 
 - Live demo: https://chickenfeetbatman.github.io/reliakit/demo/
-- Release: the [v0.3.0 release](https://github.com/chickenfeetbatman/reliakit/releases/tag/v0.3.0)
+- Release: the [v0.3.1 release](https://github.com/chickenfeetbatman/reliakit/releases/tag/v0.3.1)
   has the desktop app and the CLI for Windows, macOS, and Linux (six
   files). New version tags build new releases the same way.
 - From source: clone this repo and run
-  `cargo run --release -p reliakit-gui` for the desktop app or
+  `cargo run --release -p reliakit-app` for the desktop app or
   `cargo run --release --bin reliakit` for the CLI. The desktop build
   also needs the Tauri prerequisites for your platform, including the
   WebKitGTK runtime packages on Linux; see the user guide platform
@@ -127,9 +127,13 @@ reliakit-project.json, project Open and CSV import use a file picker,
 and controls that need a local file path on the desktop show a short
 note with a working picker or download instead.
 
-The workspace is a start page with example and dataset cards, a
-project source list in the sidebar, the plot, diagram, or table in the
-center, and an inspector with headline result cards on the right. Item
+The workspace is a start page with a first project wizard card,
+Start an analysis cards, and example and dataset cards, a project
+source list in the sidebar grouped by family, the plot, diagram, or
+table in the center, and an inspector with headline result cards on
+the right. Add item opens a visual picker of all 18 kinds grouped by
+family, Ctrl+K (Cmd+K on macOS) opens a quick switcher, and guided
+tours for every kind run from the toolbar Tours list. Item
 kinds: Life Data (CSV load, fit, reliability curve and probability
 plot), Limited Data, MCMC, Degradation, ALT, Growth, Competing Risks,
 System RBD, Fault Tree, FMEA, Warranty, Prediction, DOE, Flowchart,
@@ -146,8 +150,8 @@ distribution, parameters, MTBF/MTTR, and a mode (active, hot standby,
 cold standby, warm with dormancy). The topology evaluates as you edit,
 availability is computed on the same screen, and diagrams save and
 load as the JSON the library and CLI accept. Keyboard shortcuts:
-Ctrl+S saves the project, Ctrl+O opens one, and Delete removes the
-selected RBD block or table row. `reliakit-app --headless` runs a
+Ctrl+S saves the project, Ctrl+O opens one, Ctrl+K opens the quick
+switcher, and Delete removes the selected RBD block or table row. `reliakit-app --headless` runs a
 no-window check: it builds the Example 3 diagram and prints its
 reliability and availability.
 

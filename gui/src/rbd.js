@@ -39,17 +39,25 @@ export function rbdCanvasHtml(rbd) {
     const x = Number(s.x || 0), y = Number(s.y || 0), w = Number(s.w != null ? s.w : (s.width || 0)), h = Number(s.h != null ? s.h : (s.height || 0));
     return '<rect x="' + x + '" y="' + y + '" width="' + Math.max(w, 0) + '" height="' + Math.max(h, 0) + '" rx="1" fill="#64D2FF"/>';
   }).join("");
+  const ghostsHtml = (rbd.ghosts || []).map((g) => {
+    const x = Number(g.x || 0), y = Number(g.y || 0), w = Number(g.w != null ? g.w : 128), h = Number(g.h != null ? g.h : 56);
+    return '<div class="rbd-ghost" style="left:' + x + "px;top:" + y + "px;width:" + w + "px;height:" + h + 'px"></div>';
+  }).join("");
+  const framesHtml = (rbd.frames || []).map((f) => {
+    const x = Number(f.x || 0), y = Number(f.y || 0), w = Number(f.w != null ? f.w : 0), h = Number(f.h != null ? f.h : 0);
+    return '<div class="rbd-frame" style="left:' + x + "px;top:" + y + "px;width:" + w + "px;height:" + h + 'px"><span class="rbd-frame-label">' + E(f.label || "") + "</span></div>";
+  }).join("");
   const blockHtml = blocks.map((b) => {
     const idx = Number(b.idx != null ? b.idx : 0);
     return '<div class="rbd-block' + (b.selected ? " selected" : "") + '" data-rbd-block="' + idx + '" style="left:' + Number(b.x || 0) + "px;top:" + Number(b.y || 0) + 'px" role="button" tabindex="0" aria-label="Block ' + E(b.name || "") + '"><div class="rb-name">' + E(b.name || "") + '</div><div class="rb-sub">' + E(b.sub || "") + "</div></div>";
   }).join("");
   const empty = blocks.length === 0 ? '<div class="rbd-empty">No blocks yet. Arm a palette item and click here to place a block.</div>' : "";
-  return '<div class="rbd-canvas" id="rbd-canvas"><svg class="wires" aria-hidden="true">' + segs + "</svg>" + blockHtml + empty + "</div>";
+  return '<div class="rbd-canvas" id="rbd-canvas">' + framesHtml + ghostsHtml + '<svg class="wires" aria-hidden="true">' + segs + "</svg>" + blockHtml + empty + "</div>";
 }
 
 export function renderRbd(state) {
   const s = state.rbd;
-  let left = '<div><h2 class="screen-title">System RBD</h2><p class="screen-sub">Blocks evaluate with the system reliability engine, including standby groups.</p></div>';
+  let left = '<p class="caption screen-caption">Blocks evaluate with the system reliability engine, including standby groups.</p>';
   left += '<h3 class="section-title">Palette</h3><p class="caption">Pick a palette item, then click the canvas to place it. Click a block to select and edit it. Drag blocks to move them.</p>';
   left += '<div class="btn-row">' +
     '<button type="button" class="btn' + (s.armed === "block" ? " active" : "") + '" data-rbd-arm="block">Single block</button>' +
@@ -111,6 +119,15 @@ export function renderRbd(state) {
 
 // Pointer wiring for the canvas. Called by app.js after each render.
 // dispatch(action, fields) is the app level dispatcher.
+//
+// Drag handling stays local to this closure. app.js dispatch() ends
+// with an unconditional full render() that rebuilds root.innerHTML,
+// which destroys the element that received pointerdown and implicitly
+// releases its pointer capture. So pointerdown and pointermove must
+// never dispatch: the drag is tracked here, the block element is moved
+// directly through its style, and only pointerup commits - one
+// rbd-drag with the final position when the block actually moved, or
+// one rbd-press when it did not (a plain click still selects).
 export function bindRbdCanvas(root, dispatch) {
   const canvas = root.querySelector("#rbd-canvas");
   if (!canvas) return;
@@ -124,26 +141,66 @@ export function bindRbdCanvas(root, dispatch) {
     const el = ev.target.closest("[data-rbd-block]");
     if (!el) return;
     const idx = Number(el.getAttribute("data-rbd-block"));
-    dispatch("rbd-press", { index: String(idx), block_index: String(idx) });
+    if (!Number.isFinite(idx)) return;
     const rect = canvas.getBoundingClientRect();
-    drag = { idx, grabX: ev.clientX - rect.left - el.offsetLeft, grabY: ev.clientY - rect.top - el.offsetTop, moved: false, el };
-    el.setPointerCapture(ev.pointerId);
+    drag = {
+      idx,
+      el,
+      pointerId: ev.pointerId,
+      startX: ev.clientX,
+      startY: ev.clientY,
+      grabX: ev.clientX - rect.left - el.offsetLeft,
+      grabY: ev.clientY - rect.top - el.offsetTop,
+      x: el.offsetLeft,
+      y: el.offsetTop,
+      moved: false,
+    };
+    try { el.setPointerCapture(ev.pointerId); } catch (err) { /* capture is best effort; the move handlers still track the drag */ }
     ev.preventDefault();
   });
   canvas.addEventListener("pointermove", (ev) => {
-    if (!drag) return;
+    if (!drag || ev.pointerId !== drag.pointerId) return;
+    if (!drag.moved) {
+      // A few pixels of travel separate a drag from a click, so plain
+      // clicks keep selecting without moving the block.
+      if (Math.hypot(ev.clientX - drag.startX, ev.clientY - drag.startY) <= 4) return;
+      drag.moved = true;
+      drag.el.classList.add("dragging");
+    }
     const rect = canvas.getBoundingClientRect();
     const x = ev.clientX - rect.left - drag.grabX;
     const y = ev.clientY - rect.top - drag.grabY;
-    drag.moved = true; drag.x = x; drag.y = y;
-    // Move locally for a smooth drag. The engine confirms on release.
-    drag.el.style.left = x + "px"; drag.el.style.top = y + "px";
-    dispatch("rbd-drag", { index: String(drag.idx), block_index: String(drag.idx), x: String(x), y: String(y) }, { silent: true });
+    if (!Number.isFinite(x) || !Number.isFinite(y)) return;
+    drag.x = Math.max(0, x);
+    drag.y = Math.max(0, y);
+    // Move only the dragged element. No dispatch, no re-render.
+    drag.el.style.left = drag.x + "px";
+    drag.el.style.top = drag.y + "px";
   });
-  const finish = () => {
-    if (!drag) return;
+  const finish = async (ev) => {
+    if (!drag || (ev && ev.pointerId !== undefined && ev.pointerId !== drag.pointerId)) return;
     const d = drag; drag = null;
-    dispatch("rbd-release", { index: String(d.idx), block_index: String(d.idx), x: String(d.x || 0), y: String(d.y || 0) });
+    d.el.classList.remove("dragging");
+    try {
+      if (ev && d.el.hasPointerCapture && d.el.hasPointerCapture(ev.pointerId)) d.el.releasePointerCapture(ev.pointerId);
+    } catch (err) { /* capture may already be released */ }
+    if (!d.moved) {
+      // Plain click: select the block and open its inspector.
+      await dispatch("rbd-press", { index: String(d.idx), block_index: String(d.idx) });
+      return;
+    }
+    if (!Number.isFinite(d.x) || !Number.isFinite(d.y)) {
+      // Never send coordinates we cannot stand behind; just select.
+      await dispatch("rbd-press", { index: String(d.idx), block_index: String(d.idx) });
+      return;
+    }
+    const x = Math.max(0, d.x);
+    const y = Math.max(0, d.y);
+    // x and y are the block top-left (no grab fields are sent, and the
+    // engine reads them that way). Then select so the block ends up
+    // selected with the inspector showing it at its new position.
+    await dispatch("rbd-drag", { index: String(d.idx), block_index: String(d.idx), x: String(x), y: String(y) });
+    await dispatch("rbd-press", { index: String(d.idx), block_index: String(d.idx) });
   };
   canvas.addEventListener("pointerup", finish);
   canvas.addEventListener("pointercancel", finish);

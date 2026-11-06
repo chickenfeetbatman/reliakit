@@ -123,6 +123,38 @@ through an open square), and the hero artwork (reliability curves
 over a row of diagram blocks). All were drawn for this project;
 no third party icon pack or emoji is used anywhere in the UI.
 
+## Navigation model and tour overlay (v0.3.1)
+
+The v0.3.1 navigation model replaces the Add item dropdown. It is
+part of the design system and uses the same tokens, cards, and
+transitions as the rest of the interface:
+
+- Visual picker. Adding an item opens a dialog of cards, one per
+  kind, grouped under the four family headings (Life data analysis,
+  System modeling, Risk and maintenance, Prediction and design).
+  Each card carries the kind icon, name, and one-line description,
+  with an optional name field above the groups. The start page
+  reuses the same card shape for its Start an analysis section.
+- Grouped project tree. The sidebar item list is grouped under the
+  same family headings, with a count per family and a collapse
+  control per group, so the picker, the tree, and the Tours list
+  all speak in the same four families.
+- Quick switcher. Ctrl+K (Cmd+K on macOS) opens a Jump to dialog: a
+  filter field over a flat list of items, New entries for every
+  kind, and the project actions. One highlighted row, arrow keys,
+  Enter to run, Escape to close. It is a command surface, not a
+  menu, and it works from any focus state.
+- Item headers. Every item screen opens with the same header: kind
+  icon, editable name, kind label, one-line description, and the
+  Tour this screen and Remove actions. Screens differ below the
+  header, never in it.
+- Tour overlay layer. Guided tours render outside the app root, in
+  a body-level layer the render cycle never rebuilds: a spotlight
+  ring on the target control, a step card placed clear of it, and
+  the Tours list as a wide dialog in the picker dialog shape. The
+  overlay follows re-renders and resizes rather than freezing the
+  screen, and it adds no new colors or type sizes.
+
 ## Platform notes
 
 - The desktop window icon is set at runtime from the bundled

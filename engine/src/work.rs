@@ -1635,15 +1635,128 @@ impl Work {
         (30.0 + (idx as f32) * 160.0, 90.0)
     }
 
-    /// Write default positions into leaves that do not carry one yet,
-    /// so positions survive in the diagram JSON itself.
+    /// Stored pos of a leaf node, if it carries one.
+    pub fn stored_pos(node: &Value) -> Option<(f32, f32)> {
+        let a = node.get("pos").and_then(|v| v.as_array())?;
+        if a.len() == 2 {
+            Some((
+                a[0].as_f64().unwrap_or(30.0) as f32,
+                a[1].as_f64().unwrap_or(90.0) as f32,
+            ))
+        } else {
+            None
+        }
+    }
+
+    // Topology layout (v0.3.1): slots are generated from the same
+    // tree that system::evaluate_rbd evaluates, so the drawing
+    // cannot misrepresent parallel structure as a series chain.
+    // Leaf size is 128x56. Series children go left to right with a
+    // 32px gap, top-aligned. Parallel and kofn children stack
+    // vertically with a 28px gap (branch pitch 84), sharing the
+    // group's left x. Group sizes are recursive: series width is
+    // the sum of child widths plus gaps and height is the max
+    // child height; parallel/kofn width is the max child width
+    // and height is the sum of child heights plus gaps. The root
+    // layout origin is (30, 90).
+    pub const RBD_LEAF_W: f32 = 128.0;
+    pub const RBD_LEAF_H: f32 = 56.0;
+    pub const RBD_SERIES_GAP: f32 = 32.0;
+    pub const RBD_BRANCH_GAP: f32 = 28.0;
+    pub const RBD_ORIGIN_X: f32 = 30.0;
+    pub const RBD_ORIGIN_Y: f32 = 90.0;
+
+    fn rbd_node_size(node: &Value) -> (f32, f32) {
+        let ty = node.get("type").and_then(|v| v.as_str()).unwrap_or("");
+        if ty == "block" || ty == "standby_group" {
+            return (Self::RBD_LEAF_W, Self::RBD_LEAF_H);
+        }
+        let children: Vec<Value> = node
+            .get("children")
+            .and_then(|v| v.as_array())
+            .cloned()
+            .unwrap_or_default();
+        if children.is_empty() {
+            return (0.0, 0.0);
+        }
+        let sizes: Vec<(f32, f32)> = children.iter().map(Self::rbd_node_size).collect();
+        match ty {
+            "series" => {
+                let w = sizes.iter().map(|s| s.0).sum::<f32>()
+                    + Self::RBD_SERIES_GAP * (sizes.len() as f32 - 1.0);
+                let h = sizes.iter().map(|s| s.1).fold(0.0f32, f32::max);
+                (w, h)
+            }
+            "parallel" | "kofn" => {
+                let w = sizes.iter().map(|s| s.0).fold(0.0f32, f32::max);
+                let h = sizes.iter().map(|s| s.1).sum::<f32>()
+                    + Self::RBD_BRANCH_GAP * (sizes.len() as f32 - 1.0);
+                (w, h)
+            }
+            _ => (Self::RBD_LEAF_W, Self::RBD_LEAF_H),
+        }
+    }
+
+    fn rbd_assign_slots(node: &Value, x: f32, y: f32, out: &mut Vec<(f32, f32)>) {
+        let ty = node.get("type").and_then(|v| v.as_str()).unwrap_or("");
+        if ty == "block" || ty == "standby_group" {
+            out.push((x, y));
+            return;
+        }
+        let children: Vec<Value> = node
+            .get("children")
+            .and_then(|v| v.as_array())
+            .cloned()
+            .unwrap_or_default();
+        match ty {
+            "series" => {
+                let mut cx = x;
+                for c in &children {
+                    Self::rbd_assign_slots(c, cx, y, out);
+                    cx += Self::rbd_node_size(c).0 + Self::RBD_SERIES_GAP;
+                }
+            }
+            "parallel" | "kofn" => {
+                let mut cy = y;
+                for c in &children {
+                    Self::rbd_assign_slots(c, x, cy, out);
+                    cy += Self::rbd_node_size(c).1 + Self::RBD_BRANCH_GAP;
+                }
+            }
+            _ => {
+                for c in &children {
+                    Self::rbd_assign_slots(c, x, y, out);
+                }
+            }
+        }
+    }
+
+    /// One layout slot per leaf, in leaf_paths order, with the
+    /// root of the spec laid out at (30, 90).
+    pub fn rbd_layout_slots(spec: &Value) -> Vec<(f32, f32)> {
+        let mut out = Vec::new();
+        Self::rbd_assign_slots(spec, Self::RBD_ORIGIN_X, Self::RBD_ORIGIN_Y, &mut out);
+        out
+    }
+
+    /// Size of a subtree under the topology layout, exposed for
+    /// the connector and frame geometry in the dispatcher.
+    pub fn rbd_subtree_size(node: &Value) -> (f32, f32) {
+        Self::rbd_node_size(node)
+    }
+
+    /// Write topology layout slots into leaves that do not carry a
+    /// pos yet, so positions survive in the diagram JSON itself.
+    /// Leaves that already carry a pos keep it: user placement and
+    /// drags win over the layout.
     pub fn ensure_rbd_positions(&mut self) {
         let paths = Self::leaf_paths(&self.rbd_spec);
+        let slots = Self::rbd_layout_slots(&self.rbd_spec);
         let mut spec = self.rbd_spec.clone();
         for (i, p) in paths.iter().enumerate() {
             if let Some(mut node) = Self::node_at(&spec, p) {
                 if node.get("pos").is_none() {
-                    let pos = Self::leaf_pos(&node, i);
+                    let pos = slots.get(i).copied().unwrap_or((30.0, 90.0));
                     node["pos"] = json!([pos.0, pos.1]);
                     spec = Self::replace_at(&spec, p, node);
                 }
@@ -1737,15 +1850,15 @@ impl Work {
             "parallel" => {
                 let node = json!({"type": "parallel", "children": [
                     mk_block(&format!("parallel {} A", n), bx, by),
-                    mk_block(&format!("parallel {} B", n), bx + 150.0, by),
+                    mk_block(&format!("parallel {} B", n), bx, by + 84.0),
                 ]});
                 self.insert_into_root_series(node);
             }
             "kofn" => {
                 let node = json!({"type": "kofn", "k": 2, "children": [
                     mk_block(&format!("kofn {} A", n), bx, by),
-                    mk_block(&format!("kofn {} B", n), bx + 150.0, by),
-                    mk_block(&format!("kofn {} C", n), bx + 300.0, by),
+                    mk_block(&format!("kofn {} B", n), bx, by + 84.0),
+                    mk_block(&format!("kofn {} C", n), bx, by + 168.0),
                 ]});
                 self.insert_into_root_series(node);
             }

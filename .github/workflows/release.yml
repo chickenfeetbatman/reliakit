@@ -61,15 +61,15 @@ jobs:
         with:
           files: dist/*
           body: |
-            ## ReliaKit v0.3.0
+            ## ReliaKit v0.3.1
 
-            What is new in v0.3.0:
+            What is new in v0.3.1:
 
-            - The desktop app is now a Tauri 2 shell with a web user interface, replacing the egui front end from v0.2.0.
-            - A new start page with the project workspace, examples, and bundled datasets.
-            - All modules carried over: life data, limited data, MCMC, degradation, ALT, reliability growth, competing risks, RBD with a canvas editor, fault trees, FMEA and FMECA, warranty, prediction (MIL-HDBK-217F library plus clean-room SR-332 and 62380-style methods), DOE, flowchart simulation, Markov, QCP, RCM, and FRACAS.
-            - A live browser demo of the same engine runs on the project site (GitHub Pages), built from the same Rust code as WebAssembly. No install needed to try it.
-            - The project file format is unchanged (reliakit-project-2), so v0.2.0 projects open as before.
+            - Fixed: RBD blocks could not be dragged to new positions in v0.3.0. Now the whole block drags smoothly, and the new position is saved in the project file and restored when the project is reopened.
+            - Fixed (correctness): RBD diagrams now draw the topology that is actually evaluated. Parallel and k-out-of-n groups draw as branches between split and merge rails, standby groups show their standby unit, and nested groups are framed and labeled, so the picture matches the model. In v0.3.0 the bundled Example 3 drew its parallel controllers in series.
+            - New navigation: a visual picker for all 18 analysis kinds grouped by family, a grouped project tree, a Ctrl+K (Cmd+K on macOS) quick switcher, a consistent header on every item screen with the item name and a one-line description, and Start an analysis cards on the start page.
+            - New tutorial wizard: guided tours for all 18 kinds that work in a new item, a Tours list in the toolbar, a Tour this screen button on every item, and the "New here? Build your first project" wizard on the start page with three goal paths.
+            - The browser demo is updated with all of the above.
 
             Downloads:
 

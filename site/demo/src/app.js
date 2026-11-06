@@ -9,8 +9,10 @@ import { Transport, downloadTextFile, pickTextFile } from "./wasm.js";
 import { normalizeChart } from "./charts.js";
 import { KIND_OPTIONS, SCREEN_RENDERERS, renderStart, BUNDLED_CSV, MIL217_FILES } from "./screens.js";
 import { renderRbd, bindRbdCanvas } from "./rbd.js";
+import { KIND_META, FAMILIES, kindIndex, kindByKey } from "./kinds.js";
+import { initTours } from "./tours.js";
 
-const VERSION = "v0.3.0";
+const VERSION = "v0.3.1";
 const REPO_URL = "https://github.com/chickenfeetbatman/reliakit";
 // Quickstart dismissal persists in localStorage where the host
 // allows it. Some webview configurations block storage on the app
@@ -238,6 +240,8 @@ export function adaptState(raw) {
       armed: gs("rbd", "armed", ""),
       blocks: (pick(rbdObj, ["blocks"], []) || []).map((b) => ({ idx: b.idx, x: b.x, y: b.y, w: b.w, h: b.h, name: asStr(b.name), sub: asStr(b.sub), selected: asBool(b.selected, false) })),
       segments: pick(rbdObj, ["segments"], []) || [],
+      frames: (pick(rbdObj, ["frames"], []) || []).map((f) => ({ x: f.x, y: f.y, w: f.w, h: f.h, label: asStr(f.label) })),
+      ghosts: (pick(rbdObj, ["ghosts"], []) || []).map((g2) => ({ x: g2.x, y: g2.y, w: g2.w, h: g2.h, idx: g2.idx })),
       hasSelection: gb("rbd", "has_selection", false), selTitle: gs("rbd", "sel_title", ""),
       edName: gs("rbd", "ed_name", ""), edDistIndex: gi("rbd", "ed_dist_index", 0), edParams: gs("rbd", "ed_params", ""),
       edMtbf: gs("rbd", "ed_mtbf", ""), edMttr: gs("rbd", "ed_mttr", ""), edUnits: gs("rbd", "ed_units", "2"),
@@ -334,6 +338,131 @@ let aboutOpen = false;
 let lastStatus = "";
 let localFmeaRow = -1;
 const pending = new Set();
+// Navigation state (v0.3.1): picker, grouped tree, quick switcher.
+// These live outside engine state so re-renders keep them.
+let pickerOpen = false;
+let switcherOpen = false;
+let switcherQuery = "";
+let switcherActive = 0;
+let switcherFiltered = [];
+const collapsedFamilies = new Set();
+let renamePendingValue = null;
+
+function fuzzyScore(label, query) {
+  if (!query) return 0;
+  const text = String(label || "").toLowerCase();
+  const q = String(query || "").toLowerCase();
+  let ti = 0, first = -1, last = -1;
+  for (let qi = 0; qi < q.length; qi++) {
+    const found = text.indexOf(q[qi], ti);
+    if (found < 0) return null;
+    if (first < 0) first = found;
+    last = found;
+    ti = found + 1;
+  }
+  // Shorter span and earlier start are better matches.
+  return (last - first) * 100 + first * 2 + text.length;
+}
+function switcherEntries() {
+  const entries = [];
+  (state.items || []).forEach((it, i) => {
+    entries.push({ type: "item", index: i, label: it.name, sub: it.kindLabel, icon: it.icon, searchText: it.name + " " + it.kindLabel });
+  });
+  entries.push({ type: "add", label: "Add item...", sub: "Open the visual picker", icon: "plus", searchText: "Add item" });
+  KIND_META.forEach((m) => {
+    entries.push({ type: "new-kind", kindKey: m.key, kindIndex: kindIndex(m.key), label: "New " + m.label, sub: m.desc, icon: m.icon, searchText: "New " + m.label + " " + m.key });
+  });
+  entries.push({ type: "save", label: "Save project", sub: "Save the current project", icon: "save", searchText: "Save project" });
+  entries.push({ type: "open", label: "Open project", sub: "Open a project file", icon: "open", searchText: "Open project" });
+  entries.push({ type: "start", label: "Start page", sub: "Go to the start page", icon: "home", searchText: "Start page" });
+  entries.push({ type: "tours", label: "Tours...", sub: "Guided tours", icon: "play", searchText: "Tours" });
+  return entries;
+}
+function computeSwitcherFiltered() {
+  const all = switcherEntries();
+  const q = switcherQuery.trim();
+  if (!q) { switcherFiltered = all; return switcherFiltered; }
+  const scored = [];
+  all.forEach((e, order) => {
+    const s = fuzzyScore(e.searchText || e.label, q);
+    if (s !== null) scored.push({ e, s, order });
+  });
+  scored.sort((a, b) => (a.s - b.s) || (a.order - b.order));
+  switcherFiltered = scored.map((x) => x.e);
+  return switcherFiltered;
+}
+function switcherListHtml() {
+  const list = switcherFiltered;
+  if (!list.length) return '<p class="caption switcher-empty">No matches.</p>';
+  return list.map((e, i) =>
+    '<div class="switcher-row' + (i === switcherActive ? " active" : "") + '" data-switcher-row="' + i + '" role="option" aria-selected="' + (i === switcherActive ? "true" : "false") + '"><img src="assets/icons/' + esc(e.icon || "life") + '.svg" alt=""><span class="switcher-label">' + esc(e.label) + '</span><span class="switcher-sub">' + esc(e.sub || "") + "</span></div>"
+  ).join("");
+}
+function updateSwitcherListDom() {
+  const listEl = document.querySelector("#switcher-list");
+  if (listEl) listEl.innerHTML = switcherListHtml();
+}
+function openSwitcher() {
+  switcherOpen = true;
+  switcherQuery = "";
+  switcherActive = 0;
+  computeSwitcherFiltered();
+  render();
+  const inp = document.querySelector("#switcher-input");
+  if (inp) { inp.focus(); inp.select(); }
+}
+function closeSwitcher() {
+  switcherOpen = false;
+  render();
+}
+function openPicker() {
+  pickerOpen = true;
+  render();
+  const inp = document.querySelector("#picker-name");
+  if (inp) inp.focus();
+}
+function closePicker() {
+  pickerOpen = false;
+  render();
+}
+function addKindByIndex(idx, nameValue) {
+  const kindSel = document.querySelector("#kind-select");
+  if (kindSel) kindSel.value = String(idx);
+  if (nameValue !== undefined) {
+    const nn = document.querySelector("#new-name");
+    if (nn) nn.value = nameValue;
+  }
+  return dispatch("add-item");
+}
+function runSwitcherEntry(entry) {
+  if (!entry) return;
+  switcherOpen = false;
+  if (entry.type === "add") { pickerOpen = true; render(); const inp = document.querySelector("#picker-name"); if (inp) inp.focus(); return; }
+  render();
+  if (entry.type === "item") { dispatch("select-item", { index: String(entry.index), selected_index: String(entry.index) }); return; }
+  if (entry.type === "new-kind") {
+    const kindSel = document.querySelector("#kind-select");
+    if (kindSel) kindSel.value = String(entry.kindIndex);
+    const nn = document.querySelector("#new-name"); if (nn) nn.value = "";
+    dispatch("add-item");
+    return;
+  }
+  if (entry.type === "save") { saveProjectFlow(); return; }
+  if (entry.type === "open") { openProjectFlow(); return; }
+  if (entry.type === "start") { dispatch("go-start"); return; }
+  if (entry.type === "tours") { if (tourApi) tourApi.openList(); return; }
+}
+function commitRename(el) {
+  if (!el) return;
+  const value = (el.value || "").trim();
+  if (!value) return;
+  const sel = state.selectedIndex >= 0 ? state.items[state.selectedIndex] : null;
+  if (!sel) return;
+  if (value === sel.name) return;
+  if (renamePendingValue === value) return;
+  renamePendingValue = value;
+  Promise.resolve(dispatch("rename-item")).finally(() => { renamePendingValue = null; });
+}
 
 function collectFields() {
   const fields = {};
@@ -469,9 +598,25 @@ function render() {
   const root = document.querySelector("#app");
   const ui = { hostKind: transport.kind, quickstartDismissed: qsDismissed() };
   const s = state;
-  const itemsHtml = s.items.map((it, i) =>
-    '<div class="side-row' + (i === s.selectedIndex ? " selected" : "") + '" data-select-item="' + i + '" role="button" tabindex="0"><img src="assets/icons/' + esc(it.icon) + '.svg" alt=""><span style="min-width:0"><span class="item-name">' + esc(it.name) + '</span><br><span class="kind-label">' + esc(it.kindLabel) + "</span></span></div>"
-  ).join("");
+  // Grouped project tree: items grouped under collapsible family headers.
+  const rowHtml = (it, i) =>
+    '<div class="side-row' + (i === s.selectedIndex ? " selected" : "") + '" data-select-item="' + i + '" role="button" tabindex="0"><img src="assets/icons/' + esc(it.icon) + '.svg" alt=""><span style="min-width:0"><span class="item-name">' + esc(it.name) + '</span><br><span class="kind-label">' + esc(it.kindLabel) + "</span></span></div>";
+  let itemsHtml = "";
+  FAMILIES.forEach((fam) => {
+    const famItems = s.items.map((it, i) => ({ it, i })).filter(({ it }) => { const m = kindByKey(it.kind); return m && m.family === fam; });
+    if (!famItems.length) return;
+    const collapsed = collapsedFamilies.has(fam);
+    itemsHtml += '<div class="family-group"><div class="family-header" data-family-toggle="' + esc(fam) + '" role="button" tabindex="0" aria-expanded="' + (collapsed ? "false" : "true") + '"><span class="family-name">' + esc(fam) + '</span><span class="family-count">' + famItems.length + '</span><span class="family-chevron">' + (collapsed ? "▸" : "▾") + "</span></div>";
+    if (!collapsed) itemsHtml += famItems.map(({ it, i }) => rowHtml(it, i)).join("");
+    itemsHtml += "</div>";
+  });
+  const otherItems = s.items.map((it, i) => ({ it, i })).filter(({ it }) => !kindByKey(it.kind));
+  if (otherItems.length) {
+    const collapsed = collapsedFamilies.has("Other");
+    itemsHtml += '<div class="family-group"><div class="family-header" data-family-toggle="Other" role="button" tabindex="0" aria-expanded="' + (collapsed ? "false" : "true") + '"><span class="family-name">Other</span><span class="family-count">' + otherItems.length + '</span><span class="family-chevron">' + (collapsed ? "▸" : "▾") + "</span></div>";
+    if (!collapsed) itemsHtml += otherItems.map(({ it, i }) => rowHtml(it, i)).join("");
+    itemsHtml += "</div>";
+  }
   const kindOptions = KIND_OPTIONS.map((k, i) => '<option value="' + i + '"' + (i === s.kindIndex ? " selected" : "") + ">" + esc(k) + "</option>").join("");
   let content = "";
   if (s.screen === "start" || s.selectedIndex < 0 && s.screen === "start") content = renderStart(s, ui);
@@ -481,25 +626,57 @@ function render() {
   const demoNote = transport.kind === "wasm"
     ? '<div class="demo-note">Browser demo. Project Save downloads reliakit-project.json. Project Open and CSV import use a file picker. Controls that need a local file path on the desktop show a short note here instead.</div>'
     : "";
-  const selectedHtml = s.selectedIndex >= 0
-    ? '<div class="side-sep"></div><h4>Selected item</h4><input type="text" id="rename-name" aria-label="Rename selected item" value="' + esc(s.renameName || (s.items[s.selectedIndex] ? s.items[s.selectedIndex].name : "")) + '"><div class="btn-row"><button type="button" class="btn" data-shell="rename-item">Rename</button><button type="button" class="btn" data-shell="remove-item">Remove</button></div>'
-    : "";
+  // Screen header: only on item screens, not the start page.
+  let headerHtml = "";
+  const selectedItem = s.selectedIndex >= 0 ? s.items[s.selectedIndex] : null;
+  if (selectedItem && s.screen !== "start") {
+    const meta = kindByKey(selectedItem.kind);
+    const hIcon = meta ? meta.icon : selectedItem.icon;
+    const hLabel = meta ? meta.label : selectedItem.kindLabel;
+    const hDesc = meta ? meta.desc : "";
+    headerHtml = '<div class="screen-header"><img class="screen-header-icon" src="assets/icons/' + esc(hIcon) + '.svg" alt="">' +
+      '<div class="screen-header-main"><div class="screen-header-top"><input type="text" id="rename-name" class="rename-input" aria-label="Rename selected item" value="' + esc(s.renameName || selectedItem.name) + '"><span class="screen-header-kind">' + esc(hLabel) + '</span></div>' +
+      '<p class="screen-header-desc">' + esc(hDesc) + "</p></div>" +
+      '<div class="screen-header-actions"><button type="button" class="btn" data-local="tour-screen">Tour this screen</button><button type="button" class="btn" data-shell="remove-item">Remove</button></div></div>';
+  }
   const aboutHtml = aboutOpen ? '<div class="overlay" id="about-overlay"><div class="dialog" role="dialog" aria-modal="true" aria-label="About ReliaKit"><h2><img src="assets/logo.svg" alt=""> ReliaKit ' + VERSION + '</h2><p class="caption">Reliability engineering suite for life data, system reliability, and maintenance analysis.</p><p class="caption">Reliability engineering suite: life data, limited-data Bayesian methods, degradation, ALT, growth, system RBD with standby, fault trees, FMEA, warranty, prediction, DOE, flowchart, Markov, QCP, RCM, and FRACAS.</p><p class="caption">Repository: <a href="' + REPO_URL + '" target="_blank" rel="noopener">' + REPO_URL + '</a></p><p class="caption">Built with Tauri (MIT/Apache-2.0)</p><p class="caption">Inter font, SIL Open Font License 1.1</p><p class="caption">ReliaKit is MIT licensed</p><p class="caption">No proprietary data is bundled; the MIL-HDBK-217F library is a public US government document.</p><div class="btn-row"><button type="button" class="btn" data-local="show-quickstart">Show Quickstart</button><button type="button" class="btn btn-primary" data-local="close-about">Close</button></div></div></div>' : "";
+  let pickerHtml = "";
+  if (pickerOpen) {
+    const groups = FAMILIES.map((fam) => {
+      const cards = KIND_META.filter((m) => m.family === fam).map((m) =>
+        '<button type="button" class="picker-card kind-card" data-picker-kind="' + esc(m.key) + '" data-kind-key="' + esc(m.key) + '" data-picker-index="' + kindIndex(m.key) + '"><img src="assets/icons/' + esc(m.icon) + '.svg" alt=""><span class="picker-card-label">' + esc(m.label) + '</span><span class="picker-card-desc">' + esc(m.desc) + "</span></button>"
+      ).join("");
+      return '<div class="picker-family"><h3 class="picker-family-title">' + esc(fam) + '</h3><div class="picker-grid">' + cards + "</div></div>";
+    }).join("");
+    pickerHtml = '<div class="overlay picker-overlay" id="picker-overlay"><div class="dialog dialog-wide picker-dialog" role="dialog" aria-modal="true" aria-label="Add item"><h2>Add item</h2>' +
+      '<div class="field"><label for="picker-name">Name (optional)</label><input type="text" id="picker-name" placeholder="Name (optional)" value=""></div>' +
+      groups +
+      '<div class="btn-row"><button type="button" class="btn" data-local="close-picker">Cancel</button></div></div></div>';
+  }
+  let switcherHtml = "";
+  if (switcherOpen) {
+    computeSwitcherFiltered();
+    if (switcherActive >= switcherFiltered.length) switcherActive = Math.max(0, switcherFiltered.length - 1);
+    if (switcherActive < 0) switcherActive = 0;
+    switcherHtml = '<div class="overlay switcher-overlay" id="switcher-overlay"><div class="dialog switcher-dialog" role="dialog" aria-modal="true" aria-label="Jump to">' +
+      '<input type="text" id="switcher-input" class="switcher-input" placeholder="Jump to..." aria-label="Jump to" value="' + esc(switcherQuery) + '" autocomplete="off">' +
+      '<div class="switcher-list" id="switcher-list" role="listbox">' + switcherListHtml() + "</div></div></div>";
+  }
   root.innerHTML =
     '<div class="toolbar"><img class="logo" src="assets/logo.svg" alt=""><span class="brand">ReliaKit</span><span class="divider"></span>' +
     '<button type="button" class="btn" data-shell="new-project">New</button><button type="button" class="btn" data-shell="open-project">Open</button><button type="button" class="btn" data-shell="save-project">Save</button>' +
+    '<button type="button" class="btn" data-local="open-switcher">Jump to...</button><button type="button" class="btn" data-local="open-tours">Tours</button>' +
     '<span class="current-title">' + esc(s.currentTitle) + '</span><span class="version">' + VERSION + '</span><button type="button" class="btn" data-local="open-about">About</button></div>' +
     '<div class="body-row"><aside class="sidebar"><h4>Project</h4><input type="text" id="project-name" aria-label="Project name" value="' + esc(s.projectName) + '">' +
     '<div class="side-row' + (s.screen === "start" ? " selected" : "") + '" data-shell="go-start" role="button" tabindex="0"><img src="assets/icons/home.svg" alt=""><span class="item-name">Start page</span></div>' +
     "<h4>Items (" + s.itemCount + ')</h4><div class="items-list">' + itemsHtml + "</div>" +
     (s.itemCount === 0 ? '<p class="caption">No items yet. Add one below, or load an example from the start page.</p>' : "") +
     demoNote +
-    '<div class="side-sep"></div><h4>Add item</h4><select id="kind-select" aria-label="Item kind">' + kindOptions + '</select><input type="text" id="new-name" aria-label="New item name" placeholder="Name (optional)" value="' + esc(s.newName) + '"><button type="button" class="btn btn-primary" data-shell="add-item">Add item</button>' +
-    selectedHtml +
+    '<div class="side-sep"></div><h4>Add item</h4><div class="visually-hidden" aria-hidden="true"><select id="kind-select" aria-label="Item kind">' + kindOptions + '</select><input type="text" id="new-name" aria-label="New item name" placeholder="Name (optional)" value="' + esc(s.newName) + '"></div><button type="button" class="btn btn-primary" data-local="open-picker">Add item</button>' +
     '<div class="side-sep"></div><h4>Project file</h4><input type="text" id="project-path" aria-label="Project file path" value="' + esc(s.projectPath) + '"><div class="btn-row"><button type="button" class="btn" data-shell="save-project">Save</button><button type="button" class="btn" data-shell="open-project">Open</button></div></aside>' +
-    '<main class="content">' + content + "</main></div>" +
+    '<main class="content">' + headerHtml + content + "</main></div>" +
     '<div class="statusbar"><span class="status-text" id="status-text">Status: ' + esc(s.status) + '</span><span class="headline-text">' + esc(s.headline) + '</span><span class="transport-tag">' + (transport.kind === "tauri" ? "Desktop" : "Browser demo") + "</span></div>" +
-    '<div class="toast-stack" id="toast-stack"></div>' + aboutHtml;
+    '<div class="toast-stack" id="toast-stack"></div>' + aboutHtml + pickerHtml + switcherHtml;
   bindDynamic();
 }
 
@@ -520,11 +697,58 @@ function bindDynamic() {
 }
 
 document.addEventListener("click", (ev) => {
+  if (ev.target.id === "picker-overlay") { pickerOpen = false; render(); return; }
+  if (ev.target.id === "switcher-overlay") { switcherOpen = false; render(); return; }
+  const pickerCard = ev.target.closest && ev.target.closest("[data-picker-kind]");
+  if (pickerCard) {
+    const key = pickerCard.getAttribute("data-picker-kind");
+    const idx = kindIndex(key);
+    const nameEl = document.querySelector("#picker-name");
+    const nameValue = nameEl ? nameEl.value : "";
+    pickerOpen = false;
+    render();
+    addKindByIndex(idx, nameValue);
+    return;
+  }
+  const swRow = ev.target.closest && ev.target.closest("[data-switcher-row]");
+  if (swRow) {
+    const entry = switcherFiltered[parseInt(swRow.getAttribute("data-switcher-row"), 10)];
+    if (entry) runSwitcherEntry(entry);
+    return;
+  }
+  const wiz = ev.target.closest && ev.target.closest("[data-wizard-path]");
+  if (wiz) {
+    const path = wiz.getAttribute("data-wizard-path");
+    if (tourApi) {
+      if (path === "failure-data") tourApi.start("life");
+      else if (path === "system") tourApi.start("rbd");
+      else if (path === "maintenance") tourApi.start("fracas");
+    }
+    return;
+  }
+  const fam = ev.target.closest && ev.target.closest("[data-family-toggle]");
+  if (fam) {
+    const name = fam.getAttribute("data-family-toggle");
+    if (collapsedFamilies.has(name)) collapsedFamilies.delete(name); else collapsedFamilies.add(name);
+    render();
+    return;
+  }
+  const addKindEl = ev.target.closest && ev.target.closest("[data-add-kind]");
+  if (addKindEl) {
+    const idx = parseInt(addKindEl.getAttribute("data-add-kind"), 10);
+    addKindByIndex(idx, "");
+    return;
+  }
   const local = ev.target.closest("[data-local]");
   if (local) {
     const name = local.getAttribute("data-local");
     if (name === "open-about") { aboutOpen = true; render(); }
     if (name === "close-about") { aboutOpen = false; render(); }
+    if (name === "open-picker") { openPicker(); }
+    if (name === "close-picker") { pickerOpen = false; render(); }
+    if (name === "open-switcher") { openSwitcher(); }
+    if (name === "open-tours") { if (tourApi) tourApi.openList(); }
+    if (name === "tour-screen") { if (tourApi) tourApi.startForCurrent(); }
     if (name === "dismiss-quickstart") { qsSetDismissed(true); render(); }
     if (name === "show-quickstart") { qsSetDismissed(false); aboutOpen = false; dispatch("go-start"); }
     return;
@@ -571,8 +795,33 @@ document.addEventListener("click", (ev) => {
   }
 });
 
+document.addEventListener("mouseover", (ev) => {
+  const row = ev.target.closest && ev.target.closest("[data-switcher-row]");
+  if (row) {
+    const idx = parseInt(row.getAttribute("data-switcher-row"), 10);
+    if (Number.isFinite(idx) && idx !== switcherActive) {
+      switcherActive = idx;
+      document.querySelectorAll("[data-switcher-row]").forEach((r) => {
+        const on = parseInt(r.getAttribute("data-switcher-row"), 10) === switcherActive;
+        r.classList.toggle("active", on);
+        r.setAttribute("aria-selected", on ? "true" : "false");
+      });
+    }
+  }
+});
+document.addEventListener("input", (ev) => {
+  const el = ev.target;
+  if (el && el.id === "switcher-input") {
+    switcherQuery = el.value;
+    switcherActive = 0;
+    computeSwitcherFiltered();
+    updateSwitcherListDom();
+  }
+});
+
 document.addEventListener("change", (ev) => {
   const el = ev.target;
+  if (el && el.id === "rename-name") { commitRename(el); return; }
   if (el.hasAttribute && el.hasAttribute("data-change-act")) {
     dispatch(el.getAttribute("data-change-act"), { act: el.getAttribute("data-change-act") });
     return;
@@ -584,6 +833,7 @@ document.addEventListener("change", (ev) => {
 });
 document.addEventListener("focusout", (ev) => {
   const el = ev.target;
+  if (el && el.id === "rename-name") { commitRename(el); return; }
   if (el.hasAttribute && el.hasAttribute("data-dyn-field")) {
     const id = el.getAttribute("data-dyn-field");
     // Change already dispatched for selects and edited inputs. Blur is
@@ -594,6 +844,19 @@ document.addEventListener("focusout", (ev) => {
 
 document.addEventListener("keydown", (ev) => {
   const typing = ev.target && (ev.target.tagName === "INPUT" || ev.target.tagName === "TEXTAREA" || ev.target.tagName === "SELECT" || ev.target.isContentEditable);
+  // Quick switcher is global, including when focus is in an input.
+  if ((ev.ctrlKey || ev.metaKey) && ev.key.toLowerCase() === "k") { ev.preventDefault(); if (!switcherOpen) openSwitcher(); return; }
+  if (switcherOpen) {
+    if (ev.key === "Escape") { ev.preventDefault(); closeSwitcher(); return; }
+    if (ev.key === "ArrowDown") { ev.preventDefault(); if (switcherFiltered.length) { switcherActive = Math.min(switcherActive + 1, switcherFiltered.length - 1); updateSwitcherListDom(); const r = document.querySelector('[data-switcher-row="' + switcherActive + '"]'); if (r) r.scrollIntoView({ block: "nearest" }); } return; }
+    if (ev.key === "ArrowUp") { ev.preventDefault(); if (switcherFiltered.length) { switcherActive = Math.max(switcherActive - 1, 0); updateSwitcherListDom(); const r = document.querySelector('[data-switcher-row="' + switcherActive + '"]'); if (r) r.scrollIntoView({ block: "nearest" }); } return; }
+    if (ev.key === "Enter") { ev.preventDefault(); const entry = switcherFiltered[switcherActive]; if (entry) runSwitcherEntry(entry); return; }
+    return;
+  }
+  if (pickerOpen && ev.key === "Escape") { ev.preventDefault(); pickerOpen = false; render(); return; }
+  if (ev.key === "Escape" && aboutOpen) { aboutOpen = false; render(); return; }
+  // Rename input: Enter blurs to commit through change/blur handling.
+  if (ev.target && ev.target.id === "rename-name" && ev.key === "Enter") { ev.preventDefault(); ev.target.blur(); return; }
   if ((ev.ctrlKey || ev.metaKey) && ev.key.toLowerCase() === "s") { ev.preventDefault(); saveProjectFlow(); return; }
   if ((ev.ctrlKey || ev.metaKey) && ev.key.toLowerCase() === "o") { ev.preventDefault(); openProjectFlow(); return; }
   if (ev.key === "Delete" && !typing) {
@@ -603,6 +866,11 @@ document.addEventListener("keydown", (ev) => {
     if (state.screen === "fmea" && localFmeaRow >= 0) { ev.preventDefault(); dispatch("fmea-del", { row_index: String(localFmeaRow), index: String(localFmeaRow), act: "fmea-del", row_action: "fmea-del" }); }
   }
 });
+
+// Guided tours: body-level overlay engine (gui/src/tours.js). It
+// dispatches through the same dispatch() as the rest of the shell and
+// reads the current adapted state through getState.
+const tourApi = initTours({ dispatch, getState: () => state });
 
 async function boot() {
   transportKind = transport.kind;

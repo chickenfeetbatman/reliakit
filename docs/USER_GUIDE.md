@@ -1,6 +1,6 @@
 # ReliaKit User Guide
 
-ReliaKit v0.3.0 is a reliability engineering suite. It runs as a desktop
+ReliaKit v0.3.1 is a reliability engineering suite. It runs as a desktop
 app on Windows, macOS, and Linux, and as a live demo in a web browser at
 https://chickenfeetbatman.github.io/reliakit/demo/. Both run the same
 engine and the same interface. This guide covers the project workspace,
@@ -14,19 +14,47 @@ system diagram, an FMEA worksheet, and so on. Each item keeps its own
 inputs and results, so you can keep every analysis for one product in a
 single project file and move between them without losing work.
 
-- The start page is home. It shows three project actions (New project,
-  Open project, and Save project for the current project), eight example
-  cards, and the bundled dataset cards.
+- The start page is home. It shows the first project wizard card (see
+  the Tours section), the Quickstart panel, three project actions (New
+  project, Open project, and Save project for the current project), a
+  Start an analysis section (see below), eight example cards, and the
+  bundled dataset cards.
 - The project panel on the left is the source list. It shows the project
-  name, a Start page row, the item list, an Add item section, the
-  selected item controls (Rename and Remove), and the project file
-  controls.
-- To add an item, pick a kind in the Add item section, type a name if
-  you want one (names are optional), and choose Add item. The new item
-  opens in the content area.
-- To open an item, click it in the item list. To rename it, select it,
-  edit the name in the Selected item section, and choose Rename. To
-  remove it, select it and choose Remove.
+  name, a Start page row, the item list grouped by family, an Add item
+  button, and the project file controls.
+- To add an item, choose Add item in the project panel (or on the
+  start page, see Start an analysis below). The visual picker opens:
+  a card for each of the 18 kinds, grouped by family (Life data
+  analysis, System modeling, Risk and maintenance, Prediction and
+  design), each card with an icon, the kind name, and a one-line
+  description. Type a name in the Name (optional) field at the top if
+  you want one, then click a card. The new item opens in the content
+  area. Choose Cancel or click outside the picker to close it without
+  adding anything.
+- The item list is a grouped, collapsible project tree. Items sit
+  under their family heading with a count for the family. Click a
+  family heading to collapse or expand that group. Click an item row
+  to open it.
+- Start an analysis cards. The start page has a Start an analysis
+  section with cards for Life Data, RBD, FMEA, Prediction, Markov,
+  and FRACAS. Each card shows the kind name and its one-line
+  description. Click a card to create an item of that kind and open
+  it. For the other 12 kinds, use Add item and the picker.
+- Every item screen has the same header at the top: the kind icon, an
+  editable name field, the kind label, and a one-line description of
+  the kind, plus two buttons on the right, Tour this screen and
+  Remove. To rename an item, edit the name in the header and leave
+  the field (the rename applies when the field loses focus). To
+  remove the item, choose Remove in the header.
+- To jump between items without the mouse, use the quick switcher.
+  Press Ctrl+K (Cmd+K on macOS), or choose Jump to in the toolbar.
+  The switcher lists your project items, a New entry for each of the
+  18 kinds, Add item (which opens the picker), Save project, Open
+  project, Start page, and Tours. Type to filter the list, move with
+  the Up and Down arrow keys, press Enter to run the highlighted
+  entry, click an entry to run it, and press Escape or click outside
+  to close it. Choosing a New entry creates an item of that kind;
+  choosing an item entry opens that item.
 - Examples load as new items in the current project. Example 1 is a
   bearing life data fit. Example 2 is limited data lots. Example 3 is an
   RBD with cold standby pumps and parallel controllers. Example 4 is an
@@ -42,10 +70,14 @@ single project file and move between them without losing work.
   the right. The headline result also appears in the status bar at the
   bottom of the window.
 - The Quickstart panel on the start page sums up the flow in five
-  steps: projects hold items, add an item, load data or an example, run,
-  and send results between items. Dismiss it when you are done with it.
-  You can reopen it from the About view, which also carries the version,
-  the repository link, and the license attributions.
+  steps: projects hold items, add an item from the visual picker, load
+  data or an example, run, and send results between items. Dismiss it
+  when you are done with it. You can reopen it from the About view,
+  which also carries the version, the repository link, and the license
+  attributions.
+- The toolbar holds New, Open, and Save for the project, a Jump to
+  button (the quick switcher), a Tours button (see the Tours section),
+  the current project title, the version, and About.
 - Errors are never silent. The engine reports problems in plain language
   in the status bar, and error notes also appear in a visible banner
   that stays until you dismiss it or it times out.
@@ -60,6 +92,32 @@ Quickstart, in short:
 4. Run the analysis with the primary button on the screen.
 5. Read the result cards, then send the result to another item if it
    feeds a second analysis.
+
+## Tours and the first project wizard
+
+Guided tours walk through one analysis at a time, step by step. There
+is a tour for each of the 18 kinds. Each step highlights the control
+it talks about and shows a short card with the step title and text,
+plus Back, Next, and a close control. The last step ends with Finish.
+
+- Tours never touch your work. Starting a tour creates its own new
+  item named Tour: plus the kind name (for example, Tour: Life Data),
+  loads the bundled example or dataset for that kind where there is
+  one, or starts a fresh item where there is not, and runs inside
+  that item. Close or remove the tour item when you are done with it.
+- Toolbar Tours list. Choose Tours in the toolbar to open the Guided
+  tours list. Tours are grouped by family, each row with the kind
+  icon, name, one-line description, and step count, and a Start
+  button.
+- Tour this screen. Every item screen header has a Tour this screen
+  button. It starts the tour for the kind of the item you are looking
+  at, in a new tour item as described above.
+- First project wizard. The start page card titled New here? Build
+  your first project has three goal paths. Each path sets up a
+  starter item and starts its tour: Analyze failure data starts the
+  Life Data tour, Model a system starts the RBD tour, and Track
+  failures and maintenance starts the FRACAS tour. Your existing
+  items are not changed.
 
 ## The item kinds
 
@@ -149,7 +207,12 @@ including standby groups.
 
 - Palette: Single block, Standby group, Parallel group, and k-out-of-n
   group. Pick a palette item to arm it, then click the canvas to place
-  it. Click a placed block to select it, and drag blocks to move them.
+  it. Click a placed block to select it. To move a block, press on
+  any part of the block (the whole block is the drag handle, name
+  included), move the pointer, and release. The block follows the
+  pointer while you drag. A short press without moving is still a
+  click and only selects the block. Block positions save with the
+  project file and are restored when the project is reopened.
 - Evaluation: set the mission time t, or set a topology (series,
   parallel, k-of-n, or series with standby group) with its k value and
   choose Apply topology. The headline card shows system reliability at
@@ -461,17 +524,22 @@ is labeled and has a working picker or download beside it.
 
 ## Keyboard shortcuts
 
-The web interface has exactly three global shortcuts:
+The web interface has four global shortcuts:
 
 - Ctrl+S: save project. On macOS, Cmd+S works the same way.
 - Ctrl+O: open project. On macOS, Cmd+O works the same way. Both
   shortcuts replace the browser defaults while the app has focus.
+- Ctrl+K: open the quick switcher (Jump to). On macOS, Cmd+K works
+  the same way. The switcher works even when focus is in a field.
+  Inside the switcher: type to filter, Up and Down move the
+  highlight, Enter runs the highlighted entry, and Escape closes it.
 - Delete: remove the selected RBD block, the selected FRACAS incident,
   the selected RCM row, or the FMEA worksheet row you last clicked,
   when you are not typing in a field. FMEA rows have no engine-side
   selection state, so the clicked row is tracked by the interface for
   this shortcut; the per-row Delete button always works as well.
 
+Escape also closes the picker, the switcher, and the About view.
 Standard text editing keys work in every field. There are no other
 global shortcuts.
 
@@ -488,7 +556,7 @@ global shortcuts.
   notarized, Gatekeeper may ask you to confirm before the first run.
 - Windows: the app is unsigned, so SmartScreen may show a warning on
   the first run. Choose the option to run anyway only when the file
-  came from the official v0.3.0 release page.
+  came from the official v0.3.1 release page.
 - Browser demo: the demo needs a current browser with WebAssembly. It
   runs fully in the page; project files, CSV imports, and exports move
   through your browser downloads and file picker, and nothing is

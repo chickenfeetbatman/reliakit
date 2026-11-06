@@ -205,3 +205,110 @@ need a local file path on desktop show a short note in the demo
 instead. The Linux desktop build needs the system WebKitGTK
 runtime (libwebkit2gtk-4.1); the macOS download is a raw binary,
 not an .app bundle.
+
+## v0.3.1: RBD drag fix, navigation rework, tutorial wizard
+
+The library (src/) is untouched in this release; the changes are in
+the front end (gui/src/, gui/styles/) and the app version strings.
+The full test run for this version is the same 167 tests:
+cargo build --release --workspace clean (exit 0; two pre-existing
+warnings in the engine crate), cargo test --release --workspace
+reports 167 passed, 0 failed.
+
+RBD drag bug, reproduction on v0.3.0. The reproduction script
+(repro_drag_before.py in the v031 GUI test set) drove the v0.3.0
+browser demo with realistic multi-step mouse input: press on the
+block body, move in steps, release, then the same starting on the
+block name label. Both drags left the block unmoved: BODY DRAG
+DELTA dx=0 dy=0 and LABEL DRAG DELTA dx=0 dy=0 (attempted +120,+80
+each time). Result line: BUG REPRODUCED - drag did NOT move the
+block.
+
+Root cause. The v0.3.0 canvas dispatched an engine action on
+pointerdown, and every dispatch re-rendered the whole app (the app
+root innerHTML is rebuilt on each engine response). The re-render
+destroyed the block element that held the pointer capture, so the
+rest of the drag had no live element to track and the position
+never changed.
+
+Fix. The canvas now tracks the drag locally in gui/src/rbd.js: the
+whole block is the drag handle (body and label alike), pointerdown
+records the grab offset and calls setPointerCapture on the block,
+pointermove past a 4 px threshold moves only that element by
+setting its style left and top (no dispatch, no re-render, a
+dragging CSS class while moving), and pointerup dispatches the
+final position once (rbd-drag) followed by rbd-press so the block
+ends selected with its inspector open. A press with no move stays a
+plain click and only selects. Positions persist through the
+existing diagram JSON pos field, so they save with the project and
+restore on open.
+
+Automated browser evidence (Playwright against the rebuilt browser
+demo, scripts and logs in the v031 GUI test set):
+
+- Drag test (test_drag_after.py): OVERALL: PASS - all drag,
+  persistence and click-select checks passed. The power supply
+  block in Example 3 moved by exactly (+120,+80); the saved project
+  JSON holds pos [150.0, 170.0] for the block; after a page reload
+  and reopening the saved project, the block renders at (150,170);
+  a plain click on another block selects it and opens the Block
+  inspector without moving it. Screenshots: drag_mid.png (live
+  mid-drag position with the dragging class applied) and
+  drag_after.png.
+- Picker test (test_picker.py): OVERALL: PASS - picker, Markov
+  header, and Ctrl+K FRACAS checks passed. The picker shows 18 kind
+  cards under the 4 family headings; a Markov card click creates
+  the item; the grouped tree shows family headers; the item header
+  shows the name, kind label, and the exact one-line description;
+  the Ctrl+K switcher filtered on "frac" creates a FRACAS item on
+  Enter. Screenshots: picker_overlay.png and nav_header.png.
+- Tours test (test_tours.py): OVERALL: PASS - life and RBD full
+  plays, 16-tour selector smoke, and wizard path all passed. The
+  Life Data tour plays all 6 steps and the tour item fit headline
+  reads R(1000) = 0.9172; the RBD tour plays all 7 steps on the
+  Example 3 item (headline reliability 0.9214) with its four blocks
+  on screen. The other 16 tours run as a selector smoke: every step
+  target found, 0 missing targets, 103 tour steps checked in total
+  across all 18 tours. Each tour runs in its own new item named
+  Tour: plus the kind name. The start page wizard card is present
+  and its Analyze failure data path starts the Life Data tour in a
+  new Tour: Life Data item. Screenshots: tour_life.png,
+  tour_rbd.png, and tour_wizard.png.
+- Canonical spot checks are covered by the tours test above: Life
+  Data Example 1 headline R(1000) = 0.9172 and RBD Example 3
+  headline 0.9214, the same values as the v0.3.0 gate.
+
+RBD topology-faithful drawing (correctness fix). In v0.3.0 the
+connector generator chained leaves in traversal order, so a
+parallel group drew as a series chain: the picture misrepresented
+the evaluated model (Example 3 drew its parallel controllers in
+series). In v0.3.1, diagrams draw the topology that is evaluated:
+parallel and k-out-of-n groups draw as branches between split and
+merge rails, standby groups show their standby unit, and nested
+groups are framed and labeled.
+
+- Topology test (test_topology.py, Playwright against the rebuilt
+  browser demo in the final pass): OVERALL: PASS - topology layout,
+  rails, frames, ghosts and kofn checks passed. Example 3 final
+  positions: power supply (30,90), pumps (190,90), controller A
+  (350,90), controller B (350,174); the wires SVG contains two
+  vertical rail bars of height 84 (the parallel split and merge
+  rails); a frame labeled Parallel is present and a standby ghost
+  is present for the pumps standby group; reliability headline
+  still reads 0.9214. Nested diagram (loaded through Diagram JSON):
+  a frame labeled Parallel exists, its two blocks are stacked, and
+  a standby ghost is present. K-out-of-n diagram: a frame labeled
+  "k-out-of-n (2 of 3)" is present with three stacked children
+  sharing x and three distinct y values. Screenshots:
+  topo_example3.png, topo_nested.png, and topo_kofn.png in the
+  v031 GUI test set.
+- Final-pass regression lines (all four browser tests re-run
+  against the demo rebuilt from the final tree):
+  Drag test (test_drag_after.py): OVERALL: PASS - all drag,
+  persistence and click-select checks passed.
+  Picker test (test_picker.py): OVERALL: PASS - picker, Markov
+  header, and Ctrl+K FRACAS checks passed.
+  Tours test (test_tours.py): OVERALL: PASS - life and RBD full
+  plays, 16-tour selector smoke, and wizard path all passed.
+  Topology test (test_topology.py): OVERALL: PASS - topology
+  layout, rails, frames, ghosts and kofn checks passed.
