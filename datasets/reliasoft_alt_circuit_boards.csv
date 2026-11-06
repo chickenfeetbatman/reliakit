@@ -1,0 +1,35 @@
+# Dataset: ReliaSoft ALTA Circuit Boards Example (temperature accelerated life test, hours)
+# Source: https://help.reliasoft.com/articles/content/additional_examples/alta/circuit_boards_example.html
+# Source example: Circuit Boards Example, grouped counts expanded to one row per unit
+# Note: the page text says 27 circuit boards, but the printed grouped counts sum to 29 units (19 at 463 K, 10 at 488 K). This file follows the printed table.
+# Note: only rows printed as Failure are failures here. Unrelated, fixture, power surge, power regulator and removed units are suspensions, as the page directs.
+stress,time,failed
+463,2403,1
+463,2668,0
+463,3669,0
+463,3863,1
+463,4400,0
+463,4400,0
+463,4767,1
+463,4767,1
+463,5219,1
+463,5276,0
+463,5276,0
+463,5276,0
+463,5276,0
+463,7517,1
+463,7517,1
+463,7840,1
+463,8025,1
+463,8025,1
+463,8571,0
+488,346,0
+488,346,0
+488,1416,1
+488,2197,0
+488,2533,1
+488,2630,1
+488,2701,0
+488,3000,1
+488,3489,1
+488,6720,0

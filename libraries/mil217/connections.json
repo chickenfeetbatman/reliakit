@@ -1,0 +1,95 @@
+{
+ "category": "Connections",
+ "handbook": "MIL-HDBK-217F Notice 2",
+ "section": "17.1",
+ "pdf_pages": [
+  63
+ ],
+ "handbook_pages": [
+  "17-1"
+ ],
+ "source_pdf": "MIL-HDBK-217F_NOTICE-2.pdf (Everyspec download of the Notice 2 change pages, 28 February 1995)",
+ "model": "lambda_p = lambda_b * pi_E (failures/10^6 hours)",
+ "coverage": "full",
+ "lambda_b": {
+  "kind": "by_type",
+  "unit": "failures/10^6 hours",
+  "axes": [
+   "type"
+  ],
+  "types": [
+   "Hand Solder, w/o Wrapping",
+   "Hand Solder, w/Wrapping",
+   "Crimp",
+   "Weld",
+   "Solderless Wrap",
+   "Clip Termination",
+   "Reflow Solder",
+   "Spring Contact",
+   "Terminal Block"
+  ],
+  "grid": [
+   0.0013,
+   7e-05,
+   0.00026,
+   1.5e-05,
+   6.8e-06,
+   0.00012,
+   6.9e-05,
+   0.17,
+   0.062
+  ],
+  "by_type": {
+   "Hand Solder, w/o Wrapping": {
+    "lambda_b": 0.0013
+   },
+   "Hand Solder, w/Wrapping": {
+    "lambda_b": 7e-05
+   },
+   "Crimp": {
+    "lambda_b": 0.00026
+   },
+   "Weld": {
+    "lambda_b": 1.5e-05
+   },
+   "Solderless Wrap": {
+    "lambda_b": 6.8e-06
+   },
+   "Clip Termination": {
+    "lambda_b": 0.00012
+   },
+   "Reflow Solder": {
+    "lambda_b": 6.9e-05
+   },
+   "Spring Contact": {
+    "lambda_b": 0.17
+   },
+   "Terminal Block": {
+    "lambda_b": 0.062
+   }
+  }
+ },
+ "pi_tables": {
+  "pi_E": {
+   "kind": "named",
+   "input": "environment",
+   "values": {
+    "GB": 1.0,
+    "GF": 2.0,
+    "GM": 7.0,
+    "NS": 4.0,
+    "NU": 11.0,
+    "AIC": 4.0,
+    "AIF": 6.0,
+    "AUC": 6.0,
+    "AUF": 8.0,
+    "ARW": 16.0,
+    "SF": 0.5,
+    "MF": 9.0,
+    "ML": 24.0,
+    "CL": 420.0
+   }
+  }
+ },
+ "notes": "The model is for a single connection, on assemblies other than those using plated through holes or surface mount technology (those use Section 16). Page 17-1 supersedes page 17-1 of Revision F."
+}

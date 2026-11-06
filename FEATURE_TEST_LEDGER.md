@@ -1,15 +1,13 @@
 # ReliaKit Rust: Feature Test Ledger
 
 Every feature in the crate, the test file that covers it, and the
-result in the final full test run: 73 passed, 0 failed. Totals are
+result in the final full test run: 167 passed, 0 failed. Totals are
 in the README.
 
 Status meanings:
 
 - PASS: the named test exists and passes in the final gate run.
-- NO TEST: no test for this feature was found in
-  tests/ported_tests.rs, tests/parity_tests.rs, or
-  tests/qa_tests.rs.
+- NO TEST: no test for this feature was found in tests/.
 - IGNORED: the test exists but is marked ignored in its file, with
   the reason recorded in a comment at the test.
 
@@ -55,6 +53,41 @@ Status meanings:
 | DOE, two-level factorial | tests/parity_tests.rs, tests/qa_tests.rs | doe_two_factor_effects, qa_doe_three_factor_effects | PASS |
 | Growth: Crow-AMSAA | tests/ported_tests.rs | test_crow_amsaa_hand_calc | PASS |
 | Growth: Duane | tests/ported_tests.rs | test_duane | PASS |
+| Distribution: Loglogistic | tests/dist_tests.rs | loglogistic_closed_form, loglogistic_mle_recovery, loglogistic_rank_regression_recovery | PASS |
+| Distribution: Logistic | tests/dist_tests.rs | logistic_closed_form, logistic_mle_recovery, logistic_rank_regression_not_provided | PASS |
+| Distribution: Gompertz | tests/dist_tests.rs | gompertz_closed_form, gompertz_pdf_integrates_against_reliability, gompertz_mle_recovery | PASS |
+| Distribution: Generalized gamma | tests/dist_tests.rs | gengamma_closed_form, gengamma_reduces_to_gamma_at_p1, gengamma_reduces_to_weibull_at_d_eq_p, gengamma_mle_recovery | PASS |
+| Distribution: Weibull (1P) | tests/dist_tests.rs | weibull1_closed_form, weibull1_eta_closed_form, weibull1_fit_mle_requires_fixed_beta | PASS |
+| Distribution: Exponential (2P) | tests/dist_tests.rs | exponential2_closed_form, exponential2_mle_closed_form | PASS |
+| Distribution: Mixed Weibull (2 subpopulations) | tests/dist_tests.rs | mixed_weibull_closed_form, mixed_weibull_mle_recovery | PASS |
+| Distributions file total (tests/dist_tests.rs) | tests/dist_tests.rs | 20 tests | PASS |
+| Distribution wizard, best-fit ranking | tests/expansion_tests.rs | wizard_weibull_ranks_first_on_weibull_data, wizard_anderson_darling_hand_case | PASS |
+| QCP (quick calculation pad) | tests/expansion_tests.rs | quickcalc_weibull_hand_values | PASS |
+| Reliability importance (Birnbaum, criticality, Fussell-Vesely) | tests/expansion_tests.rs | importance_series_hand_values, importance_parallel_hand_values, importance_nested_and_default_names | PASS |
+| DOE, fractional factorial | tests/expansion_tests.rs | doe_fractional_factorial_2_5_minus_2 | PASS |
+| DOE, Plackett-Burman | tests/expansion_tests.rs | doe_plackett_burman_12_orthogonal, doe_plackett_burman_20_and_24 | PASS |
+| DOE, Taguchi arrays and signal to noise | tests/expansion_tests.rs | doe_taguchi_arrays_orthogonal, doe_signal_to_noise_hand_values | PASS |
+| DOE, response surface (CCD, Box-Behnken, quadratic fit) | tests/expansion_tests.rs | doe_ccd_recovers_exact_quadratic, doe_box_behnken_shape | PASS |
+| Growth: Gompertz | tests/expansion_tests.rs | growth_gompertz_recovers_parameters | PASS |
+| Growth: Lloyd-Lipow | tests/expansion_tests.rs | growth_lloyd_lipow_recovers_parameters | PASS |
+| ALT loglinear multi-stress MLE | tests/expansion_tests.rs | alt_loglinear_weibull_recovers_b1_and_monotone_use_reliability | PASS |
+| ALT step-stress | tests/expansion_tests.rs | alt_step_stress_one_step_equals_plain_weibull, alt_step_stress_two_step_hand_example | PASS |
+| Expansion file total (tests/expansion_tests.rs) | tests/expansion_tests.rs | 18 tests | PASS |
+| Markov diagrams (steady state, MTTF, transient) | tests/hbk_tests.rs | markov_steady_state_availability_matches_balance_equations, markov_mttf_matches_closed_form_650, markov_expected_time_in_state_sums_to_mttf, markov_transient_rows_sum_to_one | PASS |
+| Reliability allocation (equal, weighted) | tests/hbk_tests.rs | allocation_product_equals_target, allocation_weighted_doubling_weight_lowers_that_target | PASS |
+| Derating check | tests/hbk_tests.rs | derating_arithmetic_and_thresholds | PASS |
+| Component library file format, local import | tests/hbk_tests.rs | library_csv_round_trip_and_hand_sum, example_library_file_loads | PASS |
+| RCM worksheet (task selection, criticality) | tests/hbk_tests.rs | rcm_select_task_decision_table, rcm_criticality_arithmetic | PASS |
+| FRACAS incident log | tests/hbk_tests.rs | fracas_aggregation_counts, fracas_mtbf_arithmetic, fracas_csv_round_trip | PASS |
+| FMEA types, FMECA criticality, control plan, DVP and R | tests/hbk_tests.rs | fmea_worksheet_round_trip_keeps_type_and_rows, fmea_control_plan_only_rows_with_actions, fmea_dvpr_csv_round_trip, fmea_criticality_arithmetic | PASS |
+| SR-332 clean-room methods (Method I, II, III, temperature factor, failure rate CI) | tests/hbk_tests.rs | sr332_temperature_factor_equal_temps_and_arrhenius_value, sr332_method1_product_arithmetic, sr332_equipment_rate_applies_pi_e_once, sr332_method2_extrapolate_factor_ratios, chi2_ppf_known_values, failure_rate_ci_zero_failures_uses_known_two_df_value, sr332_method3_combine_weighted_average | PASS |
+| IEC 62380 style mission profile method | tests/hbk_tests.rs | iec62380_style_single_phase_at_ref_temp_returns_base_rate, iec62380_style_hotter_phase_raises_rate, iec62380_style_two_phase_hand_arithmetic, iec62380_style_dormant_phase_uses_dormant_factor | PASS |
+| HBK gaps and methods file total (tests/hbk_tests.rs) | tests/hbk_tests.rs | 29 tests | PASS |
+| Bundled datasets, row and column sums (16 files) | tests/datasets_tests.rs | life_data_example_rows_and_sums, unbiasing_complete_rows_and_sums, unbiasing_suspended_rows_and_sums, beta_shape_example_rows_and_sums, alt_tensile_rows_and_sums, alt_circuit_boards_rows_and_sums, alt_paper_clips_rows_and_sums, alt_two_stress_rows_and_sums, degradation_turbine_blades_rows_and_sums, degradation_mosfet_rows_and_sums, alt_degradation_led_rows_and_sums, growth_crow_amsaa_rows_and_sums, growth_test_fix_test_rows_and_sums, warranty_nevada_rows_and_sums, warranty_time_to_failure_rows_and_sums, smrd_bearingcage_rows_and_sums | PASS |
+| Bundled datasets, fit verification against printed values | tests/datasets_tests.rs | fit_life_data_example_matches_printed_mle, fit_unbiasing_complete_matches_printed_mle, fit_unbiasing_suspended_matches_printed_mle | PASS |
+| Datasets file total (tests/datasets_tests.rs) | tests/datasets_tests.rs | 19 tests | PASS |
+| MIL-HDBK-217F Notice 2 library (standards217) | tests/standards217_tests.rs | relay_lambda_b_exact_grid_points, synchro_lambda_b_series_exact_point, relay_lambda_b_bilinear_midpoint, resistor_end_to_end_handbook_tables, capacitor_end_to_end_handbook_worked_example, pth_end_to_end_section_16_1, quartz_end_to_end, all_category_files_have_provenance | PASS |
+| Standards217 file total (tests/standards217_tests.rs) | tests/standards217_tests.rs | 8 tests | PASS |
 | Specfunc: beta quantile closed form | tests/qa_tests.rs | qa_specfunc_beta_ppf_closed_form | PASS |
 | Specfunc: normal quantile and cdf round trip | tests/qa_tests.rs | qa_specfunc_norm_ppf_cdf_roundtrip | PASS |
 | CLI selftest | src/bin/reliakit.rs | selftest (Selftest subcommand, built-in checks) | PASS |

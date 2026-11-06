@@ -1,0 +1,9 @@
+# Dataset: ReliaSoft Warranty Data Analysis, Times-to-Failure Format Warranty Analysis (grouped, hours)
+# Source: https://help.reliasoft.com/reference/life_data_analysis/lda/warranty_data_analysis.html
+# Source example: Times-to-Failure Format Warranty Analysis example table (Number in State, State F or S, State End Time)
+# Note: count is the printed Number in State. Printed fit is rank regression (RRX), not MLE: beta = 3.199832, eta = 814.293442. Future sales printed on the page (500 at 200 hr, 400 at 300 hr, 100 at 500 hr) are forecast inputs, not part of this data table.
+time,failed,count
+100,1,2
+125,1,3
+175,1,5
+200,0,1500

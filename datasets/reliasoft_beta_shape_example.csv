@@ -1,0 +1,26 @@
+# Dataset: ReliaSoft Another Look at the Shape Parameter of the Weibull Distribution, Table 1 Failure Data
+# Source: https://help.reliasoft.com/articles/content/hotwire/issue110/hottopics110.htm
+# Source example: Table 1, 20 items with State F or S and Time to State, in printed item order
+# Printed fit (2P Weibull, whole group): beta = 0.9812, eta = 73.6036. The page does not state the estimation method.
+# Verification note: ReliaKit MLE gives beta = 1.2280, eta = 65.3757 and ReliaKit RRX gives beta = 0.7394, eta = 165.7638. Neither reproduces the printed values, so the printed fit is NOT verified for this file. The transcription itself is cross-checked against Tables 2 and 3 on the same page, which re-list the same 20 rows as subgroups.
+time,failed
+2,1
+3,0
+5,1
+7,0
+11,1
+13,0
+17,0
+19,0
+23,1
+29,1
+31,0
+37,1
+41,0
+43,1
+47,0
+53,0
+59,1
+61,0
+69,0
+75,1

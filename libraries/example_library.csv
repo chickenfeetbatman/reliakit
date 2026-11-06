@@ -1,0 +1,7 @@
+# Example component library - synthetic example data, not from any standard.
+name,base_rate_per_million_hours,quantity,stress_factor,quality_factor
+"EXAMPLE resistor (synthetic data)",0.5,10,1.0,1.0
+"EXAMPLE capacitor (synthetic data)",1.2,4,1.1,1.0
+"EXAMPLE connector (synthetic data)",2.0,2,1.0,0.9
+"EXAMPLE relay (synthetic data)",5.0,1,1.2,1.0
+"EXAMPLE sensor (synthetic data)",3.5,2,1.0,1.1

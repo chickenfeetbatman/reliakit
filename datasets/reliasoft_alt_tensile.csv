@@ -1,0 +1,20 @@
+# Dataset: ReliaSoft ALTA Tensile Components Example (landing gear component, cycles to failure by shock load)
+# Source: https://help.reliasoft.com/articles/content/additional_examples/alta/tensile_components.html
+# Source example: Tensile Components Example, 15 units at 73, 95 and 128 kips, all failed, use level 50 kips
+# Printed result (IPL lognormal, QCP): B10 life at 50 kips = 11669.1 cycles.
+stress,time,failed
+73,1855,1
+73,2158,1
+73,2425,1
+73,2736,1
+73,3206,1
+95,614,1
+95,770,1
+95,781,1
+95,890,1
+95,1055,1
+128,152,1
+128,162,1
+128,173,1
+128,209,1
+128,216,1

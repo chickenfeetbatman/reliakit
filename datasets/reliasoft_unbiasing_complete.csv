@@ -1,0 +1,15 @@
+# Dataset: ReliaSoft Unbiasing Parameters in Weibull++, Example with Complete Data
+# Source: https://help.reliasoft.com/articles/content/hotwire/issue109/relbasics109.htm
+# Source example: Example with Complete Data (data generated from Weibull beta = 1.5, eta = 100)
+# Printed fit (2P Weibull, MLE): beta = 1.7255, eta = 103.8609.
+time,failed
+22,1
+45,1
+48,1
+62,1
+64,1
+74,1
+90,1
+134,1
+189,1
+192,1

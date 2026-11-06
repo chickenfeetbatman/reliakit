@@ -1,0 +1,32 @@
+# Dataset: ReliaSoft Failure Times Crow-AMSAA Example (prototype system, failure times in hours)
+# Source: https://reliawiki.com/index.php?title=Failure_Times_Crow-AMSAA_Example&oldid=48924
+# Source example: Failure Times Crow-AMSAA Example, Reliability Growth and Repairable System Analysis Reference book (ReliaWiki version, data printed as a table)
+# Note: test ran 300 hours (time terminated) with 27 failures. Rows are sorted failure times with the cumulative failure count. Printed result: instantaneous MTBF lower one-sided 90 percent bound at 300 hours = 10.8170 hours against a 10 hour goal.
+time,failures
+2.6,1
+16.5,2
+16.5,3
+17,4
+21.4,5
+29.1,6
+33.3,7
+56.5,8
+63.1,9
+70.6,10
+73,11
+77.7,12
+93.9,13
+95.5,14
+98.1,15
+101.1,16
+132,17
+142.2,18
+147.7,19
+149,20
+167.2,21
+190.7,22
+193,23
+198.7,24
+251.9,25
+282.5,26
+286.1,27

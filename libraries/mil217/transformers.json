@@ -1,0 +1,129 @@
+{
+ "category": "Inductive Devices, Transformers",
+ "handbook": "MIL-HDBK-217F Notice 2",
+ "section": "11.1",
+ "pdf_pages": [
+  41
+ ],
+ "handbook_pages": [
+  "11-1"
+ ],
+ "source_pdf": "MIL-HDBK-217F_NOTICE-2.pdf (Everyspec download of the Notice 2 change pages, 28 February 1995)",
+ "model": "lambda_p = lambda_b * pi_T * pi_Q * pi_E (failures/10^6 hours)",
+ "coverage": "full",
+ "lambda_b": {
+  "kind": "by_type",
+  "unit": "failures/10^6 hours",
+  "axes": [
+   "type"
+  ],
+  "types": [
+   "Flyback (< 20 Volts)",
+   "Audio (15 - 20K Hz)",
+   "Low Power Pulse (Peak Pwr. < 300W, Avg. Pwr. < 5W)",
+   "High Power, High Power Pulse (Peak Power >= 300W, Avg. Pwr. >= 5W)",
+   "RF (10K - 10M Hz)"
+  ],
+  "grid": [
+   0.0054,
+   0.014,
+   0.022,
+   0.049,
+   0.13
+  ],
+  "by_type": {
+   "Flyback (< 20 Volts)": {
+    "lambda_b": 0.0054
+   },
+   "Audio (15 - 20K Hz)": {
+    "lambda_b": 0.014
+   },
+   "Low Power Pulse (Peak Pwr. < 300W, Avg. Pwr. < 5W)": {
+    "lambda_b": 0.022
+   },
+   "High Power, High Power Pulse (Peak Power >= 300W, Avg. Pwr. >= 5W)": {
+    "lambda_b": 0.049
+   },
+   "RF (10K - 10M Hz)": {
+    "lambda_b": 0.13
+   }
+  }
+ },
+ "pi_tables": {
+  "pi_T": {
+   "kind": "series",
+   "input": "hot_spot_temperature_c",
+   "axis": [
+    20,
+    30,
+    40,
+    50,
+    60,
+    70,
+    80,
+    90,
+    100,
+    110,
+    120,
+    130,
+    140,
+    150,
+    160,
+    170,
+    180,
+    190
+   ],
+   "values": [
+    0.93,
+    1.1,
+    1.2,
+    1.4,
+    1.6,
+    1.8,
+    1.9,
+    2.2,
+    2.4,
+    2.6,
+    2.8,
+    3.1,
+    3.3,
+    3.5,
+    3.8,
+    4.1,
+    4.3,
+    4.6
+   ],
+   "formula": "pi_T = exp((-0.11/(8.617e-5)) * (1/(T_HS+273) - 1/298))",
+   "note": "T_HS is hot spot temperature in degrees C, determined per Section 11.3. The model assumes the insulation rated temperature is not exceeded for more than 5 percent of the time."
+  },
+  "pi_Q": {
+   "kind": "named",
+   "input": "quality",
+   "values": {
+    "MIL-SPEC": 1.0,
+    "Lower": 3.0
+   }
+  },
+  "pi_E": {
+   "kind": "named",
+   "input": "environment",
+   "values": {
+    "GB": 1.0,
+    "GF": 6.0,
+    "GM": 12.0,
+    "NS": 5.0,
+    "NU": 16.0,
+    "AIC": 6.0,
+    "AIF": 8.0,
+    "AUC": 7.0,
+    "AUF": 9.0,
+    "ARW": 24.0,
+    "SF": 0.5,
+    "MF": 13.0,
+    "ML": 34.0,
+    "CL": 610.0
+   }
+  }
+ },
+ "notes": "Specifications MIL-T-27 (style TF), MIL-T-21038 (style TP) and MIL-T-55631 (IF, RF and discriminator). Handbook page 11-2 (PDF page 42) gives designation and family codes only and has no failure rate factors. Page 11-1 supersedes page 11-1 of Revision F."
+}

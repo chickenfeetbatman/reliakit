@@ -1,0 +1,15 @@
+# Dataset: ReliaSoft Unbiasing Parameters in Weibull++, Example with Suspended Data
+# Source: https://help.reliasoft.com/articles/content/hotwire/issue109/relbasics109.htm
+# Source example: Example with Suspended Data (complete-data example with all failures after 120 suspended at 120)
+# Printed fit (2P Weibull, MLE): beta = 1.7670, eta = 100.2278.
+time,failed
+22,1
+45,1
+48,1
+62,1
+64,1
+74,1
+90,1
+120,0
+120,0
+120,0

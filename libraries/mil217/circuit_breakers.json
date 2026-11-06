@@ -1,0 +1,90 @@
+{
+ "category": "Switches, Circuit Breakers",
+ "handbook": "MIL-HDBK-217F Notice 2",
+ "section": "14.2",
+ "pdf_pages": [
+  55
+ ],
+ "handbook_pages": [
+  "14-3"
+ ],
+ "source_pdf": "MIL-HDBK-217F_NOTICE-2.pdf (Everyspec download of the Notice 2 change pages, 28 February 1995)",
+ "model": "lambda_p = lambda_b * pi_C * pi_U * pi_Q * pi_E (failures/10^6 hours)",
+ "coverage": "full",
+ "lambda_b": {
+  "kind": "by_type",
+  "unit": "failures/10^6 hours",
+  "axes": [
+   "type"
+  ],
+  "types": [
+   "Magnetic",
+   "Thermal",
+   "Thermal-Magnetic"
+  ],
+  "grid": [
+   0.34,
+   0.34,
+   0.34
+  ],
+  "by_type": {
+   "Magnetic": {
+    "lambda_b": 0.34
+   },
+   "Thermal": {
+    "lambda_b": 0.34
+   },
+   "Thermal-Magnetic": {
+    "lambda_b": 0.34
+   }
+  }
+ },
+ "pi_tables": {
+  "pi_C": {
+   "kind": "named",
+   "input": "configuration",
+   "values": {
+    "SPST": 1.0,
+    "DPST": 2.0,
+    "3PST": 3.0,
+    "4PST": 4.0
+   }
+  },
+  "pi_U": {
+   "kind": "named",
+   "input": "use",
+   "values": {
+    "Not Used as a Power On/Off Switch": 1.0,
+    "Also Used as a Power On/Off Switch": 2.5
+   }
+  },
+  "pi_Q": {
+   "kind": "named",
+   "input": "quality",
+   "values": {
+    "MIL-SPEC": 1.0,
+    "Lower": 8.4
+   }
+  },
+  "pi_E": {
+   "kind": "named",
+   "input": "environment",
+   "values": {
+    "GB": 1.0,
+    "GF": 2.0,
+    "GM": 15.0,
+    "NS": 8.0,
+    "NU": 27.0,
+    "AIC": 7.0,
+    "AIF": 9.0,
+    "AUC": 11.0,
+    "AUF": 12.0,
+    "ARW": 46.0,
+    "SF": 0.5,
+    "MF": 25.0,
+    "ML": 66.0
+   }
+  }
+ },
+ "notes": "Specifications MIL-C-13516, MIL-C-55629, MIL-C-83383, MIL-C-39019 and W-C-375. The pi_E table prints C_L as N/A, so no CL key is included. Page 14-3 supersedes page 14-5 of Revision F."
+}

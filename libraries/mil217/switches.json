@@ -1,0 +1,210 @@
+{
+ "category": "Switches",
+ "handbook": "MIL-HDBK-217F Notice 2",
+ "section": "14.1",
+ "pdf_pages": [
+  53,
+  54
+ ],
+ "handbook_pages": [
+  "14-1",
+  "14-2"
+ ],
+ "source_pdf": "MIL-HDBK-217F_NOTICE-2.pdf (Everyspec download of the Notice 2 change pages, 28 February 1995)",
+ "model": "lambda_p = lambda_b * pi_L * pi_C * pi_Q * pi_E (failures/10^6 hours)",
+ "coverage": "full",
+ "lambda_b": {
+  "kind": "by_type",
+  "unit": "failures/10^6 hours",
+  "axes": [
+   "type"
+  ],
+  "types": [
+   "Centrifugal",
+   "Dual-In-line Package",
+   "Limit",
+   "Liquid Level",
+   "Microwave (Waveguide)",
+   "Pressure",
+   "Pushbutton",
+   "Reed",
+   "Rocker",
+   "Rotary",
+   "Sensitive",
+   "Thermal",
+   "Thumbwheel",
+   "Toggle"
+  ],
+  "grid": [
+   3.4,
+   0.00012,
+   4.3,
+   2.3,
+   1.7,
+   2.8,
+   0.1,
+   0.001,
+   0.023,
+   0.11,
+   0.49,
+   0.031,
+   0.18,
+   0.1
+  ],
+  "by_type": {
+   "Centrifugal": {
+    "lambda_b": 3.4
+   },
+   "Dual-In-line Package": {
+    "lambda_b": 0.00012
+   },
+   "Limit": {
+    "lambda_b": 4.3
+   },
+   "Liquid Level": {
+    "lambda_b": 2.3
+   },
+   "Microwave (Waveguide)": {
+    "lambda_b": 1.7
+   },
+   "Pressure": {
+    "lambda_b": 2.8
+   },
+   "Pushbutton": {
+    "lambda_b": 0.1
+   },
+   "Reed": {
+    "lambda_b": 0.001
+   },
+   "Rocker": {
+    "lambda_b": 0.023
+   },
+   "Rotary": {
+    "lambda_b": 0.11
+   },
+   "Sensitive": {
+    "lambda_b": 0.49
+   },
+   "Thermal": {
+    "lambda_b": 0.031
+   },
+   "Thumbwheel": {
+    "lambda_b": 0.18
+   },
+   "Toggle": {
+    "lambda_b": 0.1
+   }
+  }
+ },
+ "pi_tables": {
+  "pi_L": {
+   "kind": "columns",
+   "input": "load_stress",
+   "column_from_input": "load_type",
+   "axis": [
+    0.05,
+    0.1,
+    0.2,
+    0.3,
+    0.4,
+    0.5,
+    0.6,
+    0.7,
+    0.8,
+    0.9,
+    1.0
+   ],
+   "columns": {
+    "Resistive": [
+     1.0,
+     1.02,
+     1.06,
+     1.15,
+     1.28,
+     1.48,
+     1.76,
+     2.15,
+     2.72,
+     3.55,
+     4.77
+    ],
+    "Inductive": [
+     1.02,
+     1.06,
+     1.28,
+     1.76,
+     2.72,
+     4.77,
+     9.49,
+     21.4,
+     null,
+     null,
+     null
+    ],
+    "Lamp": [
+     1.06,
+     1.28,
+     2.72,
+     9.49,
+     54.6,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null
+    ]
+   },
+   "formulas": {
+    "Resistive": "pi_L = exp((S/0.8)^2)",
+    "Inductive": "pi_L = exp((S/0.4)^2)",
+    "Lamp": "pi_L = exp((S/0.2)^2)"
+   },
+   "note": "S = operating load current / rated resistive load current. Null entries are blank in the handbook. When the switch is rated by inductive load, then use resistive pi_L."
+  },
+  "pi_C": {
+   "kind": "named",
+   "input": "contact_form",
+   "values": {
+    "SPST": 1.0,
+    "DPST": 1.3,
+    "SPDT": 1.3,
+    "3PST": 1.4,
+    "4PST": 1.6,
+    "DPDT": 1.6,
+    "3PDT": 1.8,
+    "4PDT": 2.0,
+    "6PDT": 2.3
+   }
+  },
+  "pi_Q": {
+   "kind": "named",
+   "input": "quality",
+   "values": {
+    "MIL-SPEC": 1.0,
+    "Lower": 2.0
+   }
+  },
+  "pi_E": {
+   "kind": "named",
+   "input": "environment",
+   "values": {
+    "GB": 1.0,
+    "GF": 3.0,
+    "GM": 18.0,
+    "NS": 8.0,
+    "NU": 29.0,
+    "AIC": 10.0,
+    "AIF": 18.0,
+    "AUC": 13.0,
+    "AUF": 22.0,
+    "ARW": 46.0,
+    "SF": 0.5,
+    "MF": 25.0,
+    "ML": 67.0,
+    "CL": 1200.0
+   }
+  }
+ },
+ "notes": "pi_C applies to toggle and pushbutton switches only; all others use pi_C = 1. The pi_C table also prints the number of contacts NC for each form (SPST 1, DPST 2, SPDT 2, 3PST 3, 4PST 4, DPDT 4, 3PDT 6, 4PDT 8, 6PDT 12) and the equation pi_C = (NC)^0.33. The pi_E value for AUC is 13 as printed on page 14-2, which is lower than the AIF value of 18 on the same table. Pages 14-1 and 14-2 supersede pages 14-1 through 14-4 of Revision F."
+}

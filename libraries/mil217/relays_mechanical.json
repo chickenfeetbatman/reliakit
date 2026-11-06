@@ -1,0 +1,309 @@
+{
+ "category": "Relays, Mechanical",
+ "handbook": "MIL-HDBK-217F Notice 2",
+ "section": "13.1",
+ "pdf_pages": [
+  50,
+  51
+ ],
+ "handbook_pages": [
+  "13-1",
+  "13-2"
+ ],
+ "source_pdf": "MIL-HDBK-217F_NOTICE-2.pdf (Everyspec download of the Notice 2 change pages, 28 February 1995)",
+ "model": "lambda_p = lambda_b * pi_L * pi_C * pi_CYC * pi_F * pi_Q * pi_E (failures/10^6 hours)",
+ "coverage": "full",
+ "lambda_b": {
+  "kind": "grid",
+  "unit": "failures/10^6 hours",
+  "axes": [
+   {
+    "name": "ambient_temperature_c",
+    "values": [
+     25,
+     30,
+     35,
+     40,
+     45,
+     50,
+     55,
+     60,
+     65,
+     70,
+     75,
+     80,
+     85,
+     90,
+     95,
+     100,
+     105,
+     110,
+     115,
+     120,
+     125
+    ]
+   },
+   {
+    "name": "rated_temperature_c",
+    "values": [
+     85,
+     125
+    ]
+   }
+  ],
+  "grid": [
+   [
+    0.0059,
+    0.0059
+   ],
+   [
+    0.0067,
+    0.0066
+   ],
+   [
+    0.0075,
+    0.0073
+   ],
+   [
+    0.0084,
+    0.0081
+   ],
+   [
+    0.0094,
+    0.0089
+   ],
+   [
+    0.01,
+    0.0098
+   ],
+   [
+    0.012,
+    0.011
+   ],
+   [
+    0.013,
+    0.012
+   ],
+   [
+    0.014,
+    0.013
+   ],
+   [
+    0.016,
+    0.014
+   ],
+   [
+    0.017,
+    0.015
+   ],
+   [
+    0.019,
+    0.017
+   ],
+   [
+    0.021,
+    0.018
+   ],
+   [
+    null,
+    0.019
+   ],
+   [
+    null,
+    0.021
+   ],
+   [
+    null,
+    0.022
+   ],
+   [
+    null,
+    0.024
+   ],
+   [
+    null,
+    0.026
+   ],
+   [
+    null,
+    0.027
+   ],
+   [
+    null,
+    0.029
+   ],
+   [
+    null,
+    0.031
+   ]
+  ],
+  "formulas": {
+   "85": "lambda_b = 0.0059 * exp((-0.19/(8.617e-5)) * (1/(T+273) - 1/298))",
+   "125": "lambda_b = 0.0059 * exp((-0.17/(8.617e-5)) * (1/(T+273) - 1/298))"
+  },
+  "note": "Grid rows are ambient temperature T_A in degrees C, columns are the relay rated temperature, 85 C and 125 C. Null entries are blank in the handbook (the combination is outside the rated range). T in the formulas is ambient temperature in degrees C."
+ },
+ "pi_tables": {
+  "pi_L": {
+   "kind": "columns",
+   "input": "load_stress",
+   "column_from_input": "load_type",
+   "axis": [
+    0.05,
+    0.1,
+    0.2,
+    0.3,
+    0.4,
+    0.5,
+    0.6,
+    0.7,
+    0.8,
+    0.9,
+    1.0
+   ],
+   "columns": {
+    "Resistive": [
+     1.0,
+     1.02,
+     1.06,
+     1.15,
+     1.28,
+     1.48,
+     1.76,
+     2.15,
+     2.72,
+     3.55,
+     4.77
+    ],
+    "Inductive": [
+     1.02,
+     1.06,
+     1.28,
+     1.76,
+     2.72,
+     4.77,
+     9.49,
+     21.4,
+     null,
+     null,
+     null
+    ],
+    "Lamp": [
+     1.06,
+     1.28,
+     2.72,
+     9.49,
+     54.6,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null
+    ]
+   },
+   "formulas": {
+    "Resistive": "pi_L = exp((S/0.8)^2)",
+    "Inductive": "pi_L = exp((S/0.4)^2)",
+    "Lamp": "pi_L = exp((S/0.2)^2)"
+   },
+   "note": "S = operating load current / rated resistive load current. Null entries are blank in the handbook. For single devices which switch two different load types, evaluate pi_L for each combination and use the worst case (largest pi_L)."
+  },
+  "pi_C": {
+   "kind": "named",
+   "input": "contact_form",
+   "values": {
+    "SPST": 1.0,
+    "DPST": 1.5,
+    "SPDT": 1.75,
+    "3PST": 2.0,
+    "4PST": 2.5,
+    "DPDT": 3.0,
+    "3PDT": 4.25,
+    "4PDT": 5.5,
+    "6PDT": 8.0
+   }
+  },
+  "pi_CYC": {
+   "kind": "formula",
+   "description": "MIL-SPEC quality: pi_CYC = (cycles per hour)/10 for cycle rate >= 1.0 per hour, and 0.1 for cycle rate < 1.0 per hour. Commercial quality: pi_CYC = ((cycles per hour)/100)^2 for cycle rate > 1000 per hour, (cycles per hour)/10 for 10 to 1000 per hour, and 1.0 for cycle rate < 10 per hour. Implemented as reliakit::standards217::relay_pi_cyc. Values of pi_CYC for cycling rates beyond the basic design limitations of the relay are not valid."
+  },
+  "pi_F": {
+   "kind": "named",
+   "input": "application_construction",
+   "values": {
+    "Signal Current | Dry Circuit | Armature (Long)": 4.0,
+    "Signal Current | Dry Circuit | Dry Reed": 6.0,
+    "Signal Current | Dry Circuit | Mercury Wetted": 1.0,
+    "Signal Current | Dry Circuit | Magnetic Latching": 4.0,
+    "Signal Current | Dry Circuit | Balanced Armature": 7.0,
+    "Signal Current | Dry Circuit | Solenoid": 7.0,
+    "0-5 Amp | General Purpose | Armature (Long)": 3.0,
+    "0-5 Amp | General Purpose | Balanced Armature": 5.0,
+    "0-5 Amp | General Purpose | Solenoid": 6.0,
+    "0-5 Amp | Sensitive (0-100 mw) | Armature (Long and Short)": 5.0,
+    "0-5 Amp | Sensitive (0-100 mw) | Mercury Wetted": 2.0,
+    "0-5 Amp | Sensitive (0-100 mw) | Magnetic Latching": 6.0,
+    "0-5 Amp | Sensitive (0-100 mw) | Meter Movement": 100.0,
+    "0-5 Amp | Sensitive (0-100 mw) | Balanced Armature": 10.0,
+    "0-5 Amp | Polarized | Armature (Short)": 10.0,
+    "0-5 Amp | Polarized | Meter Movement": 100.0,
+    "0-5 Amp | Vibrating Reed | Dry Reed": 6.0,
+    "0-5 Amp | Vibrating Reed | Mercury Wetted": 1.0,
+    "0-5 Amp | High Speed | Armature (Balanced and Short)": 25.0,
+    "0-5 Amp | High Speed | Dry Reed": 6.0,
+    "0-5 Amp | Thermal Time Delay | Bimetal": 10.0,
+    "0-5 Amp | Electronic Time Delay, Non-Thermal": 9.0,
+    "0-5 Amp | Latching, Magnetic | Dry Reed": 10.0,
+    "0-5 Amp | Latching, Magnetic | Mercury Wetted": 5.0,
+    "0-5 Amp | Latching, Magnetic | Balanced Armature": 5.0,
+    "5-20 Amp | High Voltage | Vacuum (Glass)": 20.0,
+    "5-20 Amp | High Voltage | Vacuum (Ceramic)": 5.0,
+    "5-20 Amp | Medium Power | Armature (Long and Short)": 3.0,
+    "5-20 Amp | Medium Power | Mercury Wetted": 1.0,
+    "5-20 Amp | Medium Power | Magnetic Latching": 2.0,
+    "5-20 Amp | Medium Power | Mechanical Latching": 3.0,
+    "5-20 Amp | Medium Power | Balanced Armature": 2.0,
+    "5-20 Amp | Medium Power | Solenoid": 2.0,
+    "25-600 Amp | Contactors (High Current) | Armature (Short)": 7.0,
+    "25-600 Amp | Contactors (High Current) | Mechanical Latching": 12.0,
+    "25-600 Amp | Contactors (High Current) | Balanced Armature": 10.0,
+    "25-600 Amp | Contactors (High Current) | Solenoid": 5.0
+   }
+  },
+  "pi_Q": {
+   "kind": "named",
+   "input": "quality",
+   "values": {
+    "R": 0.1,
+    "P": 0.3,
+    "X": 0.45,
+    "U": 0.6,
+    "M": 1.0,
+    "L": 1.5,
+    "MIL-SPEC, Non-Est. Rel.": 1.5,
+    "Commercial": 2.9
+   }
+  },
+  "pi_E": {
+   "kind": "named",
+   "input": "environment",
+   "values": {
+    "GB": 1.0,
+    "GF": 2.0,
+    "GM": 15.0,
+    "NS": 8.0,
+    "NU": 27.0,
+    "AIC": 7.0,
+    "AIF": 9.0,
+    "AUC": 11.0,
+    "AUF": 12.0,
+    "ARW": 46.0,
+    "SF": 0.5,
+    "MF": 25.0,
+    "ML": 66.0
+   }
+  }
+ },
+ "notes": "Specifications MIL-R-5757, MIL-R-6106, MIL-R-13718, MIL-R-19648, MIL-R-19523, MIL-R-39016, MIL-R-83516, MIL-R-83520, MIL-R-83536, MIL-R-83725 and MIL-R-83726 (except Class C, solid state type). The pi_E table prints C_L as N/A, so no CL key is included. pi_F keys are contact rating, application type and construction type as printed on page 13-2; the Electronic Time Delay, Non-Thermal row prints no construction type, so its key has two parts. Pages 13-1 and 13-2 supersede pages 13-1 and 13-2 of Revision F."
+}

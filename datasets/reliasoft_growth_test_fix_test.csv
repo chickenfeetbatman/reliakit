@@ -1,0 +1,28 @@
+# Dataset: ReliaSoft Test-Fix-Test Data Reference Example (failure times in hours)
+# Source: https://help.reliasoft.com/articles/content/reference_examples/rga/test-fix-test_data_reference_example.html
+# Source example: Test-Fix-Test Data Reference Example, reference case Crow (1981), time terminated at 500 hours
+# Note: rows are the printed failure times with the cumulative failure count. Book results printed on the page: Beta = 0.413, Lambda = 1.769, DMTBF = 52.7.
+time,failures
+0.2,1
+4.2,2
+4.5,3
+5,4
+5.4,5
+6.1,6
+7.9,7
+14.8,8
+19.2,9
+48.6,10
+85.8,11
+108.9,12
+127.2,13
+129.8,14
+150.1,15
+159.7,16
+227.4,17
+244.7,18
+262.7,19
+315.3,20
+329.6,21
+404.3,22
+486.2,23

@@ -1,0 +1,21 @@
+# Dataset: ReliaSoft Weibull++ Degradation Analysis Example (turbine blade crack length, mm)
+# Source: http://help.synthesisplatform.net/weibull_alta8/weibull_degradation_analysis_example.htm
+# Source example: Weibull++ Degradation Analysis Example, units A, B, C mapped to unit 1, 2, 3
+# Note: time is in thousands of cycles, exactly as printed in the table header Cycles (x1000). Failure is crack length 30 mm or more.
+# Printed result: exponential degradation model, 2P Weibull MLE on projected times, beta = 8.0722, eta = 541.4229 (eta in thousands of cycles).
+unit,time,value
+1,100,15
+1,200,20
+1,300,22
+1,400,26
+1,500,29
+2,100,17
+2,200,25
+2,300,26
+2,400,27
+2,500,33
+3,100,12
+3,200,16
+3,300,17
+3,400,20
+3,500,26

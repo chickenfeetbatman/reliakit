@@ -1,0 +1,455 @@
+{
+ "category": "Resistors",
+ "handbook": "MIL-HDBK-217F Notice 2",
+ "section": "9.1",
+ "pdf_pages": [
+  32,
+  33,
+  34
+ ],
+ "handbook_pages": [
+  "9-1",
+  "9-2",
+  "9-3"
+ ],
+ "source_pdf": "MIL-HDBK-217F_NOTICE-2.pdf (Everyspec download of the Notice 2 change pages, 28 February 1995)",
+ "model": "lambda_p = lambda_b * pi_T * pi_P * pi_S * pi_Q * pi_E (failures/10^6 hours)",
+ "coverage": "full",
+ "lambda_b": {
+  "kind": "by_style",
+  "unit": "failures/10^6 hours",
+  "axes": [
+   "style"
+  ],
+  "styles": [
+   "RC",
+   "RCR",
+   "RL",
+   "RLR",
+   "RN (R, C or N)",
+   "RM",
+   "RN (MIL-R-10509)",
+   "RD",
+   "RZ",
+   "RB",
+   "RBR",
+   "RW",
+   "RWR",
+   "RE",
+   "RER",
+   "RTH",
+   "RT",
+   "RTR",
+   "RR",
+   "RA",
+   "RK",
+   "RP",
+   "RJ",
+   "RJR",
+   "RV",
+   "RQ",
+   "RVC"
+  ],
+  "grid": [
+   0.0017,
+   0.0017,
+   0.0037,
+   0.0037,
+   0.0037,
+   0.0037,
+   0.0037,
+   0.0037,
+   0.0019,
+   0.0024,
+   0.0024,
+   0.0024,
+   0.0024,
+   0.0024,
+   0.0024,
+   0.0019,
+   0.0024,
+   0.0024,
+   0.0024,
+   0.0024,
+   0.0024,
+   0.0024,
+   0.0037,
+   0.0037,
+   0.0037,
+   0.0037,
+   0.0037
+  ],
+  "by_style": {
+   "RC": {
+    "lambda_b": 0.0017,
+    "specification": "MIL-R-11",
+    "description": "Resistor, Fixed, Composition (Insulated)",
+    "pi_T_column": 1,
+    "pi_S_column": 2
+   },
+   "RCR": {
+    "lambda_b": 0.0017,
+    "specification": "MIL-R-39008",
+    "description": "Resistor, Fixed, Composition (Insulated), Established Reliability",
+    "pi_T_column": 1,
+    "pi_S_column": 2
+   },
+   "RL": {
+    "lambda_b": 0.0037,
+    "specification": "MIL-R-22684",
+    "description": "Resistor, Fixed, Film, Insulated",
+    "pi_T_column": 2,
+    "pi_S_column": 1
+   },
+   "RLR": {
+    "lambda_b": 0.0037,
+    "specification": "MIL-R-39017",
+    "description": "Resistor, Fixed, Film (Insulated), Established Reliability",
+    "pi_T_column": 2,
+    "pi_S_column": 1
+   },
+   "RN (R, C or N)": {
+    "lambda_b": 0.0037,
+    "specification": "MIL-R-55182",
+    "description": "Resistor, Fixed, Film, Established Reliability",
+    "pi_T_column": 2,
+    "pi_S_column": 1
+   },
+   "RM": {
+    "lambda_b": 0.0037,
+    "specification": "MIL-R-55342",
+    "description": "Resistor, Fixed, Film, Chip, Established Reliability",
+    "pi_T_column": 2,
+    "pi_S_column": 1
+   },
+   "RN (MIL-R-10509)": {
+    "lambda_b": 0.0037,
+    "specification": "MIL-R-10509",
+    "description": "Resistor, Fixed Film (High Stability)",
+    "pi_T_column": 2,
+    "pi_S_column": 1
+   },
+   "RD": {
+    "lambda_b": 0.0037,
+    "specification": "MIL-R-11804",
+    "description": "Resistor, Fixed, Film (Power Type)",
+    "pi_T": 1.0,
+    "pi_S_column": 1
+   },
+   "RZ": {
+    "lambda_b": 0.0019,
+    "specification": "MIL-R-83401",
+    "description": "Resistor Networks, Fixed, Film",
+    "pi_T_column": 1,
+    "pi_S": 1.0
+   },
+   "RB": {
+    "lambda_b": 0.0024,
+    "specification": "MIL-R-93",
+    "description": "Resistor, Fixed, Wirewound (Accurate)",
+    "pi_T_column": 2,
+    "pi_S_column": 1
+   },
+   "RBR": {
+    "lambda_b": 0.0024,
+    "specification": "MIL-R-39005",
+    "description": "Resistor, Fixed, Wirewound (Accurate), Established Reliability",
+    "pi_T_column": 2,
+    "pi_S_column": 1
+   },
+   "RW": {
+    "lambda_b": 0.0024,
+    "specification": "MIL-R-26",
+    "description": "Resistor, Fixed, Wirewound (Power Type)",
+    "pi_T_column": 2,
+    "pi_S_column": 2
+   },
+   "RWR": {
+    "lambda_b": 0.0024,
+    "specification": "MIL-R-39007",
+    "description": "Resistor, Fixed, Wirewound (Power Type), Established Reliability",
+    "pi_T_column": 2,
+    "pi_S_column": 2
+   },
+   "RE": {
+    "lambda_b": 0.0024,
+    "specification": "MIL-R-18546",
+    "description": "Resistor, Fixed, Wirewound (Power Type, Chassis Mounted)",
+    "pi_T_column": 2,
+    "pi_S_column": 2
+   },
+   "RER": {
+    "lambda_b": 0.0024,
+    "specification": "MIL-R-39009",
+    "description": "Resistor, Fixed, Wirewound (Power Type, Chassis Mounted), Established Reliability",
+    "pi_T_column": 2,
+    "pi_S_column": 2
+   },
+   "RTH": {
+    "lambda_b": 0.0019,
+    "specification": "MIL-R-23648",
+    "description": "Thermistor, (Thermally Sensitive Resistor), Insulated",
+    "pi_T": 1.0,
+    "pi_S": 1.0
+   },
+   "RT": {
+    "lambda_b": 0.0024,
+    "specification": "MIL-R-27208",
+    "description": "Resistor, Variable, Wirewound (Lead Screw Activated)",
+    "pi_T_column": 2,
+    "pi_S_column": 1
+   },
+   "RTR": {
+    "lambda_b": 0.0024,
+    "specification": "MIL-R-39015",
+    "description": "Resistor, Variable, Wirewound (Lead Screw Activated), Established Reliability",
+    "pi_T_column": 2,
+    "pi_S_column": 1
+   },
+   "RR": {
+    "lambda_b": 0.0024,
+    "specification": "MIL-R-12934",
+    "description": "Resistor, Variable, Wirewound, Precision",
+    "pi_T_column": 2,
+    "pi_S_column": 1
+   },
+   "RA": {
+    "lambda_b": 0.0024,
+    "specification": "MIL-R-19",
+    "description": "Resistor, Variable, Wirewound (Low Operating Temperature)",
+    "pi_T_column": 1,
+    "pi_S_column": 1
+   },
+   "RK": {
+    "lambda_b": 0.0024,
+    "specification": "MIL-R-39002",
+    "description": "Resistor, Variable, Wirewound, Semi-Precision",
+    "pi_T_column": 1,
+    "pi_S_column": 1
+   },
+   "RP": {
+    "lambda_b": 0.0024,
+    "specification": "MIL-R-22",
+    "description": "Resistor, Wirewound, Power Type",
+    "pi_T_column": 2,
+    "pi_S_column": 1
+   },
+   "RJ": {
+    "lambda_b": 0.0037,
+    "specification": "MIL-R-22097",
+    "description": "Resistor, Variable, Nonwirewound",
+    "pi_T_column": 2,
+    "pi_S_column": 1
+   },
+   "RJR": {
+    "lambda_b": 0.0037,
+    "specification": "MIL-R-39035",
+    "description": "Resistor, Variable, Nonwirewound, Established Reliability",
+    "pi_T_column": 2,
+    "pi_S_column": 1
+   },
+   "RV": {
+    "lambda_b": 0.0037,
+    "specification": "MIL-R-94",
+    "description": "Resistor, Variable, Composition",
+    "pi_T_column": 2,
+    "pi_S_column": 1
+   },
+   "RQ": {
+    "lambda_b": 0.0037,
+    "specification": "MIL-R-39023",
+    "description": "Resistor, Variable, Nonwirewound, Precision",
+    "pi_T_column": 1,
+    "pi_S_column": 1
+   },
+   "RVC": {
+    "lambda_b": 0.0037,
+    "specification": "MIL-R-23285",
+    "description": "Resistor, Variable, Nonwirewound",
+    "pi_T_column": 1,
+    "pi_S_column": 1
+   }
+  }
+ },
+ "pi_tables": {
+  "pi_T": {
+   "kind": "columns",
+   "input": "temperature_c",
+   "column_from_style_field": "pi_T_column",
+   "axis": [
+    20,
+    30,
+    40,
+    50,
+    60,
+    70,
+    80,
+    90,
+    100,
+    110,
+    120,
+    130,
+    140,
+    150
+   ],
+   "columns": {
+    "1": [
+     0.88,
+     1.1,
+     1.5,
+     1.8,
+     2.3,
+     2.8,
+     3.4,
+     4.0,
+     4.8,
+     5.6,
+     6.6,
+     7.6,
+     8.7,
+     10.0
+    ],
+    "2": [
+     0.95,
+     1.1,
+     1.2,
+     1.3,
+     1.4,
+     1.5,
+     1.6,
+     1.7,
+     1.9,
+     2.0,
+     2.1,
+     2.3,
+     2.4,
+     2.5
+    ]
+   },
+   "formulas": {
+    "1": "pi_T = exp((-0.2/(8.617e-5)) * (1/(T+273) - 1/298))",
+    "2": "pi_T = exp((-0.08/(8.617e-5)) * (1/(T+273) - 1/298))"
+   },
+   "note": "T is resistor case temperature in degrees C. Table values should only be used up to the temperature rating of the device; for ratings above 150 C use the equation."
+  },
+  "pi_P": {
+   "kind": "series",
+   "input": "power_dissipation_w",
+   "axis": [
+    0.001,
+    0.01,
+    0.13,
+    0.25,
+    0.5,
+    0.75,
+    1.0,
+    2.0,
+    3.0,
+    4.0,
+    5.0,
+    10.0,
+    25.0,
+    50.0,
+    100.0,
+    150.0
+   ],
+   "values": [
+    0.068,
+    0.17,
+    0.44,
+    0.58,
+    0.76,
+    0.89,
+    1.0,
+    1.3,
+    1.5,
+    1.7,
+    1.9,
+    2.5,
+    3.5,
+    4.6,
+    6.0,
+    7.1
+   ],
+   "formula": "pi_P = (power dissipation in watts)^0.39"
+  },
+  "pi_S": {
+   "kind": "columns",
+   "input": "power_stress",
+   "column_from_style_field": "pi_S_column",
+   "axis": [
+    0.1,
+    0.2,
+    0.3,
+    0.4,
+    0.5,
+    0.6,
+    0.7,
+    0.8,
+    0.9
+   ],
+   "columns": {
+    "1": [
+     0.79,
+     0.88,
+     0.99,
+     1.1,
+     1.2,
+     1.4,
+     1.5,
+     1.7,
+     1.9
+    ],
+    "2": [
+     0.66,
+     0.81,
+     1.0,
+     1.2,
+     1.5,
+     1.8,
+     2.3,
+     2.8,
+     3.4
+    ]
+   },
+   "formulas": {
+    "1": "pi_S = 0.71 * exp(1.1 * S)",
+    "2": "pi_S = 0.54 * exp(2.04 * S)"
+   },
+   "note": "S = actual power dissipation / rated power."
+  },
+  "pi_Q": {
+   "kind": "named",
+   "input": "quality",
+   "values": {
+    "S": 0.03,
+    "R": 0.1,
+    "P": 0.3,
+    "M": 1.0,
+    "Non-Established Reliability": 3.0,
+    "Commercial or Unknown Screening": 10.0
+   }
+  },
+  "pi_E": {
+   "kind": "named",
+   "input": "environment",
+   "values": {
+    "GB": 1.0,
+    "GF": 4.0,
+    "GM": 16.0,
+    "NS": 12.0,
+    "NU": 42.0,
+    "AIC": 18.0,
+    "AIF": 23.0,
+    "AUC": 31.0,
+    "AUF": 43.0,
+    "ARW": 63.0,
+    "SF": 0.5,
+    "MF": 37.0,
+    "ML": 87.0,
+    "CL": 1728.0
+   }
+  }
+ },
+ "notes": "Section 9.1 in Notice 2 supersedes Sections 9.0 to 9.17 of Revision F. Styles RD and RTH have pi_T = 1 (printed N/A). Style RZ and RTH have pi_S = 1 (printed N/A). Established reliability quality levels S, R, P, M apply to failure rate graded styles, usually three letter styles with an R suffix."
+}

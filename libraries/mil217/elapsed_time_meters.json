@@ -1,0 +1,81 @@
+{
+ "category": "Rotating Devices, Elapsed Time Meters",
+ "handbook": "MIL-HDBK-217F Notice 2",
+ "section": "12.3",
+ "pdf_pages": [
+  49
+ ],
+ "handbook_pages": [
+  "12-5"
+ ],
+ "source_pdf": "MIL-HDBK-217F_NOTICE-2.pdf (Everyspec download of the Notice 2 change pages, 28 February 1995)",
+ "model": "lambda_p = lambda_b * pi_T * pi_E (failures/10^6 hours)",
+ "coverage": "full",
+ "lambda_b": {
+  "kind": "by_type",
+  "unit": "failures/10^6 hours",
+  "axes": [
+   "type"
+  ],
+  "types": [
+   "A.C.",
+   "Inverter Driven",
+   "Commutator D.C."
+  ],
+  "grid": [
+   20.0,
+   30.0,
+   80.0
+  ],
+  "by_type": {
+   "A.C.": {
+    "lambda_b": 20.0
+   },
+   "Inverter Driven": {
+    "lambda_b": 30.0
+   },
+   "Commutator D.C.": {
+    "lambda_b": 80.0
+   }
+  }
+ },
+ "pi_tables": {
+  "pi_T": {
+   "kind": "series",
+   "input": "temperature_ratio",
+   "axis": [
+    0.5,
+    0.6,
+    0.8,
+    1.0
+   ],
+   "values": [
+    0.5,
+    0.6,
+    0.8,
+    1.0
+   ],
+   "note": "Input is operating temperature (degrees C) divided by rated temperature (degrees C). The first printed row is the band 0 to 0.5, giving pi_T = 0.5."
+  },
+  "pi_E": {
+   "kind": "named",
+   "input": "environment",
+   "values": {
+    "GB": 1.0,
+    "GF": 2.0,
+    "GM": 12.0,
+    "NS": 7.0,
+    "NU": 18.0,
+    "AIC": 5.0,
+    "AIF": 8.0,
+    "AUC": 16.0,
+    "AUF": 25.0,
+    "ARW": 26.0,
+    "SF": 0.5,
+    "MF": 14.0,
+    "ML": 38.0
+   }
+  }
+ },
+ "notes": "Page 12-5 supersedes page 12-5 of Revision F. The pi_E table prints C_L as N/A, so no CL key is included. The large lambda_b values are as printed; elapsed time meters are wear items."
+}

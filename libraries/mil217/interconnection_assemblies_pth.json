@@ -1,0 +1,112 @@
+{
+ "category": "Interconnection Assemblies with Plated Through Holes",
+ "handbook": "MIL-HDBK-217F Notice 2",
+ "section": "16.1",
+ "pdf_pages": [
+  59
+ ],
+ "handbook_pages": [
+  "16-1"
+ ],
+ "source_pdf": "MIL-HDBK-217F_NOTICE-2.pdf (Everyspec download of the Notice 2 change pages, 28 February 1995)",
+ "model": "lambda_p = lambda_b * [N1 * pi_C + N2 * (pi_C + 13)] * pi_Q * pi_E (failures/10^6 hours)",
+ "coverage": "full",
+ "lambda_b": {
+  "kind": "by_type",
+  "unit": "failures/10^6 hours",
+  "axes": [
+   "type"
+  ],
+  "types": [
+   "Printed Wiring Assembly/Printed Circuit Boards with PTHs",
+   "Discrete Wiring with Electroless Deposited PTH (<= 2 Levels of Circuitry)"
+  ],
+  "grid": [
+   1.7e-05,
+   0.00011
+  ],
+  "by_type": {
+   "Printed Wiring Assembly/Printed Circuit Boards with PTHs": {
+    "lambda_b": 1.7e-05
+   },
+   "Discrete Wiring with Electroless Deposited PTH (<= 2 Levels of Circuitry)": {
+    "lambda_b": 0.00011
+   }
+  }
+ },
+ "pi_tables": {
+  "pi_C": {
+   "kind": "series",
+   "input": "circuit_planes",
+   "axis": [
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15,
+    16,
+    17,
+    18
+   ],
+   "values": [
+    1.0,
+    1.3,
+    1.6,
+    1.8,
+    2.0,
+    2.2,
+    2.4,
+    2.6,
+    2.8,
+    2.9,
+    3.1,
+    3.3,
+    3.4,
+    3.6,
+    3.7,
+    3.9,
+    4.0
+   ],
+   "formula": "pi_C = 0.65 * P^0.63, for 2 <= P <= 18",
+   "note": "P is the number of circuit planes. The first printed row is P <= 2, giving pi_C = 1.0. For discrete wiring with PTH, pi_C = 1."
+  },
+  "pi_Q": {
+   "kind": "named",
+   "input": "quality",
+   "values": {
+    "MIL-SPEC or IPC Level 3": 1.0,
+    "Lower": 2.0
+   }
+  },
+  "pi_E": {
+   "kind": "named",
+   "input": "environment",
+   "values": {
+    "GB": 1.0,
+    "GF": 2.0,
+    "GM": 7.0,
+    "NS": 5.0,
+    "NU": 13.0,
+    "AIC": 5.0,
+    "AIF": 8.0,
+    "AUC": 16.0,
+    "AUF": 28.0,
+    "ARW": 19.0,
+    "SF": 0.5,
+    "MF": 10.0,
+    "ML": 27.0,
+    "CL": 500.0
+   }
+  }
+ },
+ "notes": "N1 is the quantity of wave, infrared or vapor phase soldered functional PTHs (automated techniques) and N2 is the quantity of hand soldered PTHs. Because the model is not a plain product of pi factors, the generic part_failure_rate function does not evaluate it; use reliakit::standards217::pth_failure_rate, which implements the printed equation. Page 16-1 supersedes page 16-1 of Revision F. Section 16.2 (surface mount technology, handbook pages 16-2 to 16-4, PDF pages 60 to 62) is a thermal cycling fatigue model and is not included; see the stream notes fragment."
+}

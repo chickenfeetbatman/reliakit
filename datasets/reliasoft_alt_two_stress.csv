@@ -1,0 +1,17 @@
+# Dataset: ReliaSoft ALTA Two-Stress Example (time failed in hours by temperature K and voltage V)
+# Source: http://help.synthesisplatform.net/weibull_alta8/alta_two-stress_example.htm
+# Source example: ALTA Two-Stress Example, 12 exact failure times, use level 328 K and 2 V, TNT Weibull model
+# Columns: stress is temperature in K, stress2 is voltage in V.
+stress,time,failed,stress2
+348,620,1,3
+348,632,1,3
+348,658,1,3
+348,822,1,3
+378,216,1,3
+378,246,1,3
+378,332,1,3
+378,400,1,3
+378,380,1,5
+378,416,1,5
+378,460,1,5
+378,596,1,5

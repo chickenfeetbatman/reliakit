@@ -1,0 +1,30 @@
+# Dataset: SMRD bearingcage, Bearing Cage Fracture Test (Meeker and Escobar 1998, grouped field data, hours)
+# Source: https://rdrr.io/github/Auburngrads/SMRD/src/inst/test_objs/wqmmlesss/bearingcage.R
+# Source example: SMRD package bearingcage data object (hours, event, count) as printed in the SMRD source file; documentation at https://rdrr.io/github/Auburngrads/SMRD.data/man/bearingcage.html
+# Note: in the source the event factor levels are 1 = Censored and 2 = Failed, converted here to failed = 1 for Failed and 0 for Censored. count is the number of assemblies. Totals: 1703 assemblies, 6 failures, 1697 censored.
+time,failed,count
+50,0,288
+150,0,148
+230,1,1
+250,0,124
+334,1,1
+350,0,111
+423,1,1
+450,0,106
+550,0,99
+650,0,110
+750,0,114
+850,0,119
+950,0,127
+990,1,1
+1009,1,1
+1050,0,123
+1150,0,93
+1250,0,47
+1350,0,41
+1450,0,27
+1510,1,1
+1550,0,11
+1650,0,6
+1850,0,1
+2050,0,2

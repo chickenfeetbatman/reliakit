@@ -1,0 +1,73 @@
+{
+ "category": "Relays, Solid State and Time Delay",
+ "handbook": "MIL-HDBK-217F Notice 2",
+ "section": "13.2",
+ "pdf_pages": [
+  52
+ ],
+ "handbook_pages": [
+  "13-3"
+ ],
+ "source_pdf": "MIL-HDBK-217F_NOTICE-2.pdf (Everyspec download of the Notice 2 change pages, 28 February 1995)",
+ "model": "lambda_p = lambda_b * pi_Q * pi_E (failures/10^6 hours)",
+ "coverage": "full",
+ "lambda_b": {
+  "kind": "by_type",
+  "unit": "failures/10^6 hours",
+  "axes": [
+   "type"
+  ],
+  "types": [
+   "Solid State",
+   "Solid State Time Delay",
+   "Hybrid"
+  ],
+  "grid": [
+   0.029,
+   0.029,
+   0.029
+  ],
+  "by_type": {
+   "Solid State": {
+    "lambda_b": 0.029
+   },
+   "Solid State Time Delay": {
+    "lambda_b": 0.029
+   },
+   "Hybrid": {
+    "lambda_b": 0.029
+   }
+  }
+ },
+ "pi_tables": {
+  "pi_Q": {
+   "kind": "named",
+   "input": "quality",
+   "values": {
+    "MIL-SPEC": 1.0,
+    "Commercial": 1.9
+   }
+  },
+  "pi_E": {
+   "kind": "named",
+   "input": "environment",
+   "values": {
+    "GB": 1.0,
+    "GF": 3.0,
+    "GM": 12.0,
+    "NS": 6.0,
+    "NU": 17.0,
+    "AIC": 12.0,
+    "AIF": 19.0,
+    "AUC": 21.0,
+    "AUF": 32.0,
+    "ARW": 23.0,
+    "SF": 0.4,
+    "MF": 12.0,
+    "ML": 33.0,
+    "CL": 590.0
+   }
+  }
+ },
+ "notes": "Specifications MIL-R-28750 and MIL-R-83726. This is the handbook default model for solid state and solid state time delay relays, to be used when the component level failure rates that make up the relay are not known. Page 13-3 supersedes page 13-3 of Revision F."
+}

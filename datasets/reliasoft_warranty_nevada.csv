@@ -1,0 +1,12 @@
+# Dataset: ReliaSoft Warranty Data Analysis, Nevada Chart Format Calculations Example (sales and returns by month)
+# Source: https://help.reliasoft.com/reference/life_data_analysis/lda/warranty_data_analysis.html
+# Source example: Nevada Chart Format Calculations Example, shipments June, July, August 2010 with returns through September 2010
+# Note: ship_period 1 = June 2010, 2 = July 2010, 3 = August 2010. sales repeats the shipment size on each lag row for that shipment. Total shipped = 390, total returns = 21.
+# Note: converted life data per the page text: 9 failures at 1 month and 146 suspensions at 1 month, 7 failures at 2 months and 134 suspensions at 2 months, 5 failures at 3 months and 89 suspensions at 3 months.
+ship_period,sales,lag_months,returns
+1,100,1,3
+1,100,2,3
+1,100,3,5
+2,140,1,2
+2,140,2,4
+3,150,1,4

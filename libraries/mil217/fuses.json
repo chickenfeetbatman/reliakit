@@ -1,0 +1,55 @@
+{
+ "category": "Fuses",
+ "handbook": "MIL-HDBK-217F Notice 2",
+ "section": "22.1",
+ "pdf_pages": [
+  173
+ ],
+ "handbook_pages": [
+  "22-1"
+ ],
+ "source_pdf": "MIL-HDBK-217F_base_Quanterion.pdf (Quanterion copy of MIL-HDBK-217F, 2 December 1991; this section was not revised by Notice 1 or Notice 2, so the base pages are the Notice 2 pages)",
+ "model": "lambda_p = lambda_b * pi_E (failures/10^6 hours)",
+ "coverage": "full",
+ "lambda_b": {
+  "kind": "by_type",
+  "unit": "failures/10^6 hours",
+  "axes": [
+   "type"
+  ],
+  "types": [
+   "W-F-1726, W-F-1814, MIL-F-5372, MIL-F-23419, MIL-F-15160"
+  ],
+  "grid": [
+   0.01
+  ],
+  "by_type": {
+   "W-F-1726, W-F-1814, MIL-F-5372, MIL-F-23419, MIL-F-15160": {
+    "lambda_b": 0.01
+   }
+  }
+ },
+ "pi_tables": {
+  "pi_E": {
+   "kind": "named",
+   "input": "environment",
+   "values": {
+    "GB": 1.0,
+    "GF": 2.0,
+    "GM": 8.0,
+    "NS": 5.0,
+    "NU": 11.0,
+    "AIC": 9.0,
+    "AIF": 12.0,
+    "AUC": 15.0,
+    "AUF": 18.0,
+    "ARW": 16.0,
+    "SF": 0.9,
+    "MF": 10.0,
+    "ML": 21.0,
+    "CL": 230.0
+   }
+  }
+ },
+ "notes": "The handbook gives one lambda_b of 0.010 for all of the listed fuse types (cartridge Class H, cartridge high interrupting capacity, current limiter type aircraft, instrument type, and instrument/power/telephone nonindicating style F01). The model is based on life test data and represents fuse open and shorting failure modes due primarily to mechanical fatigue and corrosion. Section 22 was not revised by Notice 2, so this is the base handbook page 22-1 as retained in the Notice 2 handbook. In the task section list this category was called 21.x; in the handbook as published it is Section 22."
+}
