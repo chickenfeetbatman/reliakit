@@ -152,8 +152,10 @@ availability is computed on the same screen, and diagrams save and
 load as the JSON the library and CLI accept. Keyboard shortcuts:
 Ctrl+S saves the project, Ctrl+O opens one, Ctrl+K opens the quick
 switcher, and Delete removes the selected RBD block or table row. `reliakit-app --headless` runs a
-no-window check: it builds the Example 3 diagram and prints its
-reliability and availability.
+no-window check: it creates the engine work state, loads Example 1
+through the dispatcher, runs the Life Data fit, checks the headline
+value (R(1000) = 0.9172), prints the result, and exits 0 on success
+or nonzero on failure.
 
 Attribution: the desktop shell is built with
 [Tauri](https://tauri.app), used under the MIT and Apache-2.0
@@ -172,59 +174,36 @@ bundle and gui/ui/fonts/OFL.txt in this repository).
 
 ## ReliaSoft parity matrix
 
-Implemented means tested code. Limited means the limit is stated
-in the row.
+Status at v0.3.2. Library, CLI, and GUI name what each surface
+actually has. The validation column names the independent check
+that covers the area, not the code's own output. The limits column
+is part of the claim: read a row with its limit beside it.
 
-| ReliaSoft area | Rust implementation | Status |
-| --- | --- | --- |
-| Weibull++ life data: 14 distributions (weibull2, weibull3, weibull1, lognormal, normal, exponential, exponential2, gamma, gumbel, loglogistic, logistic, gompertz, gengamma, mixed_weibull) | `distributions` | Implemented (mixed_weibull has 2 subpopulations) |
-| Censored (suspended) MLE, Fisher matrix bounds | `distributions` | Implemented |
-| Median rank regression, probability plots, Kaplan-Meier | `distributions` | Implemented |
-| Distribution wizard (best-fit ranking by AIC, with BIC and Anderson-Darling) | `wizard` | Implemented (weibull1 is not a wizard candidate; its shape is fixed by the user) |
-| QCP (quick calculation pad: reliability, unreliability, hazard, mean life, pdf, Bx life at one mission time) | `quickcalc` | Implemented |
-| Limited data: Weibull shape bias correction | `bayes` | Implemented |
-| Limited data: hierarchical empirical-Bayes shrinkage (DerSimonian-Laird) | `bayes` | Implemented |
-| Limited data: split-conformal certified mission time and reliability bound | `bayes` | Implemented |
-| Bayesian MCMC with R-hat / ESS diagnostics, hierarchical model | `mcmc` | Implemented |
-| Degradation analysis (linear, exponential, power paths) | `degradation` | Implemented |
-| ALTA: Arrhenius, inverse power law, Eyring (least squares) | `alt` | Implemented |
-| ALTA: censored maximum-likelihood fitting, all three models, use-level extrapolation with bounds | `alt` (`fit_alt_mle`) | Implemented |
-| ALTA: two-stress Eyring with interaction term | `alt` (LSQ and MLE) | Implemented |
-| ALTA: loglinear multi-stress MLE (generalized Eyring form) | `alt` (`fit_alt_mle_loglinear`) | Implemented for exactly two stresses (temperature and one nonthermal stress, weibull2 and lognormal lives); up to 8 stresses and user transforms are not built |
-| ALTA: step-stress profiles | `alt` (step-stress reliability and CDF) | Implemented for step profiles; general time-varying stress entry is not built |
-| RGA: Crow-AMSAA and Duane growth models | `growth` | Implemented |
-| RGA: Gompertz and Lloyd-Lipow growth models | `growth` | Implemented (one Gompertz fit; no separate modified Gompertz form) |
-| BlockSim: series, parallel, k-out-of-n, nested RBD from JSON | `system` | Implemented |
-| BlockSim: standby redundancy, dormancy (cold / warm / hot), switch reliability | `system`, `standby` | Implemented |
-| Standby groups of any size: exact exponential closed form, general distributions by recursive convolution quadrature, Monte Carlo cross-check | `standby` | Implemented (quadrature is practical to about 5 units; larger groups fall back to Monte Carlo) |
-| BlockSim: CTMC steady-state and transient availability, Monte Carlo availability with swap-time downtime | `system` | Implemented |
-| BlockSim: posterior system reliability propagation | `system` | Implemented |
-| BlockSim: Markov diagrams (steady state, transient, mean time to absorption) | `markov` | Implemented |
-| BlockSim: reliability importance (Birnbaum, criticality, Fussell-Vesely) | `importance` | Implemented (measures only; no importance plots) |
-| Reliability allocation (target reliability split across blocks or parts) | `prediction` (`allocate_equal`, `allocate_weighted`) | Implemented for equal and weighted allocation; cost optimized, AGREE, Feasibility of Objectives, ARINC and Repairable Systems allocation are not built |
-| FTA: AND / OR / voting gates, top-event probability, minimal cut sets | `faulttree` | Implemented (cut sets are exact for small trees; no binary decision diagram engine) |
-| Competing risks / failure-mode analysis, cause-specific cumulative incidence | `competing` | Implemented (independent risks; a failure with unknown mode is treated as its own "unknown" mode category) |
-| XFMEA: worksheet with severity, occurrence, detection, RPN, actions, revised RPN, CSV import/export | `fmea` | Implemented |
-| XFMEA: FMEA types (Design, Process, System), FMECA criticality, control plan export, DVP&R table | `fmea`, `rcm` | Implemented (control plan export has rows with recommended actions; DVP&R has CSV round trip) |
-| RCM++: RCM worksheet (consequence classes, task selection, mode criticality) | `rcm` | Implemented |
-| XFRACAS: incident log (part, failure mode, hours, date, status, corrective action; counts and MTBF; CSV round trip) | `fracas` | Implemented as a local log; the hosted web portal and multi-user workflow are out of scope |
-| Warranty: Nevada-table aggregation, Weibull fit to returns, forecast for units in service | `warranty` | Implemented |
-| Lambda Predict style prediction: parts-count and parts-stress framework, user-entered base rates and stress / quality / environment factors, series roll-up | `prediction` | Implemented |
-| Standards based prediction (MIL-HDBK-217F, SR-332, IEC 62380) | `standards217`, `prediction` | MIL-HDBK-217F Notice 2 library built from the published handbook PDF: 18 part categories with per-table provenance (sections listed in FEATURE_RESEARCH.md). Sections 5 and 6 are not included because the Notice 2 document carries only replacement pages for them. NSWC not included. SR-332 and IEC 62380: methods implemented clean-room from public secondary sources; the standards own data tables are licensed documents and load through the local library import. No table data from those standards is bundled. |
-| Derating check (operating stress against rated stress, user limit) | `prediction` (`derating_check`) | Implemented; built-in derating standards tables are not bundled |
-| Component library file format with local import (library CSV of parts and rates) | `prediction` (`library_from_csv`) | Implemented; ReliaSoft compiled libraries are not used |
-| DOE++: two-level factorial designs, effect estimates, sums of squares | `doe` | Implemented for 2^k designs (main effects and interactions) |
-| DOE++ expansion: fractional factorial, Plackett-Burman, Taguchi arrays, response surface (central composite, Box-Behnken, quadratic fit) | `doe` | Implemented |
-| RENO style flowchart simulation: start, task, decision, loop/counter, end blocks, Monte Carlo run-time and cost distributions | `flowchart` | Implemented (JSON-defined flows; no graphical flow editor) |
-| Bundled datasets: 16 sourced CSV files with CSV import, plus synthetic example data generators | `datasets/`, `datasets` | Implemented (sources and verification fits are in FEATURE_RESEARCH.md) |
-| GUI project file (save and load app state, ReliaKit own JSON format) | `reliakit-app` | Implemented; ReliaSoft project formats are not read |
-| Project workspace (Synthesis-style project and item organization, data flows between items) | `reliakit-app` | Implemented; one project open at a time, no multi-user database, no cloud sync |
-| ReliaSoft Cloud | none | Out of scope: hosted service, not desktop software |
-| MPC / MSG-3 | none | Out of scope: aerospace program tooling |
+| Capability | Library | CLI | GUI | Independent validation | Known limits |
+| --- | --- | --- | --- | --- | --- |
+| Life distributions | Yes: `distributions`, 14 distributions | Yes: `fit`, `rel` | Yes: Life Data item | `tests/validation_tests.rs` Family 1: pdf integrates to cdf, quantile inverts cdf to 1e-8, support checks for weibull2, lognormal, gamma, loglogistic, exponential2, gengamma; `tests/dist_tests.rs` closed forms | Mixed Weibull has 2 subpopulations only |
+| Censoring | Yes: right-censored (suspended) likelihood | Yes: `fit` | Yes: Life Data, suffix c or + marks a suspension | `tests/validation_tests.rs` censored recovery fixture; `tests/v032_fit_tests.rs` shifted-exponential suspension case | Right censoring only. No left censoring and no interval censoring |
+| Estimation | Yes: censored MLE; median rank regression for weibull2, lognormal, normal, loglogistic; weibull1 shape fixed by the user through `fit_weibull1` | Yes: `fit` | Yes: Life Data, MLE or rank regression toggle | `tests/validation_tests.rs` Family 2: known generating parameters recovered for complete and censored samples, ties, n = 3, extreme scales, row-order and unit-rescaling invariance | No NLRR. Rank regression is not provided for the other distributions |
+| Confidence bounds | Yes: Fisher matrix (observed information) bounds | Yes: in `fit` output | Yes: Life Data bounds rows | `tests/validation_tests.rs` Family 3: Fisher standard errors recomputed by an independent finite-difference Hessian path in the test | Fisher bounds only. No likelihood ratio, Bayesian, or beta-binomial bounds |
+| Wizard | Yes: `wizard`, ranking by AIC with BIC and Anderson-Darling shown | Yes: `wizard` | Yes: Life Data, Rank distributions and Use | `tests/expansion_tests.rs` ranking and Anderson-Darling hand case | Ranking is AIC-based, not ReliaSoft's weighted ranking scheme. weibull1 is not a candidate because its shape is user-fixed |
+| QCP and plotting | Yes: `quickcalc`; chart series computed in the engine | Yes: `qcp` | Yes: QCP item; reliability curve and the probability plot named "Empirical vs fitted probability" | `tests/expansion_tests.rs` QCP hand values | No overlay plots and no separate plot viewer |
+| ALT | Yes: `alt`, Arrhenius, inverse power law, Eyring (least squares and censored MLE), two-stress loglinear MLE, step-stress | Yes: `af`, `alt-mle` | Yes: ALT item covers the arrhenius, ipl, and eyring models | `tests/validation_tests.rs` Family 8: Arrhenius factor against the hand formula; `tests/alt_mle_tests.rs`, `tests/expansion_tests.rs` | Loglinear MLE is for exactly two stresses (temperature and one nonthermal stress). No proportional hazards model. Temperature convention differs by fit: Celsius (below 400) for the Arrhenius and Eyring fits, Kelvin exactly as given for the loglinear fit; see the user guide |
+| Growth | Yes: `growth`, Crow-AMSAA, Duane, Gompertz, Lloyd-Lipow | Yes: `growth` | Yes: Growth item | `tests/ported_tests.rs` Crow-AMSAA hand calculation; `tests/expansion_tests.rs` Gompertz and Lloyd-Lipow recovery | No Crow Extended and no multi-phase growth analysis |
+| BlockSim RBD | Yes: `system`, `standby`, `importance`, `markov` | Yes: `rbd`, `standby`, `importance`, `markov` | Yes: RBD and Markov items | `tests/validation_tests.rs` Family 5: series, parallel, and k-out-of-n against hand closed forms; standby against the Poisson closed form also anchored in `tests/standby_tests.rs` | Standby quadrature is practical to about 5 units, then Monte Carlo. No load sharing, mirrored, or multi blocks |
+| BlockSim maintenance | Yes: CTMC steady state and transient, Monte Carlo availability with a simulations count and a Monte Carlo standard error | Yes: `availability` | Yes: RBD item, horizon and Simulations fields, standard error in the results | `tests/validation_tests.rs` Family 6: CTMC single-unit availability to 1e-9, Monte Carlo agrees within 3 standard errors | No crews, spare parts pools, restoration factors, or duty cycles. One repair model per block (MTBF and MTTR) |
+| Fault trees | Yes: `faulttree`, AND, OR, and voting gates, minimal cut sets, repeated basic events share one identity | Yes: `faulttree` | Yes: Fault Tree item | `tests/v032_ft_war_tests.rs`: hand values and an independent brute force truth-table enumeration, including repeated events | Cut sets are exact for small trees. Repeated-event evaluation is exact up to 20 distinct events and then errors instead of approximating. No binary decision diagram engine |
+| XFMEA | Yes: `fmea`, Design, Process, and System worksheets, RPN, FMECA criticality, DVP&R, control plan export | Yes: `fmea` | Yes: FMEA item | `tests/parity_tests.rs`, `tests/hbk_tests.rs` | No risk matrices, P-Diagrams, or DRBFM. DVP&R moves by CSV, not Excel |
+| RCM | Yes: `rcm`, worksheet with consequence classes, task selection, mode criticality | No | Yes: RCM item | `tests/hbk_tests.rs` decision table and criticality arithmetic | Worksheet only. No task packaging, optimum replacement, or MSG-3 program tooling |
+| FRACAS | Yes: `fracas`, local incident log with CSV round trip | Yes: `fracas` | Yes: FRACAS item | `tests/hbk_tests.rs` aggregation, MTBF arithmetic, CSV round trip | Local log only. No hosted portal, multi-user workflow, or problem-solving sign-off flow |
+| Lambda Predict | Yes: `prediction` (parts count and parts stress, allocation, derating, component library, SR-332 and 62380-style methods) and `standards217` (MIL-HDBK-217F Notice 2 library, 18 categories with per-table provenance) | Yes: `predict`, `predict217`, `sr332`, `mission`, `allocate`, `library` | Yes: Prediction item | `tests/standards217_tests.rs`, including the handbook capacitor worked example (0.04898 against the printed 0.049); `tests/hbk_tests.rs` for the clean-room methods | MIL-HDBK-217F sections 5, 6, 7, 8, 18, and 20 are not built, with reasons in FEATURE_RESEARCH.md. NSWC is not included. SR-332 and IEC 62380 are method-only with user-supplied tables; no table data is bundled. Allocation is equal and weighted only. Derating uses a user-set limit; no built-in derating tables |
+| DOE | Yes: `doe`, 2^k full factorial, fractional factorial, Plackett-Burman, Taguchi, response surface | Yes: `doe` | Partial: DOE item runs the full 2^k analysis | `tests/parity_tests.rs`, `tests/expansion_tests.rs`, `tests/qa_tests.rs` | No one-factor, general multi-level, or optimal custom designs. The GUI screen covers the full factorial only; the other designs are library and CLI level |
+| Flowchart | Yes: `flowchart`, JSON-defined process simulation | Yes: `flow` | Yes: Flowchart item | `tests/flowchart_tests.rs` deterministic chain, known mixture, loop semantics | JSON-defined flows only. No graphical flow editor |
+| Workspace and reports | Yes: `reliakit-engine`, project format reliakit-project-2, six data flows between items | Partial: `selftest` checks closed forms; there is no CLI project mode | Yes: desktop app and browser demo, same interface | `engine/tests/engine_tests.rs` dispatcher and round-trip checks; `browser-tests/` Playwright suite against the demo build | No licensed ReliaSoft side-by-side comparison has been run; that check is deferred until a license or reference outputs are available. No engineering report generation (no Word, Excel, or PDF reports). Binaries are unsigned. One project open at a time; no multi-user database or cloud sync. ReliaSoft project formats are not read |
 
 Each implemented row has at least one test with a known or
 cross-checked value. FEATURE_TEST_LEDGER.md lists them feature by
-feature.
+feature, and validation/fixtures.md records the v0.3.2 validation
+fixtures with their sources and tolerances.
 
 ## Tests
 

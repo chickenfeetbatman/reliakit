@@ -22,20 +22,29 @@ pub const ALT_MODELS: [&str; 3] = ["arrhenius", "ipl", "eyring"];
 pub const TOPOLOGIES: [&str; 4] = ["series", "parallel", "k-of-n", "series with standby group"];
 pub const NB_MODES: [&str; 4] = ["active", "hot standby", "cold standby", "warm"];
 pub const FMEA_TYPES: [&str; 3] = ["Design", "Process", "System"];
-pub const PRED_SOURCES: [&str; 3] = ["Generic user data", "MIL-HDBK-217F library", "Local library file"];
+pub const PRED_SOURCES: [&str; 3] = [
+    "Generic user data",
+    "MIL-HDBK-217F library",
+    "Local library file",
+];
 pub const ENVIRONMENTS: [&str; 7] = ["GB", "GF", "GM", "NS", "NU", "AIC", "CL"];
-pub const CONSEQUENCES: [&str; 5] = ["Hidden", "Safety", "Environmental", "Operational", "NonOperational"];
+pub const CONSEQUENCES: [&str; 5] = [
+    "Hidden",
+    "Safety",
+    "Environmental",
+    "Operational",
+    "NonOperational",
+];
 pub const FRACAS_STATUSES: [&str; 4] = ["Open", "Analysis", "CorrectiveAction", "Closed"];
 pub const PTH_NAMED: [(&str, &str); 3] = [
-    ("pth_technology", "Printed Wiring Assembly/Printed Circuit Boards with PTHs"),
+    (
+        "pth_technology",
+        "Printed Wiring Assembly/Printed Circuit Boards with PTHs",
+    ),
     ("pth_quality", "MIL-SPEC or IPC Level 3"),
     ("pth_environment", "GB"),
 ];
-pub const PTH_NUM: [(&str, &str); 3] = [
-    ("pth_n1", "100"),
-    ("pth_n2", "20"),
-    ("pth_planes", "4"),
-];
+pub const PTH_NUM: [(&str, &str); 3] = [("pth_n1", "100"), ("pth_n2", "20"), ("pth_planes", "4")];
 
 type Fields = Map<String, Value>;
 
@@ -59,7 +68,11 @@ fn fs(f: &Fields, keys: &[&str]) -> Option<String> {
 fn fi(f: &Fields, keys: &[&str]) -> Option<i64> {
     match raw(f, keys)? {
         Value::Number(n) => n.as_i64().or_else(|| n.as_f64().map(|x| x as i64)),
-        Value::String(s) => s.trim().parse::<i64>().ok().or_else(|| s.trim().parse::<f64>().ok().map(|x| x as i64)),
+        Value::String(s) => s
+            .trim()
+            .parse::<i64>()
+            .ok()
+            .or_else(|| s.trim().parse::<f64>().ok().map(|x| x as i64)),
         _ => None,
     }
 }
@@ -86,11 +99,17 @@ fn ff(f: &Fields, keys: &[&str]) -> Option<f64> {
 }
 
 fn idx_of(list: &[&str], v: &str) -> i64 {
-    list.iter().position(|x| *x == v).map(|i| i as i64).unwrap_or(0)
+    list.iter()
+        .position(|x| *x == v)
+        .map(|i| i as i64)
+        .unwrap_or(0)
 }
 
 fn at(list: &[&str], idx: i64) -> String {
-    list.get(idx.max(0) as usize).copied().unwrap_or(list[0]).to_string()
+    list.get(idx.max(0) as usize)
+        .copied()
+        .unwrap_or(list[0])
+        .to_string()
 }
 
 /// Enum field: the value itself when a value key is present,
@@ -134,24 +153,66 @@ fn current_title(w: &Work) -> String {
 // ---------------- pull (port of pull_shell and pull_current) ----------------
 
 fn pull_shell(w: &mut Work, f: &Fields) {
-    set_s(&mut w.project_name, f, &["AppState.project-name", "project-name", "project_name", "projectName"]);
-    set_s(&mut w.project_path, f, &["AppState.project-path", "project-path", "project_path", "projectPath"]);
+    set_s(
+        &mut w.project_name,
+        f,
+        &[
+            "AppState.project-name",
+            "project-name",
+            "project_name",
+            "projectName",
+        ],
+    );
+    set_s(
+        &mut w.project_path,
+        f,
+        &[
+            "AppState.project-path",
+            "project-path",
+            "project_path",
+            "projectPath",
+        ],
+    );
     if let Some(v) = fs(f, &["new_kind", "new-kind", "kind"]) {
         if !v.is_empty() {
             w.new_kind = v;
         }
-    } else if let Some(i) = fi(f, &["AppState.kind-index", "kind-index", "kind_index", "kindIndex"]) {
+    } else if let Some(i) = fi(
+        f,
+        &[
+            "AppState.kind-index",
+            "kind-index",
+            "kind_index",
+            "kindIndex",
+        ],
+    ) {
         if let Some((_, label, _)) = KIND_DEFS.get(i.max(0) as usize) {
             w.new_kind = label.to_string();
         }
     }
-    set_s(&mut w.new_name, f, &["AppState.new-name", "new-name", "new_name", "newName"]);
-    set_s(&mut w.rename_name, f, &["AppState.rename-name", "rename-name", "rename_name", "renameName"]);
+    set_s(
+        &mut w.new_name,
+        f,
+        &["AppState.new-name", "new-name", "new_name", "newName"],
+    );
+    set_s(
+        &mut w.rename_name,
+        f,
+        &[
+            "AppState.rename-name",
+            "rename-name",
+            "rename_name",
+            "renameName",
+        ],
+    );
     if let Some(v) = fs(f, &["csv_pick", "csv-pick", "pick"]) {
         if BUNDLED_CSV.contains(&v.as_str()) {
             w.csv_pick = v;
         }
-    } else if let Some(i) = fi(f, &["CsvUi.pick-index", "pick-index", "pick_index", "pickIndex"]) {
+    } else if let Some(i) = fi(
+        f,
+        &["CsvUi.pick-index", "pick-index", "pick_index", "pickIndex"],
+    ) {
         w.csv_pick = at(&BUNDLED_CSV, i);
     }
     set_s(&mut w.csv_path, f, &["CsvUi.path", "csv_path", "csvPath"]);
@@ -161,78 +222,279 @@ fn pull_current(w: &mut Work, f: &Fields) {
     pull_shell(w, f);
     match current_kind(w) {
         Some(ItemKind::LifeData) => {
-            set_s(&mut w.life_times, f, &["LifeUi.times", "life_times", "times"]);
-            set_e(&mut w.life_dist, f, &["life_dist", "dist"], &["LifeUi.dist-index", "dist-index", "dist_index", "distIndex"], &ALL_DISTS);
+            set_s(
+                &mut w.life_times,
+                f,
+                &["LifeUi.times", "life_times", "times"],
+            );
+            set_e(
+                &mut w.life_dist,
+                f,
+                &["life_dist", "dist"],
+                &["LifeUi.dist-index", "dist-index", "dist_index", "distIndex"],
+                &ALL_DISTS,
+            );
             set_b(&mut w.life_rank, f, &["LifeUi.rank", "life_rank", "rank"]);
             set_s(&mut w.life_t, f, &["LifeUi.t", "life_t", "t"]);
-            set_b(&mut w.life_show_prob, f, &["LifeUi.show-prob", "show-prob", "life_show_prob", "show_prob", "showProb"]);
-            let rbd_ids: Vec<u64> = w.items.iter().filter(|it| it.kind == ItemKind::Rbd).map(|it| it.id).collect();
+            set_b(
+                &mut w.life_show_prob,
+                f,
+                &[
+                    "LifeUi.show-prob",
+                    "show-prob",
+                    "life_show_prob",
+                    "show_prob",
+                    "showProb",
+                ],
+            );
+            let rbd_ids: Vec<u64> = w
+                .items
+                .iter()
+                .filter(|it| it.kind == ItemKind::Rbd)
+                .map(|it| it.id)
+                .collect();
             if let Some(name) = fs(f, &["flow_target", "target_name"]) {
-                if let Some(it) = w.items.iter().find(|it| it.kind == ItemKind::Rbd && it.name == name) {
+                if let Some(it) = w
+                    .items
+                    .iter()
+                    .find(|it| it.kind == ItemKind::Rbd && it.name == name)
+                {
                     w.flow_target_id = it.id;
                 }
-            } else if let Some(i) = fi(f, &["LifeUi.target-index", "target-index", "target_index", "targetIndex"]) {
+            } else if let Some(i) = fi(
+                f,
+                &[
+                    "LifeUi.target-index",
+                    "target-index",
+                    "target_index",
+                    "targetIndex",
+                ],
+            ) {
                 if let Some(id) = rbd_ids.get(i.max(0) as usize) {
                     w.flow_target_id = *id;
                 }
             }
-            if let Some(i) = fi(f, &["LifeUi.block-index", "block-index", "block_index", "blockIndex", "flow_block_idx"]) {
+            if let Some(i) = fi(
+                f,
+                &[
+                    "LifeUi.block-index",
+                    "block-index",
+                    "block_index",
+                    "blockIndex",
+                    "flow_block_idx",
+                ],
+            ) {
                 w.flow_block_idx = i.max(0) as usize;
             }
         }
         Some(ItemKind::LimitedData) => {
-            set_s(&mut w.limited_groups, f, &["LimitedUi.groups", "limited_groups", "groups"]);
+            set_s(
+                &mut w.limited_groups,
+                f,
+                &["LimitedUi.groups", "limited_groups", "groups"],
+            );
         }
         Some(ItemKind::Mcmc) => {
-            set_s(&mut w.mcmc_times, f, &["McmcUi.times", "mcmc_times", "times"]);
-            set_e(&mut w.mcmc_dist, f, &["mcmc_dist", "dist"], &["McmcUi.dist-index", "dist-index", "dist_index", "distIndex"], &MCMC_DISTS);
-            set_s(&mut w.mcmc_draws, f, &["McmcUi.draws", "mcmc_draws", "draws"]);
-            set_s(&mut w.mcmc_warmup, f, &["McmcUi.warmup", "mcmc_warmup", "warmup"]);
-            set_s(&mut w.mcmc_chains, f, &["McmcUi.chains", "mcmc_chains", "chains"]);
+            set_s(
+                &mut w.mcmc_times,
+                f,
+                &["McmcUi.times", "mcmc_times", "times"],
+            );
+            set_e(
+                &mut w.mcmc_dist,
+                f,
+                &["mcmc_dist", "dist"],
+                &["McmcUi.dist-index", "dist-index", "dist_index", "distIndex"],
+                &MCMC_DISTS,
+            );
+            set_s(
+                &mut w.mcmc_draws,
+                f,
+                &["McmcUi.draws", "mcmc_draws", "draws"],
+            );
+            set_s(
+                &mut w.mcmc_warmup,
+                f,
+                &["McmcUi.warmup", "mcmc_warmup", "warmup"],
+            );
+            set_s(
+                &mut w.mcmc_chains,
+                f,
+                &["McmcUi.chains", "mcmc_chains", "chains"],
+            );
             set_s(&mut w.mcmc_seed, f, &["McmcUi.seed", "mcmc_seed", "seed"]);
             set_s(&mut w.mcmc_t, f, &["McmcUi.t", "mcmc_t", "t"]);
         }
         Some(ItemKind::Degradation) => {
             set_s(&mut w.deg_units, f, &["DegUi.units", "deg_units", "units"]);
-            set_s(&mut w.deg_threshold, f, &["DegUi.threshold", "deg_threshold", "threshold"]);
-            set_e(&mut w.deg_model, f, &["deg_model", "model"], &["DegUi.model-index", "model-index", "model_index", "modelIndex"], &DEG_MODELS);
-            set_e(&mut w.deg_dist, f, &["deg_dist", "dist"], &["DegUi.dist-index", "dist-index", "dist_index", "distIndex"], &ALL_DISTS);
-            set_b(&mut w.deg_increasing, f, &["DegUi.increasing", "deg_increasing", "increasing"]);
+            set_s(
+                &mut w.deg_threshold,
+                f,
+                &["DegUi.threshold", "deg_threshold", "threshold"],
+            );
+            set_e(
+                &mut w.deg_model,
+                f,
+                &["deg_model", "model"],
+                &[
+                    "DegUi.model-index",
+                    "model-index",
+                    "model_index",
+                    "modelIndex",
+                ],
+                &DEG_MODELS,
+            );
+            set_e(
+                &mut w.deg_dist,
+                f,
+                &["deg_dist", "dist"],
+                &["DegUi.dist-index", "dist-index", "dist_index", "distIndex"],
+                &ALL_DISTS,
+            );
+            set_b(
+                &mut w.deg_increasing,
+                f,
+                &["DegUi.increasing", "deg_increasing", "increasing"],
+            );
         }
         Some(ItemKind::Alt) => {
             set_s(&mut w.alt_data, f, &["AltUi.data", "alt_data", "data"]);
-            set_e(&mut w.alt_model, f, &["alt_model", "model"], &["AltUi.model-index", "model-index", "model_index", "modelIndex"], &ALT_MODELS);
-            set_s(&mut w.alt_use_stress, f, &["AltUi.use-stress", "use-stress", "alt_use_stress", "use_stress", "useStress"]);
+            set_e(
+                &mut w.alt_model,
+                f,
+                &["alt_model", "model"],
+                &[
+                    "AltUi.model-index",
+                    "model-index",
+                    "model_index",
+                    "modelIndex",
+                ],
+                &ALT_MODELS,
+            );
+            set_s(
+                &mut w.alt_use_stress,
+                f,
+                &[
+                    "AltUi.use-stress",
+                    "use-stress",
+                    "alt_use_stress",
+                    "use_stress",
+                    "useStress",
+                ],
+            );
             set_s(&mut w.alt_t, f, &["AltUi.t", "alt_t", "t"]);
         }
         Some(ItemKind::Growth) => {
-            set_s(&mut w.growth_times, f, &["GrowthUi.times", "growth_times", "times"]);
+            set_s(
+                &mut w.growth_times,
+                f,
+                &["GrowthUi.times", "growth_times", "times"],
+            );
         }
         Some(ItemKind::Competing) => {
             set_s(&mut w.comp_data, f, &["CompUi.data", "comp_data", "data"]);
-            set_e(&mut w.comp_dist, f, &["comp_dist", "dist"], &["CompUi.dist-index", "dist-index", "dist_index", "distIndex"], &ALL_DISTS);
+            set_e(
+                &mut w.comp_dist,
+                f,
+                &["comp_dist", "dist"],
+                &["CompUi.dist-index", "dist-index", "dist_index", "distIndex"],
+                &ALL_DISTS,
+            );
             set_s(&mut w.comp_t, f, &["CompUi.t", "comp_t", "t"]);
         }
         Some(ItemKind::Rbd) => {
             set_s(&mut w.rbd_t, f, &["RbdUi.t", "rbd_t", "t"]);
-            set_s(&mut w.rbd_horizon, f, &["RbdUi.horizon", "rbd_horizon", "horizon"]);
-            set_e(&mut w.rbd_topology, f, &["rbd_topology", "topology"], &["RbdUi.topology-index", "topology-index", "topology_index", "topologyIndex"], &TOPOLOGIES);
+            set_s(
+                &mut w.rbd_horizon,
+                f,
+                &["RbdUi.horizon", "rbd_horizon", "horizon"],
+            );
+            set_s(&mut w.rbd_sims, f, &["RbdUi.sims", "rbd_sims", "sims"]);
+            set_e(
+                &mut w.rbd_topology,
+                f,
+                &["rbd_topology", "topology"],
+                &[
+                    "RbdUi.topology-index",
+                    "topology-index",
+                    "topology_index",
+                    "topologyIndex",
+                ],
+                &TOPOLOGIES,
+            );
             set_s(&mut w.rbd_k, f, &["RbdUi.k", "rbd_k", "k"]);
             set_s(&mut w.ed_name, f, &["RbdUi.ed-name", "ed-name", "ed_name"]);
-            set_e(&mut w.ed_dist, f, &["ed_dist"], &["RbdUi.ed-dist-index", "ed-dist-index", "ed_dist_index", "edDistIndex"], &ALL_DISTS);
-            set_s(&mut w.ed_params, f, &["RbdUi.ed-params", "ed-params", "ed_params"]);
+            set_e(
+                &mut w.ed_dist,
+                f,
+                &["ed_dist"],
+                &[
+                    "RbdUi.ed-dist-index",
+                    "ed-dist-index",
+                    "ed_dist_index",
+                    "edDistIndex",
+                ],
+                &ALL_DISTS,
+            );
+            set_s(
+                &mut w.ed_params,
+                f,
+                &["RbdUi.ed-params", "ed-params", "ed_params"],
+            );
             set_s(&mut w.ed_mtbf, f, &["RbdUi.ed-mtbf", "ed-mtbf", "ed_mtbf"]);
             set_s(&mut w.ed_mttr, f, &["RbdUi.ed-mttr", "ed-mttr", "ed_mttr"]);
-            set_s(&mut w.ed_units, f, &["RbdUi.ed-units", "ed-units", "ed_units"]);
-            set_s(&mut w.ed_dormancy, f, &["RbdUi.ed-dormancy", "ed-dormancy", "ed_dormancy"]);
-            set_s(&mut w.ed_switch, f, &["RbdUi.ed-switch", "ed-switch", "ed_switch"]);
+            set_s(
+                &mut w.ed_units,
+                f,
+                &["RbdUi.ed-units", "ed-units", "ed_units"],
+            );
+            set_s(
+                &mut w.ed_dormancy,
+                f,
+                &["RbdUi.ed-dormancy", "ed-dormancy", "ed_dormancy"],
+            );
+            set_s(
+                &mut w.ed_switch,
+                f,
+                &["RbdUi.ed-switch", "ed-switch", "ed_switch"],
+            );
             set_s(&mut w.nb_name, f, &["RbdUi.nb-name", "nb-name", "nb_name"]);
-            set_e(&mut w.nb_dist, f, &["nb_dist"], &["RbdUi.nb-dist-index", "nb-dist-index", "nb_dist_index", "nbDistIndex"], &ALL_DISTS);
-            set_s(&mut w.nb_params, f, &["RbdUi.nb-params", "nb-params", "nb_params"]);
+            set_e(
+                &mut w.nb_dist,
+                f,
+                &["nb_dist"],
+                &[
+                    "RbdUi.nb-dist-index",
+                    "nb-dist-index",
+                    "nb_dist_index",
+                    "nbDistIndex",
+                ],
+                &ALL_DISTS,
+            );
+            set_s(
+                &mut w.nb_params,
+                f,
+                &["RbdUi.nb-params", "nb-params", "nb_params"],
+            );
             set_s(&mut w.nb_mtbf, f, &["RbdUi.nb-mtbf", "nb-mtbf", "nb_mtbf"]);
             set_s(&mut w.nb_mttr, f, &["RbdUi.nb-mttr", "nb-mttr", "nb_mttr"]);
-            set_e(&mut w.nb_mode, f, &["nb_mode", "mode"], &["RbdUi.nb-mode-index", "nb-mode-index", "nb_mode_index", "nbModeIndex"], &NB_MODES);
-            set_s(&mut w.nb_dormancy, f, &["RbdUi.nb-dormancy", "nb-dormancy", "nb_dormancy"]);
+            set_e(
+                &mut w.nb_mode,
+                f,
+                &["nb_mode", "mode"],
+                &[
+                    "RbdUi.nb-mode-index",
+                    "nb-mode-index",
+                    "nb_mode_index",
+                    "nbModeIndex",
+                ],
+                &NB_MODES,
+            );
+            set_s(
+                &mut w.nb_dormancy,
+                f,
+                &["RbdUi.nb-dormancy", "nb-dormancy", "nb_dormancy"],
+            );
             set_s(&mut w.rbd_json, f, &["RbdUi.json", "rbd_json", "json"]);
             set_s(&mut w.rbd_path, f, &["RbdUi.path", "rbd_path", "path"]);
         }
@@ -240,85 +502,308 @@ fn pull_current(w: &mut Work, f: &Fields) {
             set_s(&mut w.ft_json, f, &["FtUi.json", "ft_json", "json"]);
         }
         Some(ItemKind::Fmea) => {
-            set_e(&mut w.fmea_type, f, &["fmea_type", "type"], &["FmeaUi.type-index", "type-index", "type_index", "typeIndex"], &FMEA_TYPES);
+            set_e(
+                &mut w.fmea_type,
+                f,
+                &["fmea_type", "type"],
+                &["FmeaUi.type-index", "type-index", "type_index", "typeIndex"],
+                &FMEA_TYPES,
+            );
             set_s(&mut w.fm_item, f, &["FmeaUi.fm-item", "fm-item", "fm_item"]);
             set_s(&mut w.fm_mode, f, &["FmeaUi.fm-mode", "fm-mode", "fm_mode"]);
             set_s(&mut w.fm_sev, f, &["FmeaUi.fm-sev", "fm-sev", "fm_sev"]);
             set_s(&mut w.fm_occ, f, &["FmeaUi.fm-occ", "fm-occ", "fm_occ"]);
             set_s(&mut w.fm_det, f, &["FmeaUi.fm-det", "fm-det", "fm_det"]);
-            set_s(&mut w.fm_alpha, f, &["FmeaUi.fm-alpha", "fm-alpha", "fm_alpha"]);
+            set_s(
+                &mut w.fm_alpha,
+                f,
+                &["FmeaUi.fm-alpha", "fm-alpha", "fm_alpha"],
+            );
             set_s(&mut w.fm_beta, f, &["FmeaUi.fm-beta", "fm-beta", "fm_beta"]);
-            set_s(&mut w.fm_lambda, f, &["FmeaUi.fm-lambda", "fm-lambda", "fm_lambda"]);
-            set_s(&mut w.fm_hours, f, &["FmeaUi.fm-hours", "fm-hours", "fm_hours"]);
+            set_s(
+                &mut w.fm_lambda,
+                f,
+                &["FmeaUi.fm-lambda", "fm-lambda", "fm_lambda"],
+            );
+            set_s(
+                &mut w.fm_hours,
+                f,
+                &["FmeaUi.fm-hours", "fm-hours", "fm_hours"],
+            );
             set_s(&mut w.dv_id, f, &["FmeaUi.dv-id", "dv-id", "dv_id"]);
             set_s(&mut w.dv_ref, f, &["FmeaUi.dv-ref", "dv-ref", "dv_ref"]);
             set_s(&mut w.dv_test, f, &["FmeaUi.dv-test", "dv-test", "dv_test"]);
-            set_s(&mut w.dv_sample, f, &["FmeaUi.dv-sample", "dv-sample", "dv_sample"]);
-            set_s(&mut w.dv_criteria, f, &["FmeaUi.dv-criteria", "dv-criteria", "dv_criteria"]);
+            set_s(
+                &mut w.dv_sample,
+                f,
+                &["FmeaUi.dv-sample", "dv-sample", "dv_sample"],
+            );
+            set_s(
+                &mut w.dv_criteria,
+                f,
+                &["FmeaUi.dv-criteria", "dv-criteria", "dv_criteria"],
+            );
             set_s(&mut w.fmea_csv, f, &["FmeaUi.csv", "fmea_csv", "csv"]);
-            set_s(&mut w.fmea_export_path, f, &["FmeaUi.export-path", "export-path", "fmea_export_path", "export_path"]);
-            set_s(&mut w.fmea_rcm_row, f, &["FmeaUi.rcm-row", "rcm-row", "fmea_rcm_row", "rcm_row"]);
+            set_s(
+                &mut w.fmea_export_path,
+                f,
+                &[
+                    "FmeaUi.export-path",
+                    "export-path",
+                    "fmea_export_path",
+                    "export_path",
+                ],
+            );
+            set_s(
+                &mut w.fmea_rcm_row,
+                f,
+                &["FmeaUi.rcm-row", "rcm-row", "fmea_rcm_row", "rcm_row"],
+            );
         }
         Some(ItemKind::Warranty) => {
             set_s(&mut w.war_sales, f, &["WarUi.sales", "war_sales", "sales"]);
-            set_s(&mut w.war_returns, f, &["WarUi.returns", "war_returns", "returns"]);
-            set_s(&mut w.war_current, f, &["WarUi.current", "war_current", "current"]);
-            set_s(&mut w.war_horizon, f, &["WarUi.horizon", "war_horizon", "horizon"]);
+            set_s(
+                &mut w.war_returns,
+                f,
+                &["WarUi.returns", "war_returns", "returns"],
+            );
+            set_s(
+                &mut w.war_current,
+                f,
+                &["WarUi.current", "war_current", "current"],
+            );
+            set_s(
+                &mut w.war_horizon,
+                f,
+                &["WarUi.horizon", "war_horizon", "horizon"],
+            );
         }
         Some(ItemKind::Prediction) => {
-            set_e(&mut w.pred_source, f, &["pred_source", "source"], &["PredUi.source-index", "source-index", "source_index", "sourceIndex"], &PRED_SOURCES);
-            set_e(&mut w.pred_life_dist, f, &["pred_life_dist"], &["PredUi.life-dist-index", "life-dist-index", "life_dist_index", "lifeDistIndex"], &ALL_DISTS);
-            set_s(&mut w.pred_life_params, f, &["PredUi.life-params", "life-params", "pred_life_params", "life_params"]);
-            set_s(&mut w.pred_life_t, f, &["PredUi.life-t", "life-t", "pred_life_t", "life_t"]);
-            set_s(&mut w.pred_parts, f, &["PredUi.parts", "pred_parts", "parts"]);
+            set_e(
+                &mut w.pred_source,
+                f,
+                &["pred_source", "source"],
+                &[
+                    "PredUi.source-index",
+                    "source-index",
+                    "source_index",
+                    "sourceIndex",
+                ],
+                &PRED_SOURCES,
+            );
+            set_e(
+                &mut w.pred_life_dist,
+                f,
+                &["pred_life_dist"],
+                &[
+                    "PredUi.life-dist-index",
+                    "life-dist-index",
+                    "life_dist_index",
+                    "lifeDistIndex",
+                ],
+                &ALL_DISTS,
+            );
+            set_s(
+                &mut w.pred_life_params,
+                f,
+                &[
+                    "PredUi.life-params",
+                    "life-params",
+                    "pred_life_params",
+                    "life_params",
+                ],
+            );
+            set_s(
+                &mut w.pred_life_t,
+                f,
+                &["PredUi.life-t", "life-t", "pred_life_t", "life_t"],
+            );
+            set_s(
+                &mut w.pred_parts,
+                f,
+                &["PredUi.parts", "pred_parts", "parts"],
+            );
             set_s(&mut w.pred_t, f, &["PredUi.t", "pred_t", "t"]);
-            set_s(&mut w.pred_lib_path, f, &["PredUi.lib-path", "lib-path", "pred_lib_path", "lib_path"]);
-            set_e(&mut w.pred217_file, f, &["pred217_file", "p217_file", "pred_p217_file", "pred.p217_file"], &["PredUi.p217-file-index", "p217-file-index", "p217_file_index", "p217FileIndex"], &MIL217_FILES);
+            set_s(
+                &mut w.pred_lib_path,
+                f,
+                &["PredUi.lib-path", "lib-path", "pred_lib_path", "lib_path"],
+            );
+            set_e(
+                &mut w.pred217_file,
+                f,
+                &[
+                    "pred217_file",
+                    "p217_file",
+                    "pred_p217_file",
+                    "pred.p217_file",
+                ],
+                &[
+                    "PredUi.p217-file-index",
+                    "p217-file-index",
+                    "p217_file_index",
+                    "p217FileIndex",
+                ],
+                &MIL217_FILES,
+            );
             if w.pred217_is_misc() {
-                if let Some(p) = fs(f, &["p217_part", "part", "pred_p217_part", "pred.p217_part"]) {
+                if let Some(p) = fs(
+                    f,
+                    &["p217_part", "part", "pred_p217_part", "pred.p217_part"],
+                ) {
                     w.pred217_named.insert("part".to_string(), p);
-                } else if let Some(i) = fi(f, &["PredUi.p217-part-index", "p217-part-index", "p217_part_index", "p217PartIndex", "p217_part_index", "pred_p217_part_index"]) {
+                } else if let Some(i) = fi(
+                    f,
+                    &[
+                        "PredUi.p217-part-index",
+                        "p217-part-index",
+                        "p217_part_index",
+                        "p217PartIndex",
+                        "p217_part_index",
+                        "pred_p217_part_index",
+                    ],
+                ) {
                     let opts = w.pred217_part_options();
                     if let Some(p) = opts.get(i.max(0) as usize) {
                         w.pred217_named.insert("part".to_string(), p.clone());
                     }
                 }
-                if let Some(e) = enum_val(f, &["p217_env", "environment", "pred_p217_env", "pred.p217_env"], &["PredUi.p217-env-index", "p217-env-index", "p217_env_index", "p217EnvIndex", "p217_env_index", "pred_p217_env_index"], &ENVIRONMENTS) {
+                if let Some(e) = enum_val(
+                    f,
+                    &["p217_env", "environment", "pred_p217_env", "pred.p217_env"],
+                    &[
+                        "PredUi.p217-env-index",
+                        "p217-env-index",
+                        "p217_env_index",
+                        "p217EnvIndex",
+                        "p217_env_index",
+                        "pred_p217_env_index",
+                    ],
+                    &ENVIRONMENTS,
+                ) {
                     w.pred217_named.insert("environment".to_string(), e);
                 }
             }
-            set_s(&mut w.alloc_target, f, &["PredUi.alloc-target", "alloc-target", "alloc_target"]);
+            set_s(
+                &mut w.alloc_target,
+                f,
+                &["PredUi.alloc-target", "alloc-target", "alloc_target"],
+            );
             set_s(&mut w.alloc_n, f, &["PredUi.alloc-n", "alloc-n", "alloc_n"]);
-            set_s(&mut w.alloc_weights, f, &["PredUi.alloc-weights", "alloc-weights", "alloc_weights"]);
-            set_s(&mut w.der_name, f, &["PredUi.der-name", "der-name", "der_name"]);
-            set_s(&mut w.der_operating, f, &["PredUi.der-operating", "der-operating", "der_operating"]);
-            set_s(&mut w.der_rated, f, &["PredUi.der-rated", "der-rated", "der_rated"]);
+            set_s(
+                &mut w.alloc_weights,
+                f,
+                &["PredUi.alloc-weights", "alloc-weights", "alloc_weights"],
+            );
+            set_s(
+                &mut w.der_name,
+                f,
+                &["PredUi.der-name", "der-name", "der_name"],
+            );
+            set_s(
+                &mut w.der_operating,
+                f,
+                &["PredUi.der-operating", "der-operating", "der_operating"],
+            );
+            set_s(
+                &mut w.der_rated,
+                f,
+                &["PredUi.der-rated", "der-rated", "der_rated"],
+            );
             set_s(&mut w.der_max, f, &["PredUi.der-max", "der-max", "der_max"]);
-            set_s(&mut w.sr_generic, f, &["PredUi.sr-generic", "sr-generic", "sr_generic"]);
+            set_s(
+                &mut w.sr_generic,
+                f,
+                &["PredUi.sr-generic", "sr-generic", "sr_generic"],
+            );
             set_s(&mut w.sr_pi_q, f, &["PredUi.sr-pi-q", "sr-pi-q", "sr_pi_q"]);
             set_s(&mut w.sr_pi_s, f, &["PredUi.sr-pi-s", "sr-pi-s", "sr_pi_s"]);
             set_s(&mut w.sr_ea, f, &["PredUi.sr-ea", "sr-ea", "sr_ea"]);
             set_s(&mut w.sr_temp, f, &["PredUi.sr-temp", "sr-temp", "sr_temp"]);
-            set_s(&mut w.sr_ref_temp, f, &["PredUi.sr-ref-temp", "sr-ref-temp", "sr_ref_temp"]);
+            set_s(
+                &mut w.sr_ref_temp,
+                f,
+                &["PredUi.sr-ref-temp", "sr-ref-temp", "sr_ref_temp"],
+            );
             set_s(&mut w.sr_pi_e, f, &["PredUi.sr-pi-e", "sr-pi-e", "sr_pi_e"]);
-            set_s(&mut w.sr_qty_rate, f, &["PredUi.sr-qty-rate", "sr-qty-rate", "sr_qty_rate"]);
-            set_s(&mut w.sr_obs_rate, f, &["PredUi.sr-obs-rate", "sr-obs-rate", "sr_obs_rate"]);
-            set_s(&mut w.sr_pit_obs, f, &["PredUi.sr-pit-obs", "sr-pit-obs", "sr_pit_obs"]);
-            set_s(&mut w.sr_pit_tgt, f, &["PredUi.sr-pit-tgt", "sr-pit-tgt", "sr_pit_tgt"]);
-            set_s(&mut w.sr_pis_obs, f, &["PredUi.sr-pis-obs", "sr-pis-obs", "sr_pis_obs"]);
-            set_s(&mut w.sr_pis_tgt, f, &["PredUi.sr-pis-tgt", "sr-pis-tgt", "sr_pis_tgt"]);
-            set_s(&mut w.sr_ci_failures, f, &["PredUi.sr-ci-failures", "sr-ci-failures", "sr_ci_failures"]);
-            set_s(&mut w.sr_ci_exposure, f, &["PredUi.sr-ci-exposure", "sr-ci-exposure", "sr_ci_exposure"]);
-            set_s(&mut w.sr_ci_conf, f, &["PredUi.sr-ci-conf", "sr-ci-conf", "sr_ci_conf"]);
-            set_s(&mut w.sr_m3_pred, f, &["PredUi.sr-m3-pred", "sr-m3-pred", "sr_m3_pred"]);
-            set_s(&mut w.sr_m3_pw, f, &["PredUi.sr-m3-pw", "sr-m3-pw", "sr_m3_pw"]);
-            set_s(&mut w.sr_m3_obs, f, &["PredUi.sr-m3-obs", "sr-m3-obs", "sr_m3_obs"]);
-            set_s(&mut w.sr_m3_ow, f, &["PredUi.sr-m3-ow", "sr-m3-ow", "sr_m3_ow"]);
+            set_s(
+                &mut w.sr_qty_rate,
+                f,
+                &["PredUi.sr-qty-rate", "sr-qty-rate", "sr_qty_rate"],
+            );
+            set_s(
+                &mut w.sr_obs_rate,
+                f,
+                &["PredUi.sr-obs-rate", "sr-obs-rate", "sr_obs_rate"],
+            );
+            set_s(
+                &mut w.sr_pit_obs,
+                f,
+                &["PredUi.sr-pit-obs", "sr-pit-obs", "sr_pit_obs"],
+            );
+            set_s(
+                &mut w.sr_pit_tgt,
+                f,
+                &["PredUi.sr-pit-tgt", "sr-pit-tgt", "sr_pit_tgt"],
+            );
+            set_s(
+                &mut w.sr_pis_obs,
+                f,
+                &["PredUi.sr-pis-obs", "sr-pis-obs", "sr_pis_obs"],
+            );
+            set_s(
+                &mut w.sr_pis_tgt,
+                f,
+                &["PredUi.sr-pis-tgt", "sr-pis-tgt", "sr_pis_tgt"],
+            );
+            set_s(
+                &mut w.sr_ci_failures,
+                f,
+                &["PredUi.sr-ci-failures", "sr-ci-failures", "sr_ci_failures"],
+            );
+            set_s(
+                &mut w.sr_ci_exposure,
+                f,
+                &["PredUi.sr-ci-exposure", "sr-ci-exposure", "sr_ci_exposure"],
+            );
+            set_s(
+                &mut w.sr_ci_conf,
+                f,
+                &["PredUi.sr-ci-conf", "sr-ci-conf", "sr_ci_conf"],
+            );
+            set_s(
+                &mut w.sr_m3_pred,
+                f,
+                &["PredUi.sr-m3-pred", "sr-m3-pred", "sr_m3_pred"],
+            );
+            set_s(
+                &mut w.sr_m3_pw,
+                f,
+                &["PredUi.sr-m3-pw", "sr-m3-pw", "sr_m3_pw"],
+            );
+            set_s(
+                &mut w.sr_m3_obs,
+                f,
+                &["PredUi.sr-m3-obs", "sr-m3-obs", "sr_m3_obs"],
+            );
+            set_s(
+                &mut w.sr_m3_ow,
+                f,
+                &["PredUi.sr-m3-ow", "sr-m3-ow", "sr_m3_ow"],
+            );
             set_s(&mut w.mp_base, f, &["PredUi.mp-base", "mp-base", "mp_base"]);
             set_s(&mut w.mp_ea, f, &["PredUi.mp-ea", "mp-ea", "mp_ea"]);
             set_s(&mut w.mp_ref, f, &["PredUi.mp-ref", "mp-ref", "mp_ref"]);
-            set_s(&mut w.mp_cyc_factor, f, &["PredUi.mp-cyc", "mp-cyc", "mp_cyc", "mp_cyc_factor"]);
-            set_s(&mut w.mp_phases, f, &["PredUi.mp-phases", "mp-phases", "mp_phases"]);
+            set_s(
+                &mut w.mp_cyc_factor,
+                f,
+                &["PredUi.mp-cyc", "mp-cyc", "mp_cyc", "mp_cyc_factor"],
+            );
+            set_s(
+                &mut w.mp_phases,
+                f,
+                &["PredUi.mp-phases", "mp-phases", "mp_phases"],
+            );
         }
         Some(ItemKind::Doe) => {
             set_s(&mut w.doe_k, f, &["DoeUi.k", "doe_k", "k"]);
@@ -330,12 +815,29 @@ fn pull_current(w: &mut Work, f: &Fields) {
             set_s(&mut w.flow_seed, f, &["FlowUi.seed", "flow_seed", "seed"]);
         }
         Some(ItemKind::Markov) => {
-            set_s(&mut w.mk_new_state, f, &["MarkovUi.new-state", "new-state", "mk_new_state", "new_state"]);
+            set_s(
+                &mut w.mk_new_state,
+                f,
+                &[
+                    "MarkovUi.new-state",
+                    "new-state",
+                    "mk_new_state",
+                    "new_state",
+                ],
+            );
             if let Some(s) = fs(f, &["mk_start", "start"]) {
                 if w.mk_states.contains(&s) {
                     w.mk_start = s;
                 }
-            } else if let Some(i) = fi(f, &["MarkovUi.start-index", "start-index", "start_index", "startIndex"]) {
+            } else if let Some(i) = fi(
+                f,
+                &[
+                    "MarkovUi.start-index",
+                    "start-index",
+                    "start_index",
+                    "startIndex",
+                ],
+            ) {
                 if let Some(s) = w.mk_states.get(i.max(0) as usize).cloned() {
                     w.mk_start = s;
                 }
@@ -344,7 +846,15 @@ fn pull_current(w: &mut Work, f: &Fields) {
                 if w.mk_states.contains(&s) {
                     w.mk_absorbing = s;
                 }
-            } else if let Some(i) = fi(f, &["MarkovUi.absorbing-index", "absorbing-index", "absorbing_index", "absorbingIndex"]) {
+            } else if let Some(i) = fi(
+                f,
+                &[
+                    "MarkovUi.absorbing-index",
+                    "absorbing-index",
+                    "absorbing_index",
+                    "absorbingIndex",
+                ],
+            ) {
                 if let Some(s) = w.mk_states.get(i.max(0) as usize).cloned() {
                     w.mk_absorbing = s;
                 }
@@ -356,54 +866,166 @@ fn pull_current(w: &mut Work, f: &Fields) {
                 let rate = fs(f, &["MarkovUi.tr-rate", "tr-rate", "tr_rate"]);
                 if from.is_some() || to.is_some() || rate.is_some() {
                     if let Some(t) = w.mk_transitions.get_mut(i) {
-                        if let Some(v) = from { t[0] = v; }
-                        if let Some(v) = to { t[1] = v; }
-                        if let Some(v) = rate { t[2] = v; }
+                        if let Some(v) = from {
+                            t[0] = v;
+                        }
+                        if let Some(v) = to {
+                            t[1] = v;
+                        }
+                        if let Some(v) = rate {
+                            t[2] = v;
+                        }
                     }
                 }
             }
         }
         Some(ItemKind::Qcp) => {
-            set_e(&mut w.qcp_dist, f, &["qcp_dist", "dist"], &["QcpUi.dist-index", "dist-index", "dist_index", "distIndex"], &ALL_DISTS);
+            set_e(
+                &mut w.qcp_dist,
+                f,
+                &["qcp_dist", "dist"],
+                &["QcpUi.dist-index", "dist-index", "dist_index", "distIndex"],
+                &ALL_DISTS,
+            );
             set_s(&mut w.qcp_t, f, &["QcpUi.t", "qcp_t", "t"]);
             set_s(&mut w.qcp_bx, f, &["QcpUi.bx", "qcp_bx", "bx"]);
         }
         Some(ItemKind::Rcm) => {
             if let Some(r) = w.rcm_sel.and_then(|i| w.rcm_rows.get_mut(i)) {
-                set_s(&mut r.asset, f, &["RcmUi.ed-asset", "ed-asset", "ed_asset", "asset"]);
-                set_s(&mut r.function, f, &["RcmUi.ed-function", "ed-function", "ed_function", "function"]);
-                set_s(&mut r.mode, f, &["RcmUi.ed-mode", "ed-mode", "ed_mode", "mode"]);
-                if let Some(v) = enum_val(f, &["consequence"], &["RcmUi.ed-consequence-index", "ed-consequence-index", "ed_consequence_index", "edConsequenceIndex"], &CONSEQUENCES) {
+                set_s(
+                    &mut r.asset,
+                    f,
+                    &["RcmUi.ed-asset", "ed-asset", "ed_asset", "asset"],
+                );
+                set_s(
+                    &mut r.function,
+                    f,
+                    &[
+                        "RcmUi.ed-function",
+                        "ed-function",
+                        "ed_function",
+                        "function",
+                    ],
+                );
+                set_s(
+                    &mut r.mode,
+                    f,
+                    &["RcmUi.ed-mode", "ed-mode", "ed_mode", "mode"],
+                );
+                if let Some(v) = enum_val(
+                    f,
+                    &["consequence"],
+                    &[
+                        "RcmUi.ed-consequence-index",
+                        "ed-consequence-index",
+                        "ed_consequence_index",
+                        "edConsequenceIndex",
+                    ],
+                    &CONSEQUENCES,
+                ) {
                     r.consequence = v;
                 }
-                set_b(&mut r.monitorable, f, &["RcmUi.ed-monitorable", "ed-monitorable", "ed_monitorable", "monitorable"]);
-                set_b(&mut r.age_related, f, &["RcmUi.ed-age", "ed-age", "ed_age", "age_related"]);
-                set_b(&mut r.restorable, f, &["RcmUi.ed-restorable", "ed-restorable", "ed_restorable", "restorable"]);
-                set_s(&mut r.rate, f, &["RcmUi.ed-rate", "ed-rate", "ed_rate", "rate"]);
-                set_s(&mut r.alpha, f, &["RcmUi.ed-alpha", "ed-alpha", "ed_alpha", "alpha"]);
-                set_s(&mut r.beta, f, &["RcmUi.ed-beta", "ed-beta", "ed_beta", "beta"]);
-                set_s(&mut r.hours, f, &["RcmUi.ed-hours", "ed-hours", "ed_hours", "hours"]);
+                set_b(
+                    &mut r.monitorable,
+                    f,
+                    &[
+                        "RcmUi.ed-monitorable",
+                        "ed-monitorable",
+                        "ed_monitorable",
+                        "monitorable",
+                    ],
+                );
+                set_b(
+                    &mut r.age_related,
+                    f,
+                    &["RcmUi.ed-age", "ed-age", "ed_age", "age_related"],
+                );
+                set_b(
+                    &mut r.restorable,
+                    f,
+                    &[
+                        "RcmUi.ed-restorable",
+                        "ed-restorable",
+                        "ed_restorable",
+                        "restorable",
+                    ],
+                );
+                set_s(
+                    &mut r.rate,
+                    f,
+                    &["RcmUi.ed-rate", "ed-rate", "ed_rate", "rate"],
+                );
+                set_s(
+                    &mut r.alpha,
+                    f,
+                    &["RcmUi.ed-alpha", "ed-alpha", "ed_alpha", "alpha"],
+                );
+                set_s(
+                    &mut r.beta,
+                    f,
+                    &["RcmUi.ed-beta", "ed-beta", "ed_beta", "beta"],
+                );
+                set_s(
+                    &mut r.hours,
+                    f,
+                    &["RcmUi.ed-hours", "ed-hours", "ed_hours", "hours"],
+                );
             }
         }
         Some(ItemKind::Fracas) => {
-            set_s(&mut w.fracas_total_hours, f, &["FracasUi.total-hours", "total-hours", "fracas_total_hours", "total_hours"]);
-            set_s(&mut w.fracas_path, f, &["FracasUi.path", "fracas_path", "path"]);
+            set_s(
+                &mut w.fracas_total_hours,
+                f,
+                &[
+                    "FracasUi.total-hours",
+                    "total-hours",
+                    "fracas_total_hours",
+                    "total_hours",
+                ],
+            );
+            set_s(
+                &mut w.fracas_path,
+                f,
+                &["FracasUi.path", "fracas_path", "path"],
+            );
             if let Some(inc) = w.fracas_sel.and_then(|i| w.fracas_rows.get_mut(i)) {
                 set_s(&mut inc.id, f, &["FracasUi.ed-id", "ed-id", "ed_id"]);
-                set_s(&mut inc.part, f, &["FracasUi.ed-part", "ed-part", "ed_part", "part"]);
-                set_s(&mut inc.failure_mode, f, &["FracasUi.ed-mode", "ed-mode", "ed_mode", "mode"]);
+                set_s(
+                    &mut inc.part,
+                    f,
+                    &["FracasUi.ed-part", "ed-part", "ed_part", "part"],
+                );
+                set_s(
+                    &mut inc.failure_mode,
+                    f,
+                    &["FracasUi.ed-mode", "ed-mode", "ed_mode", "mode"],
+                );
                 if let Some(h) = ff(f, &["FracasUi.ed-hours", "ed-hours", "ed_hours", "hours"]) {
                     inc.hours = h;
                 }
-                set_s(&mut inc.date, f, &["FracasUi.ed-date", "ed-date", "ed_date", "date"]);
+                set_s(
+                    &mut inc.date,
+                    f,
+                    &["FracasUi.ed-date", "ed-date", "ed_date", "date"],
+                );
                 if let Some(s) = fs(f, &["status_name", "ed_status"]) {
                     inc.status = match s.as_str() {
                         "Analysis" => IncidentStatus::Analysis,
-                        "CorrectiveAction" | "Corrective Action" => IncidentStatus::CorrectiveAction,
+                        "CorrectiveAction" | "Corrective Action" => {
+                            IncidentStatus::CorrectiveAction
+                        }
                         "Closed" => IncidentStatus::Closed,
                         _ => IncidentStatus::Open,
                     };
-                } else if let Some(i) = fi(f, &["FracasUi.ed-status-index", "ed-status-index", "ed_status_index", "edStatusIndex"]) {
+                } else if let Some(i) = fi(
+                    f,
+                    &[
+                        "FracasUi.ed-status-index",
+                        "ed-status-index",
+                        "ed_status_index",
+                        "edStatusIndex",
+                    ],
+                ) {
                     inc.status = match i {
                         1 => IncidentStatus::Analysis,
                         2 => IncidentStatus::CorrectiveAction,
@@ -411,7 +1033,16 @@ fn pull_current(w: &mut Work, f: &Fields) {
                         _ => IncidentStatus::Open,
                     };
                 }
-                set_s(&mut inc.corrective_action, f, &["FracasUi.ed-action", "ed-action", "ed_action", "action_text"]);
+                set_s(
+                    &mut inc.corrective_action,
+                    f,
+                    &[
+                        "FracasUi.ed-action",
+                        "ed-action",
+                        "ed_action",
+                        "action_text",
+                    ],
+                );
             }
         }
         None => {}
@@ -449,10 +1080,18 @@ fn pred217_specs(w: &Work) -> Vec<(bool, String, String, Vec<String>)> {
 
 fn pred217_value(w: &Work, named: bool, key: &str) -> String {
     if let Some((_, def)) = PTH_NAMED.iter().find(|(k, _)| *k == key) {
-        return w.pred217_named.get(key).cloned().unwrap_or_else(|| def.to_string());
+        return w
+            .pred217_named
+            .get(key)
+            .cloned()
+            .unwrap_or_else(|| def.to_string());
     }
     if let Some((_, def)) = PTH_NUM.iter().find(|(k, _)| *k == key) {
-        return w.pred217_num.get(key).cloned().unwrap_or_else(|| def.to_string());
+        return w
+            .pred217_num
+            .get(key)
+            .cloned()
+            .unwrap_or_else(|| def.to_string());
     }
     if named {
         w.pred217_named.get(key).cloned().unwrap_or_default()
@@ -467,10 +1106,14 @@ fn pred217_seed_defaults(w: &mut Work) {
     }
     if w.pred217_is_pth() {
         for (k, def) in PTH_NAMED {
-            w.pred217_named.entry(k.to_string()).or_insert_with(|| def.to_string());
+            w.pred217_named
+                .entry(k.to_string())
+                .or_insert_with(|| def.to_string());
         }
         for (k, def) in PTH_NUM {
-            w.pred217_num.entry(k.to_string()).or_insert_with(|| def.to_string());
+            w.pred217_num
+                .entry(k.to_string())
+                .or_insert_with(|| def.to_string());
         }
     }
     if w.pred217_is_misc() {
@@ -479,7 +1122,9 @@ fn pred217_seed_defaults(w: &mut Work) {
                 w.pred217_named.insert("part".to_string(), first);
             }
         }
-        w.pred217_named.entry("environment".to_string()).or_insert_with(|| "GB".to_string());
+        w.pred217_named
+            .entry("environment".to_string())
+            .or_insert_with(|| "GB".to_string());
     }
 }
 
@@ -525,7 +1170,11 @@ fn load_dataset_action(w: &mut Work, file: &str) {
         w.select_index(Some(idx));
         let text = text.to_string();
         w.apply_csv_to_current(&text);
-        w.note(format!("Loaded dataset {} as a new {} item.", file, kind.label()));
+        w.note(format!(
+            "Loaded dataset {} as a new {} item.",
+            file,
+            kind.label()
+        ));
     }
 }
 
@@ -570,7 +1219,11 @@ fn open_project_value(w: &mut Work, v: &Value) {
                 "life_dist": v.get("life_dist").cloned().unwrap_or(json!("weibull2")),
                 "life_t": v.get("life_t").cloned().unwrap_or(json!("1000")),
             });
-            w.create_item_silent(ItemKind::LifeData, "Life Data (from old project)".into(), st);
+            w.create_item_silent(
+                ItemKind::LifeData,
+                "Life Data (from old project)".into(),
+                st,
+            );
         }
         if let Some(rbd) = v.get("rbd") {
             let st = json!({"rbd_spec": rbd.clone(), "rbd_t": "1000"});
@@ -585,7 +1238,10 @@ fn open_project_value(w: &mut Work, v: &Value) {
             w.create_item_silent(ItemKind::Fmea, "FMEA (from old project)".into(), st);
         }
         let n = w.items.len();
-        w.note(format!("Old format project opened from data as {} items.", n));
+        w.note(format!(
+            "Old format project opened from data as {} items.",
+            n
+        ));
         return;
     }
     w.note("Project data is not a ReliaKit project (v2 or legacy).".to_string());
@@ -622,19 +1278,55 @@ fn markov_remove_state(w: &mut Work, i: usize) {
 /// Returns true when the name was a screen action.
 fn dispatch_act(w: &mut Work, name: &str) -> bool {
     match name {
-        "life-fit" => { w.compute_life_fit(); Vec::<(String, String)>::new() }
-        "life-wizard" => { w.compute_wizard(); Vec::new() }
-        "flow-rbd" => { w.flow_assign_fit_to_rbd(); Vec::new() }
-        "flow-qcp" => { w.flow_send_fit_to_qcp(); Vec::new() }
-        "flow-pred" => { w.flow_send_fit_to_prediction(); Vec::new() }
+        "life-fit" => {
+            w.compute_life_fit();
+            Vec::<(String, String)>::new()
+        }
+        "life-wizard" => {
+            w.compute_wizard();
+            Vec::new()
+        }
+        "flow-rbd" => {
+            w.flow_assign_fit_to_rbd();
+            Vec::new()
+        }
+        "flow-qcp" => {
+            w.flow_send_fit_to_qcp();
+            Vec::new()
+        }
+        "flow-pred" => {
+            w.flow_send_fit_to_prediction();
+            Vec::new()
+        }
         "flow-target" => Vec::new(),
-        "limited-run" => { w.compute_limited(); Vec::new() }
-        "mcmc-run" => { w.compute_mcmc(); Vec::new() }
-        "deg-run" => { w.compute_degradation(); Vec::new() }
-        "alt-run" => { w.compute_alt(); Vec::new() }
-        "growth-run" => { w.compute_growth(); Vec::new() }
-        "comp-run" => { w.compute_competing(); Vec::new() }
-        "rbd-avail" => { w.compute_rbd_availability(); Vec::new() }
+        "limited-run" => {
+            w.compute_limited();
+            Vec::new()
+        }
+        "mcmc-run" => {
+            w.compute_mcmc();
+            Vec::new()
+        }
+        "deg-run" => {
+            w.compute_degradation();
+            Vec::new()
+        }
+        "alt-run" => {
+            w.compute_alt();
+            Vec::new()
+        }
+        "growth-run" => {
+            w.compute_growth();
+            Vec::new()
+        }
+        "comp-run" => {
+            w.compute_competing();
+            Vec::new()
+        }
+        "rbd-avail" => {
+            w.compute_rbd_availability();
+            Vec::new()
+        }
         "rbd-importance" => {
             w.compute_rbd_importance();
             Vec::new()
@@ -675,7 +1367,10 @@ fn dispatch_act(w: &mut Work, name: &str) -> bool {
             w.rbd_load_file();
             Vec::new()
         }
-        "ft-run" => { w.compute_fault_tree(); Vec::new() }
+        "ft-run" => {
+            w.compute_fault_tree();
+            Vec::new()
+        }
         "fmea-add-row" => {
             w.fmea_add_row();
             Vec::new()
@@ -712,9 +1407,18 @@ fn dispatch_act(w: &mut Work, name: &str) -> bool {
             w.fmea_export_dvpr();
             Vec::new()
         }
-        "war-run" => { w.compute_warranty(); Vec::new() }
-        "pred-life" => { w.compute_pred_life(); Vec::new() }
-        "pred-run" => { w.compute_pred_parts(); Vec::new() }
+        "war-run" => {
+            w.compute_warranty();
+            Vec::new()
+        }
+        "pred-life" => {
+            w.compute_pred_life();
+            Vec::new()
+        }
+        "pred-run" => {
+            w.compute_pred_parts();
+            Vec::new()
+        }
         "pred-lib-load" => {
             w.pred_lib_load();
             Vec::new()
@@ -727,17 +1431,38 @@ fn dispatch_act(w: &mut Work, name: &str) -> bool {
             w.compute_pred217();
             Vec::new()
         }
-        "pred-alloc" => { w.compute_alloc(); Vec::new() }
-        "pred-derate" => { w.compute_derating(); Vec::new() }
-        "pred-clean" => { w.compute_clean_room(); Vec::new() }
-        "pred-mission" => { w.compute_mission(); Vec::new() }
-        "doe-run" => { w.compute_doe(); Vec::new() }
-        "flow-run" => { w.compute_flowchart(); Vec::new() }
+        "pred-alloc" => {
+            w.compute_alloc();
+            Vec::new()
+        }
+        "pred-derate" => {
+            w.compute_derating();
+            Vec::new()
+        }
+        "pred-clean" => {
+            w.compute_clean_room();
+            Vec::new()
+        }
+        "pred-mission" => {
+            w.compute_mission();
+            Vec::new()
+        }
+        "doe-run" => {
+            w.compute_doe();
+            Vec::new()
+        }
+        "flow-run" => {
+            w.compute_flowchart();
+            Vec::new()
+        }
         "mk-preset" => {
             w.markov_preset();
             Vec::new()
         }
-        "mk-run" => { w.compute_markov(); Vec::new() }
+        "mk-run" => {
+            w.compute_markov();
+            Vec::new()
+        }
         "mk-add-state" => {
             let name = w.mk_new_state.trim().to_string();
             if !name.is_empty() && !w.mk_states.contains(&name) {
@@ -782,7 +1507,10 @@ fn dispatch_act(w: &mut Work, name: &str) -> bool {
             w.qcp_reset_params();
             Vec::new()
         }
-        "qcp-run" => { w.compute_qcp(); Vec::new() }
+        "qcp-run" => {
+            w.compute_qcp();
+            Vec::new()
+        }
         "rcm-add" => {
             w.rcm_add_row();
             Vec::new()
@@ -876,7 +1604,34 @@ fn dispatch_field(w: &mut Work, id: &str, value: &str) {
     }
 }
 
+fn confirm_outdated(f: &Fields) -> bool {
+    match raw(f, &["confirm_outdated", "confirm-outdated"]) {
+        Some(Value::Bool(b)) => *b,
+        Some(Value::String(s)) => s == "true" || s == "1",
+        Some(Value::Number(n)) => n.as_i64().map(|i| i != 0).unwrap_or(false),
+        _ => false,
+    }
+}
+const FLOW_ACTIONS: [&str; 6] = [
+    "flow-rbd",
+    "flow-qcp",
+    "flow-pred",
+    "fmea-to-rcm",
+    "flow-fracas-life",
+    "wizard-use",
+];
 fn dispatch(w: &mut Work, action: &str, f: &Fields) {
+    // Outdated gate for data-flow sends
+    let eff_act: String = if action == "act" || action == "row_act" || action == "row-act" {
+        fs(f, &["name", "action_name", "value", "id"]).unwrap_or_default()
+    } else {
+        action.replace('_', "-")
+    };
+    if FLOW_ACTIONS.contains(&eff_act.as_str()) && w.is_current_outdated() && !confirm_outdated(f) {
+        w.dispatch_warning = Some(("outdated".to_string(), "Source results are outdated because inputs changed after they were computed. Resend with confirm_outdated=true to proceed anyway.".to_string()));
+        w.status = "Source results are outdated. Send not performed.".to_string();
+        return;
+    }
     match action {
         "" | "state" | "init" | "get_state" | "noop" => {}
         "go_start" | "go-start" => w.select_index(None),
@@ -886,6 +1641,7 @@ fn dispatch(w: &mut Work, action: &str, f: &Fields) {
             }
         }
         "add_item" | "add-item" => w.add_item_from_panel(),
+        "duplicate_item" | "duplicate-item" => w.duplicate_selected_item(),
         "remove_item" | "remove-item" => w.remove_selected_item(),
         "rename_item" | "rename-item" => w.rename_selected_item(),
         "new_project" | "new-project" => w.new_project(),
@@ -916,7 +1672,8 @@ fn dispatch(w: &mut Work, action: &str, f: &Fields) {
             if let Some(text) = fs(f, &["text", "file_text", "data", "content", "csv_text"]) {
                 match reliakit::prediction::library_from_csv(&text) {
                     Ok(parts) => {
-                        w.pred_lib_note = format!("Loaded {} parts from the chosen file", parts.len());
+                        w.pred_lib_note =
+                            format!("Loaded {} parts from the chosen file", parts.len());
                         w.pred_lib_parts = parts;
                     }
                     Err(e) => w.pred_lib_note = format!("Library error: {}", e),
@@ -1017,11 +1774,7 @@ fn rows_json(text: &str) -> Value {
 }
 
 fn cells_json(rows: &[Vec<String>]) -> Value {
-    Value::Array(
-        rows.iter()
-            .map(|r| json!({"cells": r}))
-            .collect(),
-    )
+    Value::Array(rows.iter().map(|r| json!({"cells": r})).collect())
 }
 
 fn strings_json(v: &[String]) -> Value {
@@ -1067,14 +1820,23 @@ impl BBox {
         let y = a.y.min(b.y);
         let r = a.right().max(b.right());
         let bot = a.bottom().max(b.bottom());
-        BBox { x, y, w: r - x, h: bot - y }
+        BBox {
+            x,
+            y,
+            w: r - x,
+            h: bot - y,
+        }
     }
 }
+
+/// Entry and exit anchor points of one diagram node, keyed by the
+/// node's path in the diagram tree: path to (entry point, exit point).
+type InOutMap = std::collections::HashMap<Vec<usize>, ((f32, f32), (f32, f32))>;
 
 struct RbdDrawing {
     finals: Vec<(f32, f32)>,
     bboxes: std::collections::HashMap<Vec<usize>, BBox>,
-    inout: std::collections::HashMap<Vec<usize>, ((f32, f32), (f32, f32))>,
+    inout: InOutMap,
 }
 
 fn build_bbox(
@@ -1088,7 +1850,12 @@ fn build_bbox(
     if ty == "block" || ty == "standby_group" {
         let idx = leaf_index.get(path.as_slice())?;
         let (x, y) = finals.get(*idx).copied().unwrap_or((30.0, 90.0));
-        let bb = BBox { x, y, w: BLOCK_W, h: BLOCK_H };
+        let bb = BBox {
+            x,
+            y,
+            w: BLOCK_W,
+            h: BLOCK_H,
+        };
         bboxes.insert(path.clone(), bb);
         return Some(bb);
     }
@@ -1114,7 +1881,7 @@ fn build_inout(
     node: &Value,
     path: &mut Vec<usize>,
     bboxes: &std::collections::HashMap<Vec<usize>, BBox>,
-    inout: &mut std::collections::HashMap<Vec<usize>, ((f32, f32), (f32, f32))>,
+    inout: &mut InOutMap,
 ) -> Option<((f32, f32), (f32, f32))> {
     let bb = bboxes.get(path.as_slice()).copied()?;
     let ty = node.get("type").and_then(|v| v.as_str()).unwrap_or("");
@@ -1188,16 +1955,26 @@ fn rbd_drawing(w: &Work) -> RbdDrawing {
         let node = Work::node_at(&w.rbd_spec, p);
         let pos = node
             .as_ref()
-            .and_then(|n| Work::stored_pos(n))
+            .and_then(Work::stored_pos)
             .or_else(|| slots.get(i).copied())
             .unwrap_or((30.0 + (i as f32) * 160.0, 90.0));
         finals.push(pos);
     }
     let mut bboxes = std::collections::HashMap::new();
-    build_bbox(&w.rbd_spec.clone(), &mut Vec::new(), &leaf_index, &finals, &mut bboxes);
+    build_bbox(
+        &w.rbd_spec.clone(),
+        &mut Vec::new(),
+        &leaf_index,
+        &finals,
+        &mut bboxes,
+    );
     let mut inout = std::collections::HashMap::new();
     build_inout(&w.rbd_spec.clone(), &mut Vec::new(), &bboxes, &mut inout);
-    RbdDrawing { finals, bboxes, inout }
+    RbdDrawing {
+        finals,
+        bboxes,
+        inout,
+    }
 }
 
 fn push_bar(out: &mut Vec<Value>, x: f32, y: f32, wdt: f32, hgt: f32) {
@@ -1209,25 +1986,40 @@ fn push_bar(out: &mut Vec<Value>, x: f32, y: f32, wdt: f32, hgt: f32) {
 fn push_elbow(out: &mut Vec<Value>, from: (f32, f32), to: (f32, f32)) {
     const T: f32 = 2.0;
     if (from.1 - to.1).abs() < 1.0 {
-        let (hx, hw) = if to.0 >= from.0 { (from.0, to.0 - from.0) } else { (to.0, from.0 - to.0) };
+        let (hx, hw) = if to.0 >= from.0 {
+            (from.0, to.0 - from.0)
+        } else {
+            (to.0, from.0 - to.0)
+        };
         push_bar(out, hx, from.1 - T / 2.0, hw, T);
     } else {
-        let mid = if to.0 >= from.0 { (from.0 + to.0) / 2.0 } else { from.0 + 16.0 };
-        let (hx, hw) = if mid >= from.0 { (from.0, mid - from.0) } else { (mid, from.0 - mid) };
+        let mid = if to.0 >= from.0 {
+            (from.0 + to.0) / 2.0
+        } else {
+            from.0 + 16.0
+        };
+        let (hx, hw) = if mid >= from.0 {
+            (from.0, mid - from.0)
+        } else {
+            (mid, from.0 - mid)
+        };
         push_bar(out, hx, from.1 - T / 2.0, hw, T);
-        let (top, bot) = if from.1 < to.1 { (from.1, to.1) } else { (to.1, from.1) };
+        let (top, bot) = if from.1 < to.1 {
+            (from.1, to.1)
+        } else {
+            (to.1, from.1)
+        };
         push_bar(out, mid - T / 2.0, top, T, bot - top);
-        let (hx2, hw2) = if to.0 >= mid { (mid, to.0 - mid) } else { (to.0, mid - to.0) };
+        let (hx2, hw2) = if to.0 >= mid {
+            (mid, to.0 - mid)
+        } else {
+            (to.0, mid - to.0)
+        };
         push_bar(out, hx2, to.1 - T / 2.0, hw2, T);
     }
 }
 
-fn gen_segments(
-    node: &Value,
-    path: &mut Vec<usize>,
-    drawing: &RbdDrawing,
-    out: &mut Vec<Value>,
-) {
+fn gen_segments(node: &Value, path: &mut Vec<usize>, drawing: &RbdDrawing, out: &mut Vec<Value>) {
     const T: f32 = 2.0;
     let ty = node.get("type").and_then(|v| v.as_str()).unwrap_or("");
     if ty == "block" || ty == "standby_group" {
@@ -1274,21 +2066,37 @@ fn gen_segments(
                 if ins.len() >= 2 {
                     let first_y = ins[0].1;
                     let last_y = ins[ins.len() - 1].1;
-                    let (top, bot) = if first_y < last_y { (first_y, last_y) } else { (last_y, first_y) };
+                    let (top, bot) = if first_y < last_y {
+                        (first_y, last_y)
+                    } else {
+                        (last_y, first_y)
+                    };
                     push_bar(out, split_x - T / 2.0, top, T, bot - top);
                     let first_o = outs[0].1;
                     let last_o = outs[outs.len() - 1].1;
-                    let (top2, bot2) = if first_o < last_o { (first_o, last_o) } else { (last_o, first_o) };
+                    let (top2, bot2) = if first_o < last_o {
+                        (first_o, last_o)
+                    } else {
+                        (last_o, first_o)
+                    };
                     push_bar(out, merge_x - T / 2.0, top2, T, bot2 - top2);
                 } else if ins.len() == 1 {
                     // Single branch: rails degenerate to stubs below.
                 }
                 for cin in &ins {
-                    let (hx, hw) = if cin.0 >= split_x { (split_x, cin.0 - split_x) } else { (cin.0, split_x - cin.0) };
+                    let (hx, hw) = if cin.0 >= split_x {
+                        (split_x, cin.0 - split_x)
+                    } else {
+                        (cin.0, split_x - cin.0)
+                    };
                     push_bar(out, hx, cin.1 - T / 2.0, hw, T);
                 }
                 for cout in &outs {
-                    let (hx, hw) = if merge_x >= cout.0 { (cout.0, merge_x - cout.0) } else { (merge_x, cout.0 - merge_x) };
+                    let (hx, hw) = if merge_x >= cout.0 {
+                        (cout.0, merge_x - cout.0)
+                    } else {
+                        (merge_x, cout.0 - merge_x)
+                    };
                     push_bar(out, hx, cout.1 - T / 2.0, hw, T);
                 }
             }
@@ -1308,7 +2116,11 @@ fn block_geom_json_with(w: &Work, idx: usize, drawing: &RbdDrawing) -> Option<Va
     let node = Work::node_at(&w.rbd_spec, path)?;
     let (x, y) = drawing.finals.get(idx).copied().unwrap_or((30.0, 90.0));
     let ty = node.get("type").and_then(|v| v.as_str()).unwrap_or("");
-    let name = node.get("name").and_then(|v| v.as_str()).unwrap_or("block").to_string();
+    let name = node
+        .get("name")
+        .and_then(|v| v.as_str())
+        .unwrap_or("block")
+        .to_string();
     let sub = if ty == "standby_group" {
         let n = node.get("n_units").and_then(|v| v.as_u64()).unwrap_or(2);
         let d = node.get("dormancy").and_then(|v| v.as_f64()).unwrap_or(0.0);
@@ -1332,7 +2144,11 @@ fn block_geom_json_with(w: &Work, idx: usize, drawing: &RbdDrawing) -> Option<Va
 fn rbd_geoms_json(w: &Work) -> Value {
     let drawing = rbd_drawing(w);
     let n = Work::leaf_paths(&w.rbd_spec).len();
-    Value::Array((0..n).filter_map(|i| block_geom_json_with(w, i, &drawing)).collect())
+    Value::Array(
+        (0..n)
+            .filter_map(|i| block_geom_json_with(w, i, &drawing))
+            .collect(),
+    )
 }
 
 /// Structural connectors generated from the spec tree.
@@ -1359,7 +2175,11 @@ fn collect_frames(
                 "parallel" => "Parallel".to_string(),
                 _ => {
                     let k = node.get("k").and_then(|v| v.as_u64()).unwrap_or(1);
-                    let n = node.get("children").and_then(|v| v.as_array()).map(|a| a.len()).unwrap_or(0);
+                    let n = node
+                        .get("children")
+                        .and_then(|v| v.as_array())
+                        .map(|a| a.len())
+                        .unwrap_or(0);
                     format!("k-out-of-n ({} of {})", k, n)
                 }
             };
@@ -1384,7 +2204,13 @@ fn collect_frames(
 fn frames_json(w: &Work) -> Value {
     let drawing = rbd_drawing(w);
     let mut out: Vec<Value> = Vec::new();
-    collect_frames(&w.rbd_spec.clone(), &mut Vec::new(), true, &drawing, &mut out);
+    collect_frames(
+        &w.rbd_spec.clone(),
+        &mut Vec::new(),
+        true,
+        &drawing,
+        &mut out,
+    );
     Value::Array(out)
 }
 
@@ -1433,11 +2259,7 @@ fn start_cards_json() -> (Value, Value) {
         })
         .collect();
     let chunk = |v: Vec<Value>| -> Value {
-        Value::Array(
-            v.chunks(4)
-                .map(|c| Value::Array(c.to_vec()))
-                .collect(),
-        )
+        Value::Array(v.chunks(4).map(|c| Value::Array(c.to_vec())).collect())
     };
     (chunk(examples), chunk(datasets))
 }
@@ -1459,6 +2281,8 @@ pub fn build_state(w: &Work) -> Value {
         Some(k) => k.key().to_string(),
         None => "start".to_string(),
     };
+    let outdated_cur = w.is_current_outdated();
+    let cur_kind = current_kind(w);
     let (example_rows, dataset_rows) = start_cards_json();
     let chart = chart_json(w);
     let series_arr = chart.get("series").cloned().unwrap_or(json!([]));
@@ -1480,13 +2304,23 @@ pub fn build_state(w: &Work) -> Value {
         .collect();
 
     // Life Data
-    let life_headline = match &w.life_fit {
-        Some(fit) => {
-            let t = fnum(&w.life_t, 1000.0);
-            format!("R({:.0}) = {:.4}", t, fit.reliability(t))
-        }
-        None => String::new(),
-    };
+    let life_headline =
+        if w.life_fit_status == "failed" || w.life_fit_status == "boundary_or_degenerate" {
+            w.life_fit_status_note.clone()
+        } else {
+            match &w.life_fit {
+                Some(fit) => {
+                    let t = fnum(&w.life_t, 1000.0);
+                    let r = fit.reliability(t);
+                    if r.is_finite() {
+                        format!("R({:.0}) = {:.4}", t, r)
+                    } else {
+                        "unavailable: non-finite result".to_string()
+                    }
+                }
+                None => String::new(),
+            }
+        };
     let wizard_rows: Vec<Value> = w
         .wizard_ranks
         .iter()
@@ -1494,15 +2328,23 @@ pub fn build_state(w: &Work) -> Value {
             json!({
                 "dist": r.dist,
                 "label": reliakit::distributions::dist_label(&r.dist),
-                "loglik": format!("{:.2}", r.loglik),
-                "aic": format!("{:.2}", r.aic),
-                "bic": format!("{:.2}", r.bic),
+                "loglik": if r.loglik.is_finite() { format!("{:.2}", r.loglik) } else { "unavailable: fit failed".to_string() },
+                "aic": if r.aic.is_finite() { format!("{:.2}", r.aic) } else { "unavailable: fit failed".to_string() },
+                "bic": if r.bic.is_finite() { format!("{:.2}", r.bic) } else { "unavailable: fit failed".to_string() },
                 "ad": r.ad_statistic.map(|v| format!("{:.3}", v)).unwrap_or_else(|| "-".to_string()),
                 "usable": r.success,
+                "status": if r.success { "success" } else { "failed" },
+                "status-note": if r.success { "" } else { "fit failed" },
+                "reason": if r.success { "" } else { "fit failed" },
             })
         })
         .collect();
-    let rbd_targets: Vec<String> = w.items.iter().filter(|it| it.kind == ItemKind::Rbd).map(|it| it.name.clone()).collect();
+    let rbd_targets: Vec<String> = w
+        .items
+        .iter()
+        .filter(|it| it.kind == ItemKind::Rbd)
+        .map(|it| it.name.clone())
+        .collect();
     let target_pos = w
         .items
         .iter()
@@ -1510,7 +2352,11 @@ pub fn build_state(w: &Work) -> Value {
         .position(|it| it.id == w.flow_target_id)
         .map(|i| i as i64)
         .unwrap_or(0);
-    let life_chart_title = if w.life_show_prob { "Probability plot" } else { "Reliability curve" };
+    let life_chart_title = if w.life_show_prob {
+        "Empirical vs fitted probability"
+    } else {
+        "Reliability curve"
+    };
 
     // RBD inspector
     let (sel_title, ed_is_standby) = match w.rbd_sel {
@@ -1527,7 +2373,11 @@ pub fn build_state(w: &Work) -> Value {
                 .unwrap_or_default();
             let standby = node
                 .as_ref()
-                .and_then(|n| n.get("type").and_then(|v| v.as_str()).map(|t| t == "standby_group"))
+                .and_then(|n| {
+                    n.get("type")
+                        .and_then(|v| v.as_str())
+                        .map(|t| t == "standby_group")
+                })
                 .unwrap_or(false);
             (title, standby)
         }
@@ -1560,7 +2410,9 @@ pub fn build_state(w: &Work) -> Value {
                 r.detection.to_string(),
                 r.rpn().to_string(),
                 r.revised_rpn().map(|v| v.to_string()).unwrap_or_default(),
-                w.fmea_criticality(i).map(|v| format!("{:.4}", v)).unwrap_or_default(),
+                w.fmea_criticality(i)
+                    .map(|v| format!("{:.4}", v))
+                    .unwrap_or_default(),
             ]
         })
         .collect();
@@ -1609,14 +2461,20 @@ pub fn build_state(w: &Work) -> Value {
                 p.quantity.to_string(),
                 format!(
                     "{:.3} per Mh",
-                    p.base_rate_per_million_hours * p.quantity as f64 * p.stress_factor * p.quality_factor
+                    p.base_rate_per_million_hours
+                        * p.quantity as f64
+                        * p.stress_factor
+                        * p.quality_factor
                 ),
             ]
         })
         .collect();
     let category_text = match &w.pred217_json {
         Some(cat) => {
-            let name = cat.get("category").and_then(|v| v.as_str()).unwrap_or(&w.pred217_file);
+            let name = cat
+                .get("category")
+                .and_then(|v| v.as_str())
+                .unwrap_or(&w.pred217_file);
             let section = cat.get("section").and_then(|v| v.as_str()).unwrap_or("");
             if section.is_empty() {
                 name.to_string()
@@ -1649,11 +2507,23 @@ pub fn build_state(w: &Work) -> Value {
         .collect();
     let part_options = w.pred217_part_options();
     let part = w.pred217_named.get("part").cloned().unwrap_or_default();
-    let part_index = part_options.iter().position(|p| *p == part).map(|i| i as i64).unwrap_or(0);
-    let env = w.pred217_named.get("environment").cloned().unwrap_or_else(|| "GB".to_string());
+    let part_index = part_options
+        .iter()
+        .position(|p| *p == part)
+        .map(|i| i as i64)
+        .unwrap_or(0);
+    let env = w
+        .pred217_named
+        .get("environment")
+        .cloned()
+        .unwrap_or_else(|| "GB".to_string());
 
     // Markov
-    let trs: Vec<Vec<String>> = w.mk_transitions.iter().map(|t| vec![t[0].clone(), t[1].clone(), t[2].clone()]).collect();
+    let trs: Vec<Vec<String>> = w
+        .mk_transitions
+        .iter()
+        .map(|t| vec![t[0].clone(), t[1].clone(), t[2].clone()])
+        .collect();
     let (tr_from, tr_to, tr_rate) = match w.mk_sel.and_then(|i| w.mk_transitions.get(i)) {
         Some(t) => (t[0].clone(), t[1].clone(), t[2].clone()),
         None => (String::new(), String::new(), String::new()),
@@ -1693,7 +2563,9 @@ pub fn build_state(w: &Work) -> Value {
                 r.mode.clone(),
                 r.consequence.clone(),
                 reliakit::rcm::select_task(&mode).as_str().to_string(),
-                mode.criticality().map(|v| format!("{:.4}", v)).unwrap_or_default(),
+                mode.criticality()
+                    .map(|v| format!("{:.4}", v))
+                    .unwrap_or_default(),
             ]
         })
         .collect();
@@ -1703,7 +2575,9 @@ pub fn build_state(w: &Work) -> Value {
             let mode = r.to_mode();
             (
                 reliakit::rcm::select_task(&mode).as_str().to_string(),
-                mode.criticality().map(|v| format!("{:.4}", v)).unwrap_or_default(),
+                mode.criticality()
+                    .map(|v| format!("{:.4}", v))
+                    .unwrap_or_default(),
             )
         }
         None => (String::new(), String::new()),
@@ -1718,7 +2592,7 @@ pub fn build_state(w: &Work) -> Value {
                 inc.id.clone(),
                 inc.part.clone(),
                 inc.failure_mode.clone(),
-                format!("{:.0}", inc.hours),
+                crate::work::fmt_num(inc.hours),
                 inc.date.clone(),
                 inc.status.as_str().to_string(),
                 inc.corrective_action.clone(),
@@ -1774,7 +2648,12 @@ pub fn build_state(w: &Work) -> Value {
             "headline-value": life_headline,
             "wizard-rows": wizard_rows,
             "wizard-note": w.wizard_note,
-            "has-fit": w.life_fit.is_some(),
+            "has-fit": w.life_fit.is_some() && w.life_fit_status!="failed",
+            "fit-status": w.life_fit_status.clone(),
+            "fit_status": w.life_fit_status.clone(),
+            "fit-status-note": w.life_fit_status_note.clone(),
+            "fit-warnings": w.life_fit_warnings.clone(),
+            "outdated": if cur_kind==Some(ItemKind::LifeData) { outdated_cur } else { false },
             "rbd-targets": rbd_targets,
             "target-index": target_pos,
             "block-names": w.flow_target_block_names(),
@@ -1783,6 +2662,11 @@ pub fn build_state(w: &Work) -> Value {
         "LimitedUi": {
             "groups": w.limited_groups,
             "results": rows_json(&w.limited_result),
+            "fit-status": w.limited_fit_status.clone(),
+            "fit-status-note": w.limited_fit_status_note.clone(),
+            "fit-warnings": w.limited_fit_warnings.clone(),
+            "has-fit": !w.limited_result.is_empty() && w.limited_fit_status!="failed",
+            "outdated": if cur_kind==Some(ItemKind::LimitedData) { outdated_cur } else { false },
         },
         "McmcUi": {
             "times": w.mcmc_times,
@@ -1795,6 +2679,7 @@ pub fn build_state(w: &Work) -> Value {
             "seed": w.mcmc_seed,
             "t": w.mcmc_t,
             "results": rows_json(&w.mcmc_result),
+            "outdated": if cur_kind==Some(ItemKind::Mcmc) { outdated_cur } else { false },
             "headline-value": if w.mcmc_result.is_empty() { String::new() } else { w.headline.clone() },
         },
         "DegUi": {
@@ -1808,6 +2693,11 @@ pub fn build_state(w: &Work) -> Value {
             "dist-options": str_json(&ALL_DISTS),
             "increasing": w.deg_increasing,
             "results": rows_json(&w.deg_result),
+            "fit-status": w.deg_fit_status.clone(),
+            "fit-status-note": w.deg_fit_status_note.clone(),
+            "fit-warnings": w.deg_fit_warnings.clone(),
+            "has-fit": w.deg_data.as_ref().map(|d| d.fit.is_some()).unwrap_or(false) && w.deg_fit_status!="failed",
+            "outdated": if cur_kind==Some(ItemKind::Degradation) { outdated_cur } else { false },
             "has-chart": if current_kind(w) == Some(ItemKind::Degradation) { has_chart.clone() } else { json!(false) },
             "series": if current_kind(w) == Some(ItemKind::Degradation) { series_arr.clone() } else { json!([]) },
         },
@@ -1819,12 +2709,18 @@ pub fn build_state(w: &Work) -> Value {
             "use-stress": w.alt_use_stress,
             "t": w.alt_t,
             "results": rows_json(&w.alt_result),
+            "fit-status": w.alt_fit_status.clone(),
+            "fit-status-note": w.alt_fit_status_note.clone(),
+            "fit-warnings": w.alt_fit_warnings.clone(),
+            "has-fit": !w.alt_result.is_empty() && w.alt_fit_status!="failed",
+            "outdated": if cur_kind==Some(ItemKind::Alt) { outdated_cur } else { false },
             "has-chart": if current_kind(w) == Some(ItemKind::Alt) { has_chart.clone() } else { json!(false) },
             "series": if current_kind(w) == Some(ItemKind::Alt) { series_arr.clone() } else { json!([]) },
         },
         "GrowthUi": {
             "times": w.growth_times,
             "results": rows_json(&w.growth_result),
+            "outdated": if cur_kind==Some(ItemKind::Growth) { outdated_cur } else { false },
             "has-chart": if current_kind(w) == Some(ItemKind::Growth) { has_chart.clone() } else { json!(false) },
             "series": if current_kind(w) == Some(ItemKind::Growth) { series_arr.clone() } else { json!([]) },
         },
@@ -1835,10 +2731,16 @@ pub fn build_state(w: &Work) -> Value {
             "dist-options": str_json(&ALL_DISTS),
             "t": w.comp_t,
             "results": rows_json(&w.comp_result),
+            "fit-status": w.comp_fit_status.clone(),
+            "fit-status-note": w.comp_fit_status_note.clone(),
+            "fit-warnings": w.comp_fit_warnings.clone(),
+            "has-fit": !w.comp_result.is_empty() && w.comp_fit_status!="failed",
+            "outdated": if cur_kind==Some(ItemKind::Competing) { outdated_cur } else { false },
         },
         "RbdUi": {
             "t": w.rbd_t,
             "horizon": w.rbd_horizon,
+            "sims": w.rbd_sims,
             "topology-index": idx_of(&TOPOLOGIES, &w.rbd_topology),
             "topology": w.rbd_topology,
             "topology-options": str_json(&TOPOLOGIES),
@@ -1877,12 +2779,14 @@ pub fn build_state(w: &Work) -> Value {
             "json": w.rbd_json,
             "path": w.rbd_path,
             "status": w.rbd_status,
+            "outdated": if cur_kind==Some(ItemKind::Rbd) { outdated_cur } else { false },
             "importance-rows": cells_json(&imp_rows),
             "importance-note": w.rbd_importance_note,
         },
         "FtUi": {
             "json": w.ft_json,
             "results": rows_json(&w.ft_result),
+            "outdated": if cur_kind==Some(ItemKind::FaultTree) { outdated_cur } else { false },
         },
         "FmeaUi": {
             "type-index": idx_of(&FMEA_TYPES, &w.fmea_type),
@@ -1915,6 +2819,10 @@ pub fn build_state(w: &Work) -> Value {
             "current": w.war_current,
             "horizon": w.war_horizon,
             "results": rows_json(&w.war_result),
+            "excluded-future-returns": w.war_excluded_future,
+            "excluded_future_returns": w.war_excluded_future,
+            "notes": w.war_notes.clone(),
+            "outdated": if cur_kind==Some(ItemKind::Warranty) { outdated_cur } else { false },
             "table-header": war_header,
             "table-rows": cells_json(&war_rows),
         },
@@ -1982,17 +2890,20 @@ pub fn build_state(w: &Work) -> Value {
             "mp-cyc": w.mp_cyc_factor,
             "mp-phases": w.mp_phases,
             "clean-results": rows_json(&w.pred_clean_result),
+            "outdated": if cur_kind==Some(ItemKind::Prediction) { outdated_cur } else { false },
         },
         "DoeUi": {
             "k": w.doe_k,
             "y": w.doe_y,
             "results": rows_json(&w.doe_result),
+            "outdated": if cur_kind==Some(ItemKind::Doe) { outdated_cur } else { false },
         },
         "FlowUi": {
             "json": w.flow_json,
             "sims": w.flow_sims,
             "seed": w.flow_seed,
             "results": rows_json(&w.flow_result),
+            "outdated": if cur_kind==Some(ItemKind::Flowchart) { outdated_cur } else { false },
         },
         "MarkovUi": {
             "states": strings_json(&w.mk_states),
@@ -2006,6 +2917,7 @@ pub fn build_state(w: &Work) -> Value {
             "absorbing-index": w.mk_states.iter().position(|s| *s == w.mk_absorbing).map(|i| i as i64).unwrap_or(0),
             "time": w.mk_time,
             "results": rows_json(&w.mk_result),
+            "outdated": if cur_kind==Some(ItemKind::Markov) { outdated_cur } else { false },
             "has-chart": if current_kind(w) == Some(ItemKind::Markov) { has_chart.clone() } else { json!(false) },
             "series": if current_kind(w) == Some(ItemKind::Markov) { series_arr.clone() } else { json!([]) },
         },
@@ -2017,6 +2929,7 @@ pub fn build_state(w: &Work) -> Value {
             "t": w.qcp_t,
             "bx": w.qcp_bx,
             "results": rows_json(&w.qcp_result),
+            "outdated": if cur_kind==Some(ItemKind::Qcp) { outdated_cur } else { false },
             "headline-value": qcp_headline,
         },
         "RcmUi": {
@@ -2044,7 +2957,7 @@ pub fn build_state(w: &Work) -> Value {
             "ed-id": fracas_sel_inc.map(|i| i.id.clone()).unwrap_or_default(),
             "ed-part": fracas_sel_inc.map(|i| i.part.clone()).unwrap_or_default(),
             "ed-mode": fracas_sel_inc.map(|i| i.failure_mode.clone()).unwrap_or_default(),
-            "ed-hours": fracas_sel_inc.map(|i| format!("{:.0}", i.hours)).unwrap_or_default(),
+            "ed-hours": fracas_sel_inc.map(|i| crate::work::fmt_num(i.hours)).unwrap_or_default(),
             "ed-date": fracas_sel_inc.map(|i| i.date.clone()).unwrap_or_default(),
             "ed-status-index": fracas_sel_inc.map(|i| match i.status {
                 IncidentStatus::Open => 0,
@@ -2079,6 +2992,8 @@ pub fn new_work() -> Work {
 /// top-level request keys other than action and fields are also
 /// read as fields, with entries in `fields` winning.
 pub fn handle(w: &mut Work, req: &Value) -> Value {
+    w.validation_error = None;
+    w.dispatch_warning = None;
     let action = req
         .get("action")
         .and_then(|v| v.as_str())
@@ -2104,7 +3019,7 @@ pub fn handle(w: &mut Work, req: &Value) -> Value {
     let keys: Vec<String> = eff.keys().cloned().collect();
     for k in keys {
         let v = eff.get(&k).cloned().unwrap_or(Value::Null);
-        let underscored = k.replace('.', "_").replace('-', "_");
+        let underscored = k.replace(['.', '-'], "_");
         eff.entry(underscored).or_insert_with(|| v.clone());
         if let Some((_, suffix)) = k.split_once('.') {
             eff.entry(suffix.to_string()).or_insert_with(|| v.clone());
@@ -2131,6 +3046,29 @@ pub fn handle(w: &mut Work, req: &Value) -> Value {
     dispatch(w, &action, &eff);
     w.capture_selected();
     let mut state = build_state(w);
+    // Top-level structured error and warning (v0.3.2)
+    if let Some(obj) = state.as_object_mut() {
+        match &w.validation_error {
+            Some(e) => {
+                obj.insert(
+                    "error".to_string(),
+                    json!({"field": e.field, "token": e.token, "reason": e.reason}),
+                );
+            }
+            None => {
+                obj.insert("error".to_string(), Value::Null);
+            }
+        }
+        match &w.dispatch_warning {
+            Some((kind, msg)) => {
+                obj.insert("warning".to_string(), json!({"kind": kind, "message": msg}));
+            }
+            None => {
+                obj.insert("warning".to_string(), Value::Null);
+            }
+        }
+        obj.insert("outdated".to_string(), json!(w.is_current_outdated()));
+    }
     add_aliases(&mut state);
     state
 }
@@ -2181,7 +3119,9 @@ fn add_aliases(state: &mut Value) {
         ("RcmUi", "rcm"),
         ("FracasUi", "fracas"),
     ];
-    let Some(obj) = state.as_object_mut() else { return };
+    let Some(obj) = state.as_object_mut() else {
+        return;
+    };
     for (global, alias) in groups {
         if let Some(g) = obj.get(global).cloned() {
             obj.insert(alias.to_string(), snake_keys(&g));

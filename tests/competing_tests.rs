@@ -2,8 +2,8 @@
 //! (reliakit::competing).
 
 use reliakit::competing::{
-    cumulative_incidence, failure_probabilities, fit_competing_risks, from_fits,
-    mode_hazard, overall_reliability, CompetingRisks,
+    cumulative_incidence, failure_probabilities, fit_competing_risks, from_fits, mode_hazard,
+    overall_reliability, CompetingRisks,
 };
 use reliakit::distributions::FitResult;
 use reliakit::rng::Rng64;
@@ -28,6 +28,9 @@ fn exponential_fit(theta: f64) -> FitResult {
         times: Vec::new(),
         failed: Vec::new(),
         success: true,
+        status: reliakit::distributions::FitStatus::Success,
+        status_note: String::new(),
+        warnings: Vec::new(),
     }
 }
 
@@ -152,8 +155,8 @@ fn test_unknown_mode_is_its_own_category() {
     // Small hand-made dataset with masked failures recorded as
     // "unknown", plus ordinary A and B failures and suspensions.
     let times: Vec<f64> = vec![
-        120.0, 340.0, 560.0, 210.0, 890.0, 430.0, 150.0, 670.0, 980.0, 260.0, 310.0, 720.0,
-        180.0, 540.0, 810.0, 390.0, 240.0, 620.0, 470.0, 910.0,
+        120.0, 340.0, 560.0, 210.0, 890.0, 430.0, 150.0, 670.0, 980.0, 260.0, 310.0, 720.0, 180.0,
+        540.0, 810.0, 390.0, 240.0, 620.0, 470.0, 910.0,
     ];
     let events: Vec<Option<&str>> = vec![
         Some("A"),

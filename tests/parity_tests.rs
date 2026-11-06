@@ -47,11 +47,26 @@ fn fmea_csv_round_trip_preserves_row_with_comma() {
 #[test]
 fn warranty_nevada_table_aggregation() {
     let records = vec![
-        warranty::WarrantyRecord { sale_period: 0, return_period: 0 },
-        warranty::WarrantyRecord { sale_period: 0, return_period: 1 },
-        warranty::WarrantyRecord { sale_period: 0, return_period: 1 },
-        warranty::WarrantyRecord { sale_period: 1, return_period: 2 },
-        warranty::WarrantyRecord { sale_period: 2, return_period: 2 },
+        warranty::WarrantyRecord {
+            sale_period: 0,
+            return_period: 0,
+        },
+        warranty::WarrantyRecord {
+            sale_period: 0,
+            return_period: 1,
+        },
+        warranty::WarrantyRecord {
+            sale_period: 0,
+            return_period: 1,
+        },
+        warranty::WarrantyRecord {
+            sale_period: 1,
+            return_period: 2,
+        },
+        warranty::WarrantyRecord {
+            sale_period: 2,
+            return_period: 2,
+        },
     ];
 
     let table = warranty::nevada_table(3, &records, 2);
@@ -65,8 +80,14 @@ fn faulttree_gate_probabilities() {
     let or_tree = faulttree::FtNode::Or {
         name: "top".to_string(),
         children: vec![
-            faulttree::FtNode::Basic { name: "a".to_string(), prob: 0.1 },
-            faulttree::FtNode::Basic { name: "b".to_string(), prob: 0.2 },
+            faulttree::FtNode::Basic {
+                name: "a".to_string(),
+                prob: 0.1,
+            },
+            faulttree::FtNode::Basic {
+                name: "b".to_string(),
+                prob: 0.2,
+            },
         ],
     };
     assert!(approx(faulttree::top_probability(&or_tree), 0.28, 1e-12));
@@ -74,8 +95,14 @@ fn faulttree_gate_probabilities() {
     let and_tree = faulttree::FtNode::And {
         name: "top".to_string(),
         children: vec![
-            faulttree::FtNode::Basic { name: "a".to_string(), prob: 0.1 },
-            faulttree::FtNode::Basic { name: "b".to_string(), prob: 0.2 },
+            faulttree::FtNode::Basic {
+                name: "a".to_string(),
+                prob: 0.1,
+            },
+            faulttree::FtNode::Basic {
+                name: "b".to_string(),
+                prob: 0.2,
+            },
         ],
     };
     assert!(approx(faulttree::top_probability(&and_tree), 0.02, 1e-12));
@@ -84,13 +111,26 @@ fn faulttree_gate_probabilities() {
         name: "top".to_string(),
         k: 2,
         children: vec![
-            faulttree::FtNode::Basic { name: "a".to_string(), prob: 0.1 },
-            faulttree::FtNode::Basic { name: "b".to_string(), prob: 0.1 },
-            faulttree::FtNode::Basic { name: "c".to_string(), prob: 0.1 },
+            faulttree::FtNode::Basic {
+                name: "a".to_string(),
+                prob: 0.1,
+            },
+            faulttree::FtNode::Basic {
+                name: "b".to_string(),
+                prob: 0.1,
+            },
+            faulttree::FtNode::Basic {
+                name: "c".to_string(),
+                prob: 0.1,
+            },
         ],
     };
     // 3 * 0.01 * 0.9 + 0.001 = 0.028
-    assert!(approx(faulttree::top_probability(&voting_tree), 0.028, 1e-12));
+    assert!(approx(
+        faulttree::top_probability(&voting_tree),
+        0.028,
+        1e-12
+    ));
 }
 
 #[test]
@@ -101,11 +141,20 @@ fn faulttree_minimal_cut_sets() {
             faulttree::FtNode::Or {
                 name: "left".to_string(),
                 children: vec![
-                    faulttree::FtNode::Basic { name: "a".to_string(), prob: 0.1 },
-                    faulttree::FtNode::Basic { name: "b".to_string(), prob: 0.1 },
+                    faulttree::FtNode::Basic {
+                        name: "a".to_string(),
+                        prob: 0.1,
+                    },
+                    faulttree::FtNode::Basic {
+                        name: "b".to_string(),
+                        prob: 0.1,
+                    },
                 ],
             },
-            faulttree::FtNode::Basic { name: "c".to_string(), prob: 0.1 },
+            faulttree::FtNode::Basic {
+                name: "c".to_string(),
+                prob: 0.1,
+            },
         ],
     };
 

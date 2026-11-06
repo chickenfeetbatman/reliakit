@@ -225,19 +225,19 @@ pub fn simulate_flow(spec: &Value, n_sim: usize, seed: u64) -> Result<FlowResult
                         .ok_or_else(|| format!("node '{}': missing field 'time'", id))?;
                     total_time += sample_time(time_spec, &mut rng, id)?;
                     if let Some(c) = node.get("cost") {
-                        total_cost += c
-                            .as_f64()
-                            .ok_or_else(|| format!("node '{}': field 'cost' must be a number", id))?;
+                        total_cost += c.as_f64().ok_or_else(|| {
+                            format!("node '{}': field 'cost' must be a number", id)
+                        })?;
                     }
                     current = get_str(node, "next", id)?;
                 }
                 "decision" => {
-                    let branches = node
-                        .get("branches")
-                        .and_then(|v| v.as_array())
-                        .ok_or_else(|| {
-                            format!("node '{}': missing or non-array field 'branches'", id)
-                        })?;
+                    let branches =
+                        node.get("branches")
+                            .and_then(|v| v.as_array())
+                            .ok_or_else(|| {
+                                format!("node '{}': missing or non-array field 'branches'", id)
+                            })?;
                     if branches.is_empty() {
                         return Err(format!("node '{}': 'branches' is empty", id));
                     }
@@ -250,7 +250,7 @@ pub fn simulate_flow(spec: &Value, n_sim: usize, seed: u64) -> Result<FlowResult
                         ps.push(p);
                         sum += p;
                     }
-                    if !(sum > 0.0) || !sum.is_finite() {
+                    if sum <= 0.0 || !sum.is_finite() {
                         return Err(format!(
                             "node '{}': branch probabilities must sum to a positive value",
                             id

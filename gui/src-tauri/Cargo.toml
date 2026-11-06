@@ -1,6 +1,6 @@
 [package]
 name = "reliakit-app"
-version = "0.3.0"
+version = "0.3.2"
 edition = "2021"
 license = "MIT"
 description = "ReliaKit desktop application (Tauri shell over the reliakit-engine JSON dispatcher)"

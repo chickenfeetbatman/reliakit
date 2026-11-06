@@ -85,7 +85,10 @@ pub fn evaluate_rbd(spec: &Value, t: Option<f64>) -> Result<f64, String> {
     match ty {
         "block" => block_reliability(spec, t),
         "standby_group" => {
-            let dist = spec.get("dist").and_then(|v| v.as_str()).unwrap_or("exponential");
+            let dist = spec
+                .get("dist")
+                .and_then(|v| v.as_str())
+                .unwrap_or("exponential");
             let params = params_from_value(spec.get("params").unwrap_or(&Value::Null));
             let n_units = spec.get("n_units").and_then(|v| v.as_u64()).unwrap_or(2) as usize;
             let dormancy = spec.get("dormancy").and_then(|v| v.as_f64()).unwrap_or(0.0);
@@ -94,7 +97,9 @@ pub fn evaluate_rbd(spec: &Value, t: Option<f64>) -> Result<f64, String> {
                 .and_then(|v| v.as_f64())
                 .unwrap_or(1.0);
             let tt = t.ok_or("standby group needs mission time t")?;
-            Ok(standby_reliability(tt, dist, &params, n_units, dormancy, sw))
+            Ok(standby_reliability(
+                tt, dist, &params, n_units, dormancy, sw,
+            ))
         }
         "series" | "parallel" | "kofn" => {
             let children = spec
@@ -153,12 +158,7 @@ pub fn rbd_from_json(obj: Value) -> Result<Value, String> {
 /// Cold standby reliability for identical exponential units.
 /// For n_units = 2: R = e^{-lt} (1 + R_sw * lt). Otherwise the Poisson
 /// sum with the switch reliability applied per term.
-pub fn cold_standby_exponential(
-    t: f64,
-    lam: f64,
-    n_units: usize,
-    switch_reliability: f64,
-) -> f64 {
+pub fn cold_standby_exponential(t: f64, lam: f64, n_units: usize, switch_reliability: f64) -> f64 {
     let lt = lam * t;
     let base = (-lt).exp();
     if n_units == 2 {
@@ -176,7 +176,7 @@ pub fn cold_standby_exponential(
 }
 
 fn simpson<F: Fn(f64) -> f64>(f: F, a: f64, b: f64, n: usize) -> f64 {
-    let n = if n % 2 == 0 { n } else { n + 1 };
+    let n = if n.is_multiple_of(2) { n } else { n + 1 };
     let h = (b - a) / n as f64;
     let mut sum = f(a) + f(b);
     for i in 1..n {
@@ -236,8 +236,17 @@ pub fn standby_reliability(
         )
         .clamp(0.0, 1.0);
     }
-    standby_reliability_mc(t, dist, params, n_units, dormancy, switch_reliability, 40000, 99)
-        .clamp(0.0, 1.0)
+    standby_reliability_mc(
+        t,
+        dist,
+        params,
+        n_units,
+        dormancy,
+        switch_reliability,
+        40000,
+        99,
+    )
+    .clamp(0.0, 1.0)
 }
 
 fn draw_lifetime(rng: &mut Rng64, dist: &str, params: &Params) -> f64 {
@@ -256,6 +265,7 @@ fn draw_lifetime(rng: &mut Rng64, dist: &str, params: &Params) -> f64 {
 /// Monte Carlo standby reliability for general distributions. Each unit
 /// draws a full lifetime; standby units accumulate virtual age at the
 /// dormancy rate while waiting.
+#[allow(clippy::too_many_arguments)]
 pub fn standby_reliability_mc(
     t: f64,
     dist: &str,
@@ -269,7 +279,9 @@ pub fn standby_reliability_mc(
     let mut rng = Rng64::new(seed);
     let mut success = 0usize;
     for _ in 0..n_sim {
-        let lifetimes: Vec<f64> = (0..n_units).map(|_| draw_lifetime(&mut rng, dist, params)).collect();
+        let lifetimes: Vec<f64> = (0..n_units)
+            .map(|_| draw_lifetime(&mut rng, dist, params))
+            .collect();
         let mut clock = 0.0;
         let mut vage = vec![0.0; n_units];
         let mut used = vec![false; n_units];
@@ -315,8 +327,8 @@ pub fn standby_reliability_mc(
 pub fn ctmc_steady_state(q: &[Vec<f64>]) -> Vec<f64> {
     let n = q.len();
     let mut a: Vec<Vec<f64>> = (0..n).map(|i| (0..n).map(|j| q[j][i]).collect()).collect();
-    for j in 0..n {
-        a[n - 1][j] = 1.0;
+    for cell in a[n - 1].iter_mut() {
+        *cell = 1.0;
     }
     let mut b = vec![0.0; n];
     b[n - 1] = 1.0;
@@ -384,7 +396,7 @@ pub fn standby_ctmc(
     for i in 0..=n {
         let working = n - i;
         if working >= 1 {
-            let lam_tot = lam + (working - 1).max(0) as f64 * dormancy * lam;
+            let lam_tot = lam + (working - 1) as f64 * dormancy * lam;
             // note: working-1 standby units; when working>=1 there are working-1 standbys
             q[i][i + 1] = lam_tot;
         }
@@ -392,9 +404,14 @@ pub fn standby_ctmc(
             q[i][i - 1] = (i.min(repairmen)) as f64 * mu;
         }
     }
-    for i in 0..=n {
-        let row_sum: f64 = (0..=n).filter(|&j| j != i).map(|j| q[i][j]).sum();
-        q[i][i] = -row_sum;
+    for (i, row) in q.iter_mut().enumerate() {
+        let row_sum: f64 = row
+            .iter()
+            .enumerate()
+            .filter(|(j, _)| *j != i)
+            .map(|(_, v)| *v)
+            .sum();
+        row[i] = -row_sum;
     }
     (q, vec![n])
 }
@@ -408,6 +425,7 @@ pub fn single_block_availability(mtbf: f64, mttr: f64) -> f64 {
 #[derive(Debug, Clone)]
 pub struct AvailabilityResult {
     pub mean_availability: f64,
+    pub std_error: f64,
     pub point_availability: Vec<f64>,
     pub grid: Vec<f64>,
     pub expected_downtime: f64,
@@ -482,7 +500,10 @@ fn leaf_standby_timeline(leaf: &Value, horizon: f64, rng: &mut Rng64) -> Vec<(f6
     let mtbf = mtbf.unwrap_or(1000.0);
     let mttr = leaf.get("mttr").and_then(|v| v.as_f64()).unwrap_or(0.0);
     let dormancy = leaf.get("dormancy").and_then(|v| v.as_f64()).unwrap_or(0.0);
-    let swap = leaf.get("swap_time").and_then(|v| v.as_f64()).unwrap_or(0.0);
+    let swap = leaf
+        .get("swap_time")
+        .and_then(|v| v.as_f64())
+        .unwrap_or(0.0);
     let sw_r = leaf
         .get("switch_reliability")
         .and_then(|v| v.as_f64())
@@ -566,12 +587,7 @@ fn leaf_standby_timeline(leaf: &Value, horizon: f64, rng: &mut Rng64) -> Vec<(f6
     events
 }
 
-fn system_up_at(
-    node: &Value,
-    leaves: &[&Value],
-    timelines: &[Vec<(f64, bool)>],
-    t: f64,
-) -> bool {
+fn system_up_at(node: &Value, leaves: &[&Value], timelines: &[Vec<(f64, bool)>], t: f64) -> bool {
     let ty = node.get("type").and_then(|v| v.as_str()).unwrap_or("");
     match ty {
         "block" | "standby_group" => {
@@ -629,6 +645,7 @@ pub fn simulate_availability(
     collect_leaves(spec, &mut leaves);
     let mut master = Rng64::new(seed);
     let mut up_counts = vec![0usize; n_grid];
+    let mut per_sim_availability: Vec<f64> = Vec::with_capacity(n_sim);
     let mut downtime_total = 0.0;
     let mut failures_total = 0usize;
     let mut repairs_total = 0usize;
@@ -659,11 +676,23 @@ pub fn simulate_availability(
             }
         };
         let _ = &mut run_up;
+        let mut sim_up = 0usize;
         for (gi, g) in grid.iter().enumerate() {
             if system_up_at(spec, &leaves, &timelines, *g) {
                 up_counts[gi] += 1;
+                sim_up += 1;
             }
         }
+        // Per-simulation availability is the fraction of grid points
+        // at which the system was up in this simulation. The mean of
+        // these fractions over all simulations equals the grid mean
+        // computed below from up_counts, since both average the same
+        // up indicators over simulations and grid points.
+        per_sim_availability.push(if grid.is_empty() {
+            0.0
+        } else {
+            sim_up as f64 / grid.len() as f64
+        });
         let mut prev_t = 0.0;
         let mut prev_up = system_up_at(spec, &leaves, &timelines, 0.0);
         let mut downtime = 0.0;
@@ -693,13 +722,31 @@ pub fn simulate_availability(
         failures_total += fails;
         repairs_total += reps;
     }
-    let point: Vec<f64> = up_counts
-        .iter()
-        .map(|c| *c as f64 / n_sim as f64)
-        .collect();
+    let point: Vec<f64> = up_counts.iter().map(|c| *c as f64 / n_sim as f64).collect();
+    // Keep the mean on the original up_counts path so its value does
+    // not move. The mean of per_sim_availability is the same quantity
+    // up to floating point summation order.
     let mean_a = point.iter().sum::<f64>() / point.len().max(1) as f64;
+    let std_error = if n_sim < 2 || per_sim_availability.len() < 2 {
+        0.0
+    } else {
+        let n = per_sim_availability.len() as f64;
+        let per_sim_mean = per_sim_availability.iter().sum::<f64>() / n;
+        let var = per_sim_availability
+            .iter()
+            .map(|x| (x - per_sim_mean) * (x - per_sim_mean))
+            .sum::<f64>()
+            / (n - 1.0);
+        let se = var.sqrt() / n.sqrt();
+        if se.is_finite() {
+            se
+        } else {
+            0.0
+        }
+    };
     AvailabilityResult {
         mean_availability: mean_a,
+        std_error,
         point_availability: point,
         grid,
         expected_downtime: downtime_total / n_sim as f64,
@@ -731,7 +778,9 @@ pub fn posterior_system_reliability(
                     .get("name")
                     .and_then(|v| v.as_str())
                     .ok_or("block needs a name for posterior draws")?;
-                let d = draws.get(name).ok_or(format!("no draws for block {}", name))?;
+                let d = draws
+                    .get(name)
+                    .ok_or(format!("no draws for block {}", name))?;
                 Ok(d[i])
             }
             "series" | "parallel" | "kofn" => {
@@ -755,11 +804,7 @@ pub fn posterior_system_reliability(
             _ => Err(format!("posterior propagation unsupported for {}", ty)),
         }
     }
-    let n = block_draws
-        .values()
-        .next()
-        .map(|v| v.len())
-        .unwrap_or(0);
+    let n = block_draws.values().next().map(|v| v.len()).unwrap_or(0);
     let mut out = Vec::new();
     for i in 0..n {
         out.push(eval_draw(spec, block_draws, i)?);

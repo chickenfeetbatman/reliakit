@@ -11,9 +11,7 @@ use reliakit::degradation::{fit_path, pseudo_failure_time};
 use reliakit::distributions::{cdf, fit_mle, mean_life, params_of, pdf, quantile};
 use reliakit::doe::{analyze_factorial, factorial_design};
 use reliakit::faulttree::{minimal_cut_sets, FtNode};
-use reliakit::prediction::{
-    part_failure_rate_per_million_hours, system_mtbf_hours, PartEntry,
-};
+use reliakit::prediction::{part_failure_rate_per_million_hours, system_mtbf_hours, PartEntry};
 use reliakit::rng::Rng64;
 use reliakit::specfunc::{beta_ppf, norm_cdf, norm_ppf};
 use reliakit::warranty::{forecast_returns, WarrantyRecord};
@@ -200,7 +198,12 @@ fn qa_alt_eyring_lsq_recovers_b_and_orders_reliability() {
     let t_fixed = 85.0;
     let med_low_v = fit.median_life(&[t_fixed, 5.0]);
     let med_high_v = fit.median_life(&[t_fixed, 20.0]);
-    assert!(med_low_v > med_high_v, "median lives {} vs {}", med_low_v, med_high_v);
+    assert!(
+        med_low_v > med_high_v,
+        "median lives {} vs {}",
+        med_low_v,
+        med_high_v
+    );
     let t_check = (med_low_v * med_high_v).sqrt();
     let r_low_v = fit.reliability(t_check, &[t_fixed, 5.0]);
     let r_high_v = fit.reliability(t_check, &[t_fixed, 20.0]);
@@ -288,26 +291,58 @@ fn qa_faulttree_voting_cut_sets_are_the_three_pairs() {
 fn qa_warranty_forecast_expected_returns_nonnegative_finite() {
     let sales = vec![100, 100, 100];
     let records = vec![
-        WarrantyRecord { sale_period: 0, return_period: 0 },
-        WarrantyRecord { sale_period: 0, return_period: 0 },
-        WarrantyRecord { sale_period: 0, return_period: 1 },
-        WarrantyRecord { sale_period: 0, return_period: 2 },
-        WarrantyRecord { sale_period: 1, return_period: 1 },
-        WarrantyRecord { sale_period: 1, return_period: 2 },
-        WarrantyRecord { sale_period: 1, return_period: 2 },
-        WarrantyRecord { sale_period: 2, return_period: 2 },
+        WarrantyRecord {
+            sale_period: 0,
+            return_period: 0,
+        },
+        WarrantyRecord {
+            sale_period: 0,
+            return_period: 0,
+        },
+        WarrantyRecord {
+            sale_period: 0,
+            return_period: 1,
+        },
+        WarrantyRecord {
+            sale_period: 0,
+            return_period: 2,
+        },
+        WarrantyRecord {
+            sale_period: 1,
+            return_period: 1,
+        },
+        WarrantyRecord {
+            sale_period: 1,
+            return_period: 2,
+        },
+        WarrantyRecord {
+            sale_period: 1,
+            return_period: 2,
+        },
+        WarrantyRecord {
+            sale_period: 2,
+            return_period: 2,
+        },
     ];
     for horizon in [1usize, 2, 3] {
-        let forecast = forecast_returns(&sales, &records, 2, horizon)
-            .expect("warranty forecast should run");
+        let forecast =
+            forecast_returns(&sales, &records, 2, horizon).expect("warranty forecast should run");
         assert!(
             forecast.expected_returns.is_finite() && forecast.expected_returns >= 0.0,
             "horizon {} expected returns {}",
             horizon,
             forecast.expected_returns
         );
-        assert!(forecast.beta.is_finite() && forecast.beta > 0.0, "beta {}", forecast.beta);
-        assert!(forecast.eta.is_finite() && forecast.eta > 0.0, "eta {}", forecast.eta);
+        assert!(
+            forecast.beta.is_finite() && forecast.beta > 0.0,
+            "beta {}",
+            forecast.beta
+        );
+        assert!(
+            forecast.eta.is_finite() && forecast.eta > 0.0,
+            "eta {}",
+            forecast.eta
+        );
         assert!(
             forecast.units_in_service.is_finite() && forecast.units_in_service >= 0.0,
             "units in service {}",

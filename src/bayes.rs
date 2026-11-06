@@ -43,8 +43,7 @@ pub fn bias_corrected_weibull(fit: &FitResult) -> Result<FitResult, String> {
     let (logeta, _) = optim::minimize_scalar(&mut f, centre - 3.0, centre + 3.0, 1e-10);
     let eta_c = logeta.exp();
     let mut out = fit.clone();
-    out.params
-        .insert("beta".into(), beta_c);
+    out.params.insert("beta".into(), beta_c);
     out.params.insert("eta".into(), eta_c);
     out.method = "Bias-corrected MLE".into();
     let vals = vec![beta_c, eta_c];
@@ -213,11 +212,7 @@ pub fn conformal_reliability_lower(calib_times: &[f64], t: f64, alpha: f64) -> f
     let f_upper = if n_fail == 0 {
         1.0 - alpha.powf(1.0 / m as f64)
     } else {
-        specfunc::beta_ppf(
-            (n_fail + 1) as f64,
-            (m - n_fail) as f64,
-            1.0 - alpha,
-        )
+        specfunc::beta_ppf((n_fail + 1) as f64, (m - n_fail) as f64, 1.0 - alpha)
     };
     (1.0 - f_upper).clamp(0.0, 1.0)
 }

@@ -48,10 +48,7 @@ impl MarkovModel {
                 ));
             }
             if from == to {
-                return Err(format!(
-                    "self transition is not allowed for state {}",
-                    from
-                ));
+                return Err(format!("self transition is not allowed for state {}", from));
             }
             if !rate.is_finite() || rate < 0.0 {
                 return Err(format!(
@@ -61,9 +58,14 @@ impl MarkovModel {
             }
             q[from][to] += rate;
         }
-        for i in 0..n {
-            let row_sum: f64 = (0..n).filter(|&j| j != i).map(|j| q[i][j]).sum();
-            q[i][i] = -row_sum;
+        for (i, row) in q.iter_mut().enumerate() {
+            let row_sum: f64 = row
+                .iter()
+                .enumerate()
+                .filter(|(j, _)| *j != i)
+                .map(|(_, v)| *v)
+                .sum();
+            row[i] = -row_sum;
         }
         Ok(MarkovModel { names, q })
     }
@@ -105,9 +107,7 @@ impl MarkovModel {
                 self.names.len()
             ));
         }
-        Ok((0..self.names.len())
-            .filter(|&i| !absorbing[i])
-            .collect())
+        Ok((0..self.names.len()).filter(|&i| !absorbing[i]).collect())
     }
 
     /// Build -Q_tt over the transient states listed in `transient`.
@@ -124,11 +124,7 @@ impl MarkovModel {
     /// times over the transient states solve -Q_tt * tau = 1, where
     /// Q_tt is the subgenerator over transient states. Starting in an
     /// absorbing state gives 0.
-    pub fn mean_time_to_absorption(
-        &self,
-        absorbing: &[bool],
-        start: usize,
-    ) -> Result<f64, String> {
+    pub fn mean_time_to_absorption(&self, absorbing: &[bool], start: usize) -> Result<f64, String> {
         if start >= self.names.len() {
             return Err(format!("start state {} out of range", start));
         }
@@ -179,9 +175,7 @@ impl MarkovModel {
         // A = -Q_tt, so r solves A^T * r = e_start.
         let a = self.neg_transient_subgenerator(&transient);
         let m = transient.len();
-        let a_t: Vec<Vec<f64>> = (0..m)
-            .map(|i| (0..m).map(|j| a[j][i]).collect())
-            .collect();
+        let a_t: Vec<Vec<f64>> = (0..m).map(|i| (0..m).map(|j| a[j][i]).collect()).collect();
         let pos = transient
             .iter()
             .position(|&i| i == start)

@@ -74,10 +74,7 @@ pub fn anderson_darling(fit: &FitResult) -> Option<f64> {
     // stay finite for extreme fitted values.
     let cdf_vals: Vec<f64> = times
         .iter()
-        .map(|t| {
-            distributions::cdf(&fit.dist, &fit.params, *t)
-                .clamp(1e-15, 1.0 - 1e-15)
-        })
+        .map(|t| distributions::cdf(&fit.dist, &fit.params, *t).clamp(1e-15, 1.0 - 1e-15))
         .collect();
     let mut sum = 0.0;
     for i in 1..=n {
@@ -97,11 +94,7 @@ pub fn anderson_darling(fit: &FitResult) -> Option<f64> {
 /// failure, or a name whose fit only becomes available in a later
 /// distributions update) sort last with `success = false`, a NaN
 /// loglik and infinite AIC and BIC.
-pub fn rank_distributions(
-    times: &[f64],
-    failed: Option<&[bool]>,
-    dists: &[&str],
-) -> Vec<FitRank> {
+pub fn rank_distributions(times: &[f64], failed: Option<&[bool]>, dists: &[&str]) -> Vec<FitRank> {
     let n = times.len();
     let ln_n = if n > 0 { (n as f64).ln() } else { 0.0 };
     let mut out: Vec<FitRank> = Vec::with_capacity(dists.len());
@@ -135,9 +128,11 @@ pub fn rank_distributions(
     }
     out.sort_by(|a, b| {
         // Successful fits first, then ascending AIC.
-        b.success
-            .cmp(&a.success)
-            .then_with(|| a.aic.partial_cmp(&b.aic).unwrap_or(std::cmp::Ordering::Equal))
+        b.success.cmp(&a.success).then_with(|| {
+            a.aic
+                .partial_cmp(&b.aic)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        })
     });
     out
 }

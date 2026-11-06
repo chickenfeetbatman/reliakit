@@ -39,6 +39,19 @@ restyled to the tokens; there is no component library look.
 - Strong contrast on the dark theme: primary text #F2F2F7 on
   surfaces #17181A to #212326 is a contrast ratio above 12 to 1.
   Muted text #A7A7AD stays above 7 to 1 on the same surfaces.
+  WCAG 2.2 AA spot-check (v0.3.2 gate, computed from the theme
+  variables): body text 14.1 to 16.5 to 1, muted text 6.6 to
+  7.4 to 1, status badge text 4.6 to 11.2 to 1, all pass the
+  4.5 to 1 normal-text ratio. Three pairs measured below 4.5
+  to 1 in the first pass and were fixed in v0.3.2: caption text
+  (--faint) moved from #6E6E76 (3.1 to 3.5 to 1) to #8B8B93
+  (4.7 to 5.3 to 1); text links and headline values use
+  --tint-text #3B9DFF (5.6 to 1 on cards) instead of the brand
+  tint #0A84FF (4.3 to 1 as text); primary buttons and the
+  selected tree row now sit on --tint-pressed #0970D8, so
+  white text measures 4.9 to 1 instead of 3.7 to 1. The brand
+  tint itself is unchanged for fills, charts, focus rings, and
+  the hero gradient, where it is not text.
 - Headline results are large; supporting detail is body or caption
   in the muted color, so the eye lands on the result first.
 - One icon per item kind, drawn from two or three plain shapes on
@@ -154,6 +167,74 @@ transitions as the rest of the interface:
   the Tours list as a wide dialog in the picker dialog shape. The
   overlay follows re-renders and resizes rather than freezing the
   screen, and it adds no new colors or type sizes.
+
+## Layout, status visuals, and content security (v0.3.2)
+
+### Layout changes (item M)
+
+- Resizable panels. The project sidebar and the inspector are
+  resizable by dragging their dividers (a 6 px sidebar handle and
+  a 7 px inspector handle at its left edge, both highlighting with
+  the tint on hover), and each can be collapsed entirely. The
+  content area takes the freed space; no new chrome is added.
+- RBD viewport. The RBD canvas keeps a view transform (pan and
+  zoom from 0.2 to 2.5) in the front end. A small toolbar above
+  the canvas carries Fit to view, zoom in, zoom out, the zoom
+  percentage, and reset. Dragging empty canvas pans; Ctrl+scroll
+  zooms at the pointer. A diagram whose block set is new is fitted
+  automatically, so every block starts inside the visible canvas.
+  Block positions themselves are unchanged by the view: the
+  transform is a view state, not diagram data.
+- Density. Results render as a compact summary grid of label and
+  value cells instead of a stack of tall cards, with a Details
+  disclosure under the grid that expands to a full table of every
+  row. Long explanatory text moves into collapsed Help disclosures
+  on the screens that had it inline, so the working surface stays
+  dense and the text is one click away.
+- Start page. The Quickstart panel becomes a compact collapsible
+  card after its first dismissal. Recent projects and an unsaved
+  work recovery prompt appear on the start page; both reuse the
+  existing card and dialog shapes.
+
+### Fit status and outdated badge visuals
+
+- Outdated badge. One badge shape serves every surface: the
+  sidebar item row, the headline card, and the results header line
+  all show the same Outdated badge (class badge-outdated, orange
+  family). An outdated headline card also takes an outdated class
+  and prefixes its value with "Outdated:", so a stale number never
+  reads as a fresh one. The results header line pairs the badge
+  with one sentence saying the inputs changed and to run again.
+- Fit status badges. One badge per status (class badge-fit-success,
+  badge-fit-warn, badge-fit-failed): green for Fit OK, yellow for
+  Fit OK with warnings and for Boundary or degenerate fit, red for
+  Fit failed. The status note sits under the badge in body text and
+  warnings list below it. No new type sizes or colors beyond the
+  existing semantic set were introduced.
+- Validation errors. A structured input error renders as a banner
+  at the top of the content area naming the field, the reason, and
+  the offending value, in the red semantic color. It is a banner,
+  not a toast, so it stays until the next action replaces it.
+
+### Content security policy
+
+Shipped in v0.3.2. The Tauri configuration previously set the
+content security policy to null (no policy). It now sets:
+
+```
+default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'self'
+```
+
+The front end is hand-written modules and external stylesheets
+loaded from the app itself, with no inline script, no remote
+origins, and charts drawn as inline SVG markup rather than image
+loads, so the policy holds without exceptions beyond the style
+attribute allowance. The configuration parses in the release
+build (the app crate compiles with the policy in place; linking
+on the build machine used here stops on missing system GTK and
+WebKit libraries, which are installed in CI). A visual check of
+the desktop webview under this policy is part of the release
+screenshot gate and is recorded there.
 
 ## Platform notes
 

@@ -36,7 +36,8 @@ fn wizard_weibull_ranks_first_on_weibull_data() {
     assert_eq!(ranks.len(), 4);
     assert!(ranks.iter().all(|r| r.success), "ranks: {:?}", ranks);
     assert_eq!(
-        ranks[0].dist, "weibull2",
+        ranks[0].dist,
+        "weibull2",
         "expected weibull2 first, ranking: {:?}",
         ranks.iter().map(|r| (&r.dist, r.aic)).collect::<Vec<_>>()
     );
@@ -80,6 +81,9 @@ fn manual_fit(dist: &str, params: &[(&str, f64)], times: &[f64]) -> FitResult {
         times: times.to_vec(),
         failed: vec![true; times.len()],
         success: true,
+        status: reliakit::distributions::FitStatus::Success,
+        status_note: String::new(),
+        warnings: Vec::new(),
     }
 }
 
@@ -137,7 +141,12 @@ fn quickcalc_weibull_hand_values() {
     let r = quick_calc("weibull2", &params, 1000.0, 0.10).unwrap();
     // R = exp(-(1000/1000)^2) = exp(-1).
     let want_r = (-1.0f64).exp();
-    assert!(rel_close(r.reliability, want_r, 1e-9), "R {} vs {}", r.reliability, want_r);
+    assert!(
+        rel_close(r.reliability, want_r, 1e-9),
+        "R {} vs {}",
+        r.reliability,
+        want_r
+    );
     assert!(rel_close(r.unreliability, 1.0 - want_r, 1e-9));
     // hazard = (beta/eta) * (t/eta)^(beta-1) / 1 at t = eta with
     // the survival factor cancelling the pdf factor: 2/1000 = 0.002.
@@ -207,7 +216,11 @@ fn importance_parallel_hand_values() {
         0.2 * 0.9 / 0.98
     );
     // FV = (1 - 0.98) / (1 - 0.98) = 1.0.
-    assert!((a.fussell_vesely - 1.0).abs() < 1e-9, "FV {}", a.fussell_vesely);
+    assert!(
+        (a.fussell_vesely - 1.0).abs() < 1e-9,
+        "FV {}",
+        a.fussell_vesely
+    );
 }
 
 #[test]
@@ -270,13 +283,22 @@ fn assert_pb(n_runs: usize) {
     assert!(design.iter().all(|r| r.len() == cols));
     for c in 0..cols {
         let plus = design.iter().filter(|r| r[c] > 0.0).count();
-        assert_eq!(plus * 2, n_runs, "column {} of PB{} not balanced", c, n_runs);
+        assert_eq!(
+            plus * 2,
+            n_runs,
+            "column {} of PB{} not balanced",
+            c,
+            n_runs
+        );
         for c2 in (c + 1)..cols {
             let dot: f64 = design.iter().map(|r| r[c] * r[c2]).sum();
             assert!(
                 dot.abs() < 1e-9,
                 "PB{} columns {} and {} dot {}",
-                n_runs, c, c2, dot
+                n_runs,
+                c,
+                c2,
+                dot
             );
         }
     }
@@ -347,14 +369,12 @@ fn doe_signal_to_noise_hand_values() {
 
 #[test]
 fn doe_ccd_recovers_exact_quadratic() {
-    let runs = doe::central_composite(2, 1.4142135623730951);
+    let runs = doe::central_composite(2, std::f64::consts::SQRT_2);
     assert_eq!(runs.len(), 4 + 4 + 1, "factorial + axial + 1 center");
     // y = 1 + 2 x1 - x2 + 3 x1^2 + 0 * x2^2 + 0.5 x1 x2.
     let y: Vec<f64> = runs
         .iter()
-        .map(|r| {
-            1.0 + 2.0 * r[0] - r[1] + 3.0 * r[0] * r[0] + 0.5 * r[0] * r[1]
-        })
+        .map(|r| 1.0 + 2.0 * r[0] - r[1] + 3.0 * r[0] * r[0] + 0.5 * r[0] * r[1])
         .collect();
     let coef = doe::fit_quadratic(&runs, &y).unwrap();
     // Coefficient order: [1, x1, x2, x1^2, x2^2, x1 x2].
@@ -401,10 +421,7 @@ fn growth_gompertz_recovers_parameters() {
     // Noise-free Gompertz data: a 120, b 0.55, c 0.92.
     let (a_t, b_t, c_t): (f64, f64, f64) = (120.0, 0.55, 0.92);
     let times: Vec<f64> = vec![0.0, 5.0, 10.0, 15.0, 20.0, 30.0, 40.0, 50.0];
-    let cum: Vec<f64> = times
-        .iter()
-        .map(|t| a_t * b_t.powf(c_t.powf(*t)))
-        .collect();
+    let cum: Vec<f64> = times.iter().map(|t| a_t * b_t.powf(c_t.powf(*t))).collect();
     let fit = fit_gompertz(&times, &cum).unwrap();
     assert!(
         (fit.a - a_t).abs() <= 0.10 * a_t,

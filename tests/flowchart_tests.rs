@@ -14,7 +14,11 @@ fn deterministic_chain() {
         ]
     });
     let r = simulate_flow(&spec, 200, 42).expect("deterministic chain should simulate");
-    assert!((r.mean_time - 12.0).abs() < 1e-9, "mean_time {}", r.mean_time);
+    assert!(
+        (r.mean_time - 12.0).abs() < 1e-9,
+        "mean_time {}",
+        r.mean_time
+    );
     assert!(r.sd_time.abs() < 1e-9, "sd_time {}", r.sd_time);
     assert!((r.p50 - 12.0).abs() < 1e-9, "p50 {}", r.p50);
     assert_eq!(r.n_sim, 200);
@@ -37,7 +41,11 @@ fn known_mixture() {
         ]
     });
     let r = simulate_flow(&spec, 20000, 12345).expect("mixture should simulate");
-    assert!((r.mean_time - 15.0).abs() < 0.5, "mean_time {}", r.mean_time);
+    assert!(
+        (r.mean_time - 15.0).abs() < 0.5,
+        "mean_time {}",
+        r.mean_time
+    );
     assert!(
         (r.p50 - 10.0).abs() < 1e-9 || (r.p50 - 20.0).abs() < 1e-9,
         "p50 {}",
@@ -62,7 +70,11 @@ fn loop_semantics() {
         ]
     });
     let r = simulate_flow(&spec, 100, 7).expect("loop flow should simulate");
-    assert!((r.mean_time - 9.0).abs() < 1e-9, "mean_time {}", r.mean_time);
+    assert!(
+        (r.mean_time - 9.0).abs() < 1e-9,
+        "mean_time {}",
+        r.mean_time
+    );
     assert!(r.sd_time.abs() < 1e-9, "sd_time {}", r.sd_time);
 }
 
@@ -79,7 +91,11 @@ fn cost_accumulates() {
         ]
     });
     let r = simulate_flow(&spec, 100, 99).expect("cost flow should simulate");
-    assert!((r.mean_cost - 12.5).abs() < 1e-9, "mean_cost {}", r.mean_cost);
+    assert!(
+        (r.mean_cost - 12.5).abs() < 1e-9,
+        "mean_cost {}",
+        r.mean_cost
+    );
 }
 
 #[test]

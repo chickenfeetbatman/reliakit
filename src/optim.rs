@@ -1,6 +1,23 @@
 //! Small numerical helpers: Nelder-Mead, golden-section scalar
 //! minimisation, dense linear solve / inverse, least squares.
 
+/// Outcome of a reporting minimisation: whether the search stopped
+/// at an interior point, at a bracket bound, or at its iteration cap.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ScalarOutcome {
+    Interior,
+    AtLowerBound,
+    AtUpperBound,
+    IterationCap,
+}
+
+/// Outcome of a reporting Nelder-Mead minimisation.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NelderMeadOutcome {
+    Converged,
+    IterationCap,
+}
+
 /// Nelder-Mead simplex minimisation. Returns (x_best, f_best).
 pub fn nelder_mead<F: FnMut(&[f64]) -> f64>(
     f: &mut F,
@@ -9,6 +26,20 @@ pub fn nelder_mead<F: FnMut(&[f64]) -> f64>(
     max_iter: usize,
     tol: f64,
 ) -> (Vec<f64>, f64) {
+    let (x, fx, _) = nelder_mead_report(f, x0, step, max_iter, tol);
+    (x, fx)
+}
+
+/// Nelder-Mead minimisation that also reports whether it converged
+/// (simplex spread below tol) or stopped at the iteration cap. The
+/// search itself is identical to nelder_mead.
+pub fn nelder_mead_report<F: FnMut(&[f64]) -> f64>(
+    f: &mut F,
+    x0: &[f64],
+    step: &[f64],
+    max_iter: usize,
+    tol: f64,
+) -> (Vec<f64>, f64, NelderMeadOutcome) {
     let n = x0.len();
     let mut simplex: Vec<Vec<f64>> = Vec::with_capacity(n + 1);
     simplex.push(x0.to_vec());
@@ -19,6 +50,7 @@ pub fn nelder_mead<F: FnMut(&[f64]) -> f64>(
     }
     let mut vals: Vec<f64> = simplex.iter().map(|x| f(x)).collect();
     let (alpha, gamma, rho, sigma) = (1.0, 2.0, 0.5, 0.5);
+    let mut converged = false;
     for _ in 0..max_iter {
         // sort by value
         let mut idx: Vec<usize> = (0..=n).collect();
@@ -35,13 +67,14 @@ pub fn nelder_mead<F: FnMut(&[f64]) -> f64>(
             })
             .fold(0.0f64, f64::max);
         if spread < tol {
+            converged = true;
             break;
         }
         // centroid of all but worst
         let mut centroid = vec![0.0; n];
-        for i in 0..n {
-            for j in 0..n {
-                centroid[j] += simplex[i][j] / n as f64;
+        for point in simplex.iter().take(n) {
+            for (c, v) in centroid.iter_mut().zip(point.iter()) {
+                *c += v / n as f64;
             }
         }
         let worst = simplex[n].clone();
@@ -96,19 +129,43 @@ pub fn nelder_mead<F: FnMut(&[f64]) -> f64>(
             best_i = i;
         }
     }
-    (simplex[best_i].clone(), vals[best_i])
+    let outcome = if converged {
+        NelderMeadOutcome::Converged
+    } else {
+        NelderMeadOutcome::IterationCap
+    };
+    (simplex[best_i].clone(), vals[best_i], outcome)
 }
 
 /// Golden-section minimisation on [a, b]. Returns (x, f(x)).
 pub fn minimize_scalar<F: FnMut(f64) -> f64>(f: &mut F, a: f64, b: f64, tol: f64) -> (f64, f64) {
+    let (x, fx, _) = minimize_scalar_report(f, a, b, tol);
+    (x, fx)
+}
+
+/// Golden-section minimisation that also reports how it stopped.
+/// The outcome is Interior when the converged point lies strictly
+/// inside the original bracket, AtLowerBound or AtUpperBound when it
+/// sits on a bracket end (within a small fraction of the bracket
+/// width), and IterationCap when the iteration limit was reached
+/// before the bracket shrank below tol.
+pub fn minimize_scalar_report<F: FnMut(f64) -> f64>(
+    f: &mut F,
+    a: f64,
+    b: f64,
+    tol: f64,
+) -> (f64, f64, ScalarOutcome) {
+    let (a0, b0) = (a, b);
     let gr = (5.0f64.sqrt() - 1.0) / 2.0;
     let (mut a, mut b) = (a, b);
     let mut c = b - gr * (b - a);
     let mut d = a + gr * (b - a);
     let mut fc = f(c);
     let mut fd = f(d);
+    let mut converged = false;
     for _ in 0..500 {
         if (b - a).abs() < tol {
+            converged = true;
             break;
         }
         if fc < fd {
@@ -127,7 +184,20 @@ pub fn minimize_scalar<F: FnMut(f64) -> f64>(f: &mut F, a: f64, b: f64, tol: f64
     }
     let x = 0.5 * (a + b);
     let fx = f(x);
-    (x, fx)
+    let outcome = if !converged {
+        ScalarOutcome::IterationCap
+    } else {
+        let width = (b0 - a0).abs().max(1e-300);
+        let near = 1e-6 * width;
+        if (x - a0).abs() <= near.max(tol) {
+            ScalarOutcome::AtLowerBound
+        } else if (x - b0).abs() <= near.max(tol) {
+            ScalarOutcome::AtUpperBound
+        } else {
+            ScalarOutcome::Interior
+        }
+    };
+    (x, fx, outcome)
 }
 
 /// Solve A x = b by Gaussian elimination with partial pivoting.
@@ -154,8 +224,9 @@ pub fn solve_linear(a_in: &[Vec<f64>], b_in: &[f64]) -> Option<Vec<f64>> {
             if factor == 0.0 {
                 continue;
             }
-            for cc in col..n {
-                a[r][cc] -= factor * a[col][cc];
+            let (top, bottom) = a.split_at_mut(r);
+            for (cell, p) in bottom[0][col..].iter_mut().zip(top[col][col..].iter()) {
+                *cell -= factor * p;
             }
             b[r] -= factor * b[col];
         }
@@ -199,8 +270,8 @@ pub fn lstsq(x: &[Vec<f64>], y: &[f64]) -> Option<Vec<f64>> {
     for i in 0..cols {
         for j in 0..cols {
             let mut s = 0.0;
-            for r in 0..rows {
-                s += x[r][i] * x[r][j];
+            for row in x.iter() {
+                s += row[i] * row[j];
             }
             ata[i][j] = s;
         }

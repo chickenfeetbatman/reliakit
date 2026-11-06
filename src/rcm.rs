@@ -39,6 +39,7 @@ impl Consequence {
         }
     }
 
+    #[allow(clippy::should_implement_trait)]
     pub fn from_str(s: &str) -> Result<Self, String> {
         let key: String = s
             .trim()
@@ -78,6 +79,7 @@ impl RcmTask {
         }
     }
 
+    #[allow(clippy::should_implement_trait)]
     pub fn from_str(s: &str) -> Result<Self, String> {
         let key: String = s
             .trim()
@@ -165,11 +167,6 @@ pub fn select_task(m: &RcmMode) -> RcmTask {
 /// that the mode causes the stated effect, `lambda_per_hour` is
 /// the item failure rate per hour, and `mission_hours` is the
 /// mission time in hours.
-pub fn criticality_number(
-    alpha: f64,
-    beta: f64,
-    lambda_per_hour: f64,
-    mission_hours: f64,
-) -> f64 {
+pub fn criticality_number(alpha: f64, beta: f64, lambda_per_hour: f64, mission_hours: f64) -> f64 {
     alpha * beta * lambda_per_hour * mission_hours
 }

@@ -5,7 +5,7 @@
 //! cut sets of a tree. Trees are assumed to be small, so cut sets are
 //! built by direct combination rather than a reduced representation.
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 /// One node of a fault tree.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -17,10 +17,164 @@ pub enum FtNode {
     /// The gate fires when at least one child fires.
     Or { name: String, children: Vec<FtNode> },
     /// The gate fires when at least `k` of its children fire.
-    Voting { name: String, k: usize, children: Vec<FtNode> },
+    Voting {
+        name: String,
+        k: usize,
+        children: Vec<FtNode>,
+    },
+}
+
+/// Result of evaluating a fault tree with shared basic event identity.
+///
+/// Basic events are identified by name: two occurrences of the same
+/// name are the same event, not two independent events.
+#[derive(Debug, Clone)]
+pub struct FtEval {
+    pub top_probability: f64,
+    pub cut_sets: Vec<std::collections::BTreeSet<String>>,
+}
+
+/// Collect the probability of every distinct basic event in the tree.
+///
+/// Returns the name to probability map and the total number of basic
+/// event occurrences. An `Err` is returned when a probability lies
+/// outside [0, 1] or is NaN, or when one name carries two different
+/// probabilities.
+fn collect_basic_events(
+    node: &FtNode,
+    probs: &mut BTreeMap<String, f64>,
+    occurrences: &mut usize,
+) -> Result<(), String> {
+    match node {
+        FtNode::Basic { name, prob } => {
+            *occurrences += 1;
+            if prob.is_nan() || *prob < 0.0 || *prob > 1.0 {
+                return Err(format!(
+                    "basic event '{name}' has probability {prob}, which is outside [0, 1]"
+                ));
+            }
+            if let Some(existing) = probs.get(name) {
+                if *existing != *prob {
+                    return Err(format!(
+                        "basic event '{name}' has conflicting probabilities {existing} and {prob}"
+                    ));
+                }
+            } else {
+                probs.insert(name.clone(), *prob);
+            }
+            Ok(())
+        }
+        FtNode::And { children, .. }
+        | FtNode::Or { children, .. }
+        | FtNode::Voting { children, .. } => {
+            for child in children {
+                collect_basic_events(child, probs, occurrences)?;
+            }
+            Ok(())
+        }
+    }
+}
+
+/// Boolean value of the tree under one assignment of basic events.
+///
+/// `index` maps each basic event name to its position in
+/// `assignment` and `names`.
+fn eval_assignment(node: &FtNode, index: &BTreeMap<String, usize>, assignment: &[bool]) -> bool {
+    match node {
+        FtNode::Basic { name, .. } => assignment[index[name]],
+        FtNode::And { children, .. } => children
+            .iter()
+            .all(|child| eval_assignment(child, index, assignment)),
+        FtNode::Or { children, .. } => children
+            .iter()
+            .any(|child| eval_assignment(child, index, assignment)),
+        FtNode::Voting { k, children, .. } => {
+            children
+                .iter()
+                .filter(|child| eval_assignment(child, index, assignment))
+                .count()
+                >= *k
+        }
+    }
+}
+
+/// Evaluate a fault tree, respecting shared basic event identity.
+///
+/// Basic events are identified by name, so repeated occurrences of
+/// one name always take the same value. The whole tree is validated
+/// first: a basic event probability outside [0, 1] or NaN is an
+/// error naming the event and its value, and one name with two
+/// different probabilities is an error naming the event.
+///
+/// The top probability is exact. When the tree has 20 or fewer
+/// distinct basic events, every assignment of the distinct events is
+/// enumerated, the boolean tree is evaluated per assignment, and the
+/// assignments are weighted by the product of the per event
+/// probabilities. The limit of 20 distinct events keeps that
+/// enumeration at about one million assignments. When the distinct
+/// count exceeds 20 and no event name repeats, the recursive
+/// [`top_probability`] computation is used instead, which is exact
+/// for independent events. When the distinct count exceeds 20 and
+/// repeated event names exist, an error is returned rather than a
+/// silently wrong probability.
+///
+/// Cut sets come from [`minimal_cut_sets`], which is already based
+/// on event names and is consistent with this identity rule.
+pub fn evaluate(node: &FtNode) -> Result<FtEval, String> {
+    const EXACT_ENUMERATION_LIMIT: usize = 20;
+
+    let mut probs: BTreeMap<String, f64> = BTreeMap::new();
+    let mut occurrences = 0usize;
+    collect_basic_events(node, &mut probs, &mut occurrences)?;
+
+    let names: Vec<String> = probs.keys().cloned().collect();
+    let distinct = names.len();
+
+    let top_probability = if distinct <= EXACT_ENUMERATION_LIMIT {
+        let index: BTreeMap<String, usize> = names
+            .iter()
+            .enumerate()
+            .map(|(position, name)| (name.clone(), position))
+            .collect();
+        let ordered_probs: Vec<f64> = names.iter().map(|name| probs[name]).collect();
+        let mut total = 0.0f64;
+        for mask in 0..(1usize << distinct) {
+            let mut assignment = vec![false; distinct];
+            let mut weight = 1.0f64;
+            for (position, prob) in ordered_probs.iter().enumerate() {
+                if (mask >> position) & 1 == 1 {
+                    assignment[position] = true;
+                    weight *= prob;
+                } else {
+                    weight *= 1.0 - prob;
+                }
+            }
+            if eval_assignment(node, &index, &assignment) {
+                total += weight;
+            }
+        }
+        total
+    } else if occurrences == distinct {
+        top_probability(node)
+    } else {
+        return Err(format!(
+            "fault tree has {distinct} distinct basic events with repeated event \
+             names, which exceeds the limit of {EXACT_ENUMERATION_LIMIT} distinct \
+             events for exact repeated-event evaluation"
+        ));
+    };
+
+    Ok(FtEval {
+        top_probability,
+        cut_sets: minimal_cut_sets(node),
+    })
 }
 
 /// Probability that the tree rooted at `node` fires.
+///
+/// This computation treats every occurrence of a basic event as an
+/// independent event. Use [`evaluate`] when a tree can repeat a basic
+/// event name and the occurrences must share one identity.
 ///
 /// Basic events return their own probability. AND gates multiply
 /// child probabilities, OR gates return one minus the product of the
@@ -31,7 +185,10 @@ pub fn top_probability(node: &FtNode) -> f64 {
         FtNode::Basic { prob, .. } => *prob,
         FtNode::And { children, .. } => children.iter().map(top_probability).product(),
         FtNode::Or { children, .. } => {
-            let none_fire: f64 = children.iter().map(|child| 1.0 - top_probability(child)).product();
+            let none_fire: f64 = children
+                .iter()
+                .map(|child| 1.0 - top_probability(child))
+                .product();
             1.0 - none_fire
         }
         FtNode::Voting { k, children, .. } => {

@@ -249,16 +249,11 @@ pub fn alias_set(generators: &[(char, &str)], factor: char) -> Vec<String> {
 /// 2^(k_total - number of generators). An invalid request (a
 /// generator count at or above k_total, or a product that refers
 /// to an unknown or circular letter) gives an empty matrix.
-pub fn fractional_factorial(
-    k_total: usize,
-    generators: &[(char, &str)],
-) -> Vec<Vec<f64>> {
+pub fn fractional_factorial(k_total: usize, generators: &[(char, &str)]) -> Vec<Vec<f64>> {
     if k_total == 0 || generators.len() >= k_total {
         return Vec::new();
     }
-    let letters: Vec<char> = (0..k_total)
-        .map(|i| (b'A' + i as u8) as char)
-        .collect();
+    let letters: Vec<char> = (0..k_total).map(|i| (b'A' + i as u8) as char).collect();
     let generated: Vec<char> = generators
         .iter()
         .map(|(c, _)| c.to_ascii_uppercase())
@@ -334,16 +329,14 @@ pub fn fractional_factorial(
 /// - 24 runs: + + + + + - + - + + - - + + - - + - + - - - -
 pub fn plackett_burman(n_runs: usize) -> Option<Vec<Vec<f64>>> {
     let first: &[f64] = match n_runs {
-        12 => &[
-            1.0, 1.0, -1.0, 1.0, 1.0, 1.0, -1.0, -1.0, -1.0, 1.0, -1.0,
-        ],
+        12 => &[1.0, 1.0, -1.0, 1.0, 1.0, 1.0, -1.0, -1.0, -1.0, 1.0, -1.0],
         20 => &[
-            1.0, 1.0, -1.0, -1.0, 1.0, 1.0, 1.0, 1.0, -1.0, 1.0, -1.0, 1.0, -1.0,
-            -1.0, -1.0, -1.0, 1.0, 1.0, -1.0,
+            1.0, 1.0, -1.0, -1.0, 1.0, 1.0, 1.0, 1.0, -1.0, 1.0, -1.0, 1.0, -1.0, -1.0, -1.0, -1.0,
+            1.0, 1.0, -1.0,
         ],
         24 => &[
-            1.0, 1.0, 1.0, 1.0, 1.0, -1.0, 1.0, -1.0, 1.0, 1.0, -1.0, -1.0, 1.0,
-            1.0, -1.0, -1.0, 1.0, -1.0, 1.0, -1.0, -1.0, -1.0, -1.0,
+            1.0, 1.0, 1.0, 1.0, 1.0, -1.0, 1.0, -1.0, 1.0, 1.0, -1.0, -1.0, 1.0, 1.0, -1.0, -1.0,
+            1.0, -1.0, 1.0, -1.0, -1.0, -1.0, -1.0,
         ],
         _ => return None,
     };
@@ -470,11 +463,7 @@ pub fn central_composite(k: usize, alpha: f64) -> Vec<Vec<f64>> {
 }
 
 /// Central composite design with a stated number of center points.
-pub fn central_composite_with_center(
-    k: usize,
-    alpha: f64,
-    n_center: usize,
-) -> Vec<Vec<f64>> {
+pub fn central_composite_with_center(k: usize, alpha: f64, n_center: usize) -> Vec<Vec<f64>> {
     let mut runs = factorial_design(k);
     for factor in 0..k {
         for sign in [-1.0, 1.0] {
@@ -580,20 +569,13 @@ pub struct QuadraticAnova {
 }
 
 /// ANOVA for a full quadratic model fitted to `runs` and `y`.
-pub fn quadratic_anova(
-    runs: &[Vec<f64>],
-    y: &[f64],
-) -> Result<QuadraticAnova, String> {
+pub fn quadratic_anova(runs: &[Vec<f64>], y: &[f64]) -> Result<QuadraticAnova, String> {
     let coef = fit_quadratic(runs, y)?;
     let pred = predict_quadratic(&coef, runs);
     let n = y.len();
     let mean: f64 = y.iter().sum::<f64>() / n as f64;
     let ss_total: f64 = y.iter().map(|v| (v - mean) * (v - mean)).sum();
-    let ss_residual: f64 = y
-        .iter()
-        .zip(&pred)
-        .map(|(v, p)| (v - p) * (v - p))
-        .sum();
+    let ss_residual: f64 = y.iter().zip(&pred).map(|(v, p)| (v - p) * (v - p)).sum();
     let ss_regression: f64 = pred.iter().map(|p| (p - mean) * (p - mean)).sum();
     let p = coef.len();
     let df_regression = p.saturating_sub(1);

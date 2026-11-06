@@ -30,11 +30,7 @@ pub struct BlockImportance {
 
 /// Collect leaf paths. A path is the list of child indices from the
 /// root to the leaf. Leaves are recorded in walk order.
-fn collect_leaves(
-    node: &Value,
-    path: &mut Vec<usize>,
-    out: &mut Vec<(Vec<usize>, String, Value)>,
-) {
+fn collect_leaves(node: &Value, path: &mut Vec<usize>, out: &mut Vec<(Vec<usize>, String, Value)>) {
     let ty = node.get("type").and_then(|v| v.as_str()).unwrap_or("");
     if ty == "block" || ty == "standby_group" {
         let name = node
@@ -60,10 +56,7 @@ fn replace_at(node: &Value, path: &[usize], replacement: &Value) -> Value {
         return replacement.clone();
     }
     let mut rebuilt = node.clone();
-    if let Some(children) = rebuilt
-        .get_mut("children")
-        .and_then(|v| v.as_array_mut())
-    {
+    if let Some(children) = rebuilt.get_mut("children").and_then(|v| v.as_array_mut()) {
         let idx = path[0];
         if idx < children.len() {
             children[idx] = replace_at(&children[idx].clone(), &path[1..], replacement);
@@ -78,10 +71,7 @@ fn replace_at(node: &Value, path: &[usize], replacement: &Value) -> Value {
 /// Replacing a leaf works at any nesting depth: the JSON tree is
 /// rebuilt along the leaf path with a plain block carrying a fixed
 /// R value. A standby_group leaf is replaced as a whole group.
-pub fn importance_measures(
-    spec: &Value,
-    t: f64,
-) -> Result<Vec<BlockImportance>, String> {
+pub fn importance_measures(spec: &Value, t: f64) -> Result<Vec<BlockImportance>, String> {
     let r_sys = system::evaluate_rbd(spec, Some(t))?;
     let mut leaves: Vec<(Vec<usize>, String, Value)> = Vec::new();
     let mut path: Vec<usize> = Vec::new();

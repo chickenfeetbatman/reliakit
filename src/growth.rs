@@ -33,7 +33,11 @@ pub fn fit_crow_amsaa(failure_times: &[f64], t_end: Option<f64>) -> CrowAmsaaFit
     let t_end = t_end.unwrap_or_else(|| t.iter().cloned().fold(f64::MIN, f64::max));
     let n = t.len();
     let denom: f64 = t.iter().map(|ti| (t_end / ti).ln()).sum();
-    let beta = if denom > 0.0 { n as f64 / denom } else { f64::NAN };
+    let beta = if denom > 0.0 {
+        n as f64 / denom
+    } else {
+        f64::NAN
+    };
     let lam = n as f64 / t_end.powf(beta);
     CrowAmsaaFit {
         beta,
@@ -107,10 +111,7 @@ fn gompertz_value(a: f64, b: f64, c: f64, t: f64) -> f64 {
 /// and logit transforms for b and c so they stay inside (0, 1).
 /// Several starts are tried and the best result is refined with a
 /// second, smaller simplex.
-pub fn fit_gompertz(
-    times: &[f64],
-    cum_failures: &[f64],
-) -> Result<GompertzFit, String> {
+pub fn fit_gompertz(times: &[f64], cum_failures: &[f64]) -> Result<GompertzFit, String> {
     if times.is_empty() || times.len() != cum_failures.len() {
         return Err("times and cum_failures must be non-empty and the same length".into());
     }
@@ -143,11 +144,7 @@ pub fn fit_gompertz(
         }
     };
 
-    let max_cum = cum_failures
-        .iter()
-        .cloned()
-        .fold(0.0f64, f64::max)
-        .max(1.0);
+    let max_cum = cum_failures.iter().cloned().fold(0.0f64, f64::max).max(1.0);
     let mut best: Option<(Vec<f64>, f64)> = None;
     for a_start in [max_cum * 1.05, max_cum * 1.5, max_cum * 2.5] {
         for b_start in [0.3f64, 0.55, 0.8] {
@@ -155,8 +152,7 @@ pub fn fit_gompertz(
                 let theta0 = vec![a_start.ln(), logit(b_start), logit(c_start)];
                 let step = vec![0.3, 0.4, 0.4];
                 let mut obj = sse_of;
-                let (theta, f) =
-                    optim::nelder_mead(&mut obj, &theta0, &step, 2000, 1e-10);
+                let (theta, f) = optim::nelder_mead(&mut obj, &theta0, &step, 2000, 1e-10);
                 if best.is_none() || f < best.as_ref().unwrap().1 {
                     best = Some((theta, f));
                 }
@@ -167,8 +163,7 @@ pub fn fit_gompertz(
     // Refine from the best start with a smaller simplex.
     let step2 = vec![0.05, 0.05, 0.05];
     let mut obj2 = sse_of;
-    let (theta, f_best) =
-        optim::nelder_mead(&mut obj2, &theta_best, &step2, 3000, 1e-12);
+    let (theta, f_best) = optim::nelder_mead(&mut obj2, &theta_best, &step2, 3000, 1e-12);
     if !f_best.is_finite() || f_best >= 1e99 {
         return Err("Gompertz optimisation failed".into());
     }
@@ -211,10 +206,7 @@ impl LloydLipowFit {
 /// failures on 1 / t gives intercept n_inf and slope -alpha, so the
 /// fit is an ordinary least squares solved with `optim::lstsq`.
 /// Times must be positive, since 1 / t is a regressor.
-pub fn fit_lloyd_lipow(
-    times: &[f64],
-    cum_failures: &[f64],
-) -> Result<LloydLipowFit, String> {
+pub fn fit_lloyd_lipow(times: &[f64], cum_failures: &[f64]) -> Result<LloydLipowFit, String> {
     if times.is_empty() || times.len() != cum_failures.len() {
         return Err("times and cum_failures must be non-empty and the same length".into());
     }

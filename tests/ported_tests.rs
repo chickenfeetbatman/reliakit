@@ -1,4 +1,4 @@
- //! Ported assertions from the Python ReliaKit test suite
+//! Ported assertions from the Python ReliaKit test suite
 //! (tests/test_reliakit.py, 31 tests), keeping the same known values
 //! and tolerances. Random data is generated with the crate RNG under
 //! fixed seeds; where the Python tests used numpy draws, the Rust
@@ -28,10 +28,18 @@ fn test_weibull_reliability_at_eta() {
     let mut p = Params::new();
     p.insert("beta".into(), 2.0);
     p.insert("eta".into(), 1000.0);
-    assert!(close(reliability("weibull2", &p, 1000.0), (-1.0f64).exp(), 1e-10));
+    assert!(close(
+        reliability("weibull2", &p, 1000.0),
+        (-1.0f64).exp(),
+        1e-10
+    ));
     let mut p2 = Params::new();
     p2.insert("theta".into(), 1000.0);
-    assert!(close(reliability("exponential", &p2, 1000.0), (-1.0f64).exp(), 1e-12));
+    assert!(close(
+        reliability("exponential", &p2, 1000.0),
+        (-1.0f64).exp(),
+        1e-12
+    ));
 }
 
 #[test]
@@ -39,8 +47,16 @@ fn test_mle_recovers_weibull() {
     let mut rng = Rng64::new(5);
     let times: Vec<f64> = (0..300).map(|_| rng.weibull(1.5, 1000.0)).collect();
     let fit = fit_mle("weibull2", &times, None).unwrap();
-    assert!((fit.params["beta"] - 1.5).abs() < 0.25, "beta={}", fit.params["beta"]);
-    assert!((fit.params["eta"] - 1000.0).abs() < 120.0, "eta={}", fit.params["eta"]);
+    assert!(
+        (fit.params["beta"] - 1.5).abs() < 0.25,
+        "beta={}",
+        fit.params["beta"]
+    );
+    assert!(
+        (fit.params["eta"] - 1000.0).abs() < 120.0,
+        "eta={}",
+        fit.params["eta"]
+    );
 }
 
 #[test]
@@ -57,7 +73,11 @@ fn test_rank_regression() {
     let mut rng = Rng64::new(3);
     let times: Vec<f64> = (0..60).map(|_| rng.weibull(2.0, 1000.0)).collect();
     let fit = fit_rank_regression("weibull2", &times, None).unwrap();
-    assert!((fit.params["beta"] - 2.0).abs() < 0.6, "beta={}", fit.params["beta"]);
+    assert!(
+        (fit.params["beta"] - 2.0).abs() < 0.6,
+        "beta={}",
+        fit.params["beta"]
+    );
 }
 
 #[test]
@@ -96,9 +116,9 @@ fn test_shrink_normal() {
     let y = vec![7.5, 8.5, 9.5];
     let s = vec![0.4, 0.4, 0.4];
     let res = shrink_normal(&y, &s);
-    for j in 0..3 {
-        assert!(0.0 <= res.b[j] && res.b[j] <= 1.0);
-        assert!((res.shrunk[j] - res.mu).abs() <= (y[j] - res.mu).abs() + 1e-12);
+    for ((b, shrunk), yj) in res.b.iter().zip(res.shrunk.iter()).zip(y.iter()) {
+        assert!(0.0 <= *b && *b <= 1.0);
+        assert!((shrunk - res.mu).abs() <= (yj - res.mu).abs() + 1e-12);
     }
 }
 
@@ -142,7 +162,11 @@ fn test_mcmc_weibull_recovery() {
     assert!((beta_mean - 1.5).abs() < 0.45, "beta mean {}", beta_mean);
     assert!((eta_mean - 1000.0).abs() < 250.0, "eta mean {}", eta_mean);
     assert!(res.rhat().iter().all(|r| *r < 1.2), "rhat {:?}", res.rhat());
-    assert!(res.ess_values().iter().all(|e| *e > 50.0), "ess {:?}", res.ess_values());
+    assert!(
+        res.ess_values().iter().all(|e| *e > 50.0),
+        "ess {:?}",
+        res.ess_values()
+    );
     let ci = res.reliability_credible(500.0, 0.9, 0);
     assert!(ci.lower <= ci.mean && ci.mean <= ci.upper);
 }
@@ -180,7 +204,11 @@ fn test_arrhenius_af() {
 
 #[test]
 fn test_ipl_af() {
-    assert!(close(acceleration_factor_ipl(2.0, 100.0, 200.0), 4.0, 1e-12));
+    assert!(close(
+        acceleration_factor_ipl(2.0, 100.0, 200.0),
+        4.0,
+        1e-12
+    ));
 }
 
 #[test]
@@ -254,12 +282,23 @@ fn test_standby_ordering() {
     let warm = standby_reliability(500.0, "weibull2", &p, 2, 0.3, 1.0);
     let hot = standby_reliability(500.0, "weibull2", &p, 2, 1.0, 1.0);
     let single = reliability("weibull2", &p, 500.0);
-    assert!(cold >= warm && warm >= hot && hot > single, "cold={} warm={} hot={} single={}", cold, warm, hot, single);
+    assert!(
+        cold >= warm && warm >= hot && hot > single,
+        "cold={} warm={} hot={} single={}",
+        cold,
+        warm,
+        hot,
+        single
+    );
 }
 
 #[test]
 fn test_block_availability() {
-    assert!(close(single_block_availability(1000.0, 100.0), 1000.0 / 1100.0, 1e-12));
+    assert!(close(
+        single_block_availability(1000.0, 100.0),
+        1000.0 / 1100.0,
+        1e-12
+    ));
 }
 
 #[test]
@@ -279,7 +318,11 @@ fn test_ctmc_single() {
 fn test_mc_availability_single_block() {
     let spec = json!({"type": "block", "name": "pump", "mtbf": 1000.0, "mttr": 10.0});
     let res = simulate_availability(&spec, 20000.0, 60, 3, 50);
-    assert!((res.mean_availability - 1000.0 / 1010.0).abs() < 0.02, "A={}", res.mean_availability);
+    assert!(
+        (res.mean_availability - 1000.0 / 1010.0).abs() < 0.02,
+        "A={}",
+        res.mean_availability
+    );
     assert!(res.expected_downtime > 0.0);
 }
 

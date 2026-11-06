@@ -30,7 +30,13 @@ impl FmeaRow {
     ///
     /// All other text fields start empty and all revised scores start
     /// as `None`.
-    pub fn new(item: &str, failure_mode: &str, severity: u32, occurrence: u32, detection: u32) -> Self {
+    pub fn new(
+        item: &str,
+        failure_mode: &str,
+        severity: u32,
+        occurrence: u32,
+        detection: u32,
+    ) -> Self {
         FmeaRow {
             item: item.to_string(),
             function: String::new(),
@@ -71,8 +77,8 @@ impl FmeaRow {
 }
 
 /// Sort rows in place by descending RPN.
-pub fn sort_by_rpn_desc(rows: &mut Vec<FmeaRow>) {
-    rows.sort_by(|a, b| b.rpn().cmp(&a.rpn()));
+pub fn sort_by_rpn_desc(rows: &mut [FmeaRow]) {
+    rows.sort_by_key(|r| std::cmp::Reverse(r.rpn()));
 }
 
 /// Escape one CSV field.
@@ -291,6 +297,7 @@ impl FmeaType {
         }
     }
 
+    #[allow(clippy::should_implement_trait)]
     pub fn from_str(s: &str) -> Result<Self, String> {
         match s.trim().to_lowercase().as_str() {
             "design" => Ok(FmeaType::Design),
@@ -327,7 +334,11 @@ impl FmeaWorksheet {
     /// The first line is `# fmea_type: <type>`, followed by the
     /// rows CSV from `rows_to_csv`.
     pub fn to_csv(&self) -> String {
-        format!("# fmea_type: {}\n{}", self.fmea_type.as_str(), rows_to_csv(&self.rows))
+        format!(
+            "# fmea_type: {}\n{}",
+            self.fmea_type.as_str(),
+            rows_to_csv(&self.rows)
+        )
     }
 
     /// Parse a worksheet from CSV text.
@@ -364,12 +375,7 @@ impl FmeaWorksheet {
 /// that the mode causes the stated effect, `lambda_per_hour` is
 /// the item failure rate per hour, and `mission_hours` is the
 /// mission time in hours.
-pub fn criticality_number(
-    alpha: f64,
-    beta: f64,
-    lambda_per_hour: f64,
-    mission_hours: f64,
-) -> f64 {
+pub fn criticality_number(alpha: f64, beta: f64, lambda_per_hour: f64, mission_hours: f64) -> f64 {
     alpha * beta * lambda_per_hour * mission_hours
 }
 

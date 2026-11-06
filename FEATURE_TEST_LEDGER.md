@@ -312,3 +312,32 @@ groups are framed and labeled.
   plays, 16-tour selector smoke, and wizard path all passed.
   Topology test (test_topology.py): OVERALL: PASS - topology
   layout, rails, frames, ghosts and kofn checks passed.
+
+## v0.3.2: correctness and validation
+
+The library and engine changes in this release carry their own
+test files. The browser suite is committed in the repo for the
+first time. Counts below are as recorded by the workers who wrote
+each file; the release totals line is finalized by the
+coordinator after the full gate run.
+
+| Area | Test file | Tests | Notes |
+| --- | --- | --- | --- |
+| Fit status taxonomy, adaptive Weibull bracketing, shifted exponential | tests/v032_fit_tests.rs | 13 | Includes the SciPy anchor for the clustered sample (beta about 80.8) and a scale invariance check at x3600 |
+| Fault trees with repeated events, warranty cutoff and age convention | tests/v032_ft_war_tests.rs | 16 | Includes an independent brute force truth-table enumeration and per-cohort conservation checks |
+| Validation fixtures (distributions, fitting, Fisher second path, RBD closed forms, CTMC and Monte Carlo availability, Arrhenius factor) | tests/validation_tests.rs | 17 | Fixture record with sources and tolerances: validation/fixtures.md |
+| Engine dispatcher (precision, structured validation, fit status, outdated gate, duplicate, project round trips) | engine/tests/engine_tests.rs | 14 | Package reliakit-engine |
+| Availability Monte Carlo standard error (mean bit-identical at 40 sims, SE shrinks with sim count, analytic anchor) | tests/v032_sim_tests.rs | 5 | Example 3 spec: mean 0.99875 unchanged, SE 0.00125 |
+| Browser suite (import round trip, outdated badge, fit to RBD, save and reopen, keyboard-only workflow, all 18 tours and wizard paths, RBD viewport and drag at 1280x800) | browser-tests/ | 2 files, run by browser-tests/run_all.py | Playwright against the locally served demo build; see browser-tests/README.md |
+
+TOTALS (finalized at the v0.3.2 gate, Nov 6, 2026): 232 tests
+passed, 0 failed across the test-bearing crates (reliakit 218,
+reliakit-engine 14; the reliakit-app shell crate carries no
+tests of its own and is covered by the CI clippy and build
+gates). The v0.3.1 baseline was 167; the 65 new tests are the
+five v0.3.2 files in the table above. cargo fmt --all -- --check
+and cargo clippy with -D warnings are clean on the same tree,
+the CLI selftest passes, and the committed browser suite passed
+in full at the gate (45 checks in test_v032_flows.py, 59 in
+test_tours_v032.py), including all 18 tours and the three
+first-run wizard paths.

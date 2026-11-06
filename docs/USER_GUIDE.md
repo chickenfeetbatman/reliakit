@@ -1,6 +1,6 @@
 # ReliaKit User Guide
 
-ReliaKit v0.3.1 is a reliability engineering suite. It runs as a desktop
+ReliaKit v0.3.2 is a reliability engineering suite. It runs as a desktop
 app on Windows, macOS, and Linux, and as a live demo in a web browser at
 https://chickenfeetbatman.github.io/reliakit/demo/. Both run the same
 engine and the same interface. This guide covers the project workspace,
@@ -93,6 +93,133 @@ Quickstart, in short:
 5. Read the result cards, then send the result to another item if it
    feeds a second analysis.
 
+## What is new in v0.3.2
+
+v0.3.2 is a correctness release. The changes below affect what you
+see on the item screens.
+
+### Validation errors: bad input computes nothing
+
+Every numeric field is checked when an analysis runs. If a value
+cannot be used, you see an error banner at the top of the screen
+that names the field, shows the offending value, and says why it
+was rejected, and the same text appears in the status bar. Nothing
+is computed on bad input, and results from an earlier good run are
+left as they were, marked outdated if the inputs no longer match
+them (see below). Values that are rejected include a text token in
+a numeric field, a negative time, an empty required field, a
+fraction where a whole number is required, a missing cell in CSV
+data, an invalid censoring flag, and the values NaN, inf, and
+infinity, including overflow such as 1e999. Fractional times are
+kept exactly as typed: a time of 100.25 stays 100.25 in the field,
+in the fit, and in a saved project.
+
+### The four fit statuses
+
+Screens that fit a distribution (Life Data, Limited Data,
+Competing Risks, Degradation, ALT) show a fit status badge next to
+the results:
+
+- Fit OK (status success): a clean fit. Parameters, bounds, and
+  the headline are all usable.
+- Fit OK, with warnings (status success_with_warnings): the fit is
+  usable, but something is listed under the badge, for example
+  standard errors are unavailable, or a parameter is a boundary
+  estimate by construction, as the exponential (2P) location is.
+- Boundary or degenerate fit (status boundary_or_degenerate): the
+  data do not identify a finite best fit, for example when every
+  observed time is identical, so the Weibull shape grows without
+  bound. The status note under the badge says what happened, and
+  the headline shows that note instead of a reliability value you
+  should not quote.
+- Fit failed (status failed): no usable fit was produced, for
+  example when every observed time is zero. There is no headline
+  result.
+
+A value that cannot be computed reads "unavailable" with the
+reason, never NaN or inf.
+
+### The outdated badge and the send-anyway confirm
+
+Each computing item remembers the inputs its results were computed
+from. If you change an input afterward, the results are outdated:
+the headline card gains an Outdated badge and its value is shown
+prefixed with "Outdated:", an Outdated line appears above the
+results, and the item row in the project panel shows an Outdated
+badge too. Run the analysis again to refresh the results and clear
+the badges. If you try to send outdated results to another item,
+the send does not happen and a dialog asks first: These results
+are outdated because their inputs changed. Send them anyway?
+Choose Send anyway to send the stored results as they are, or
+cancel, rerun the analysis, and send the fresh results.
+
+### Warranty: age convention and future returns
+
+Warranty ages count periods inclusively. A unit sold in period s
+and returned in period r failed at age r - s + 1, so a return in
+the sale period itself is a failure at age 1. At the current
+period c, a unit still in service from cohort s is censored at age
+c - s + 1, and a cohort sold in the current period counts toward
+units in service at age 1. A return recorded after the current
+period is a future return: it is excluded from the fit and the
+forecast, and the result notes say how many were excluded and the
+cutoff period. A return recorded before its sale period is a data
+error and is left out as well, with a note. If a cohort has more
+counted returns than sales, the analysis stops with an error that
+names the cohort and both counts.
+
+### Duplicate item and project tree search
+
+- Duplicate: every item row in the project panel has a Duplicate
+  button, and the item screen header has one too. Duplicating
+  copies the item with its inputs and stored results under the
+  name plus " copy" (or " copy 2" and so on) and selects the copy.
+- Tree search: the Filter items box above the item list filters
+  the project tree by item name or kind as you type. Family groups
+  expand while a filter is active so matches stay visible.
+
+### Sends are snapshots
+
+The send actions copy a snapshot of the result at the moment you
+send it. The status message after a send says so, in the form:
+Copied a snapshot to RBD (block: name); later edits to Life Data
+will not update it. Editing the source item afterward does not
+change what was sent; send again to update the target.
+
+### Plot name
+
+The Life Data probability plot is titled "Empirical vs fitted
+probability". The other plot keeps the title "Reliability curve".
+
+### Panels, density, and the RBD viewport
+
+- Panel resizing and collapsing: drag the divider between the
+  project panel and the content, or the divider at the left edge
+  of the inspector, to resize them. The project panel and the
+  inspector can each be collapsed from their controls and reopened
+  the same way; sizes and collapse state are kept while the app
+  runs.
+- Results grid and Details: results now show as a compact grid of
+  label and value cells. A Details line under the grid expands to
+  a table with every result row, so long values stay readable
+  without stacking tall cards.
+- RBD viewport controls: the RBD canvas has a view toolbar with
+  Fit to view, zoom in, zoom out, a zoom percentage, and a reset.
+  Drag empty canvas to pan, and Ctrl+scroll zooms at the pointer.
+  When a diagram with a new set of blocks appears, the view fits
+  it automatically, so every block starts inside the visible
+  canvas.
+
+### Simulations input and Monte Carlo standard error
+
+The RBD availability run has a Simulations field beside the
+Availability horizon. It sets how many Monte Carlo runs the
+availability simulation makes (the earlier fixed count of 40 is
+now the default value of this field). The results include the
+mean availability and a Monte Carlo standard error row, so you
+can see how much of the number is simulation noise; raise the
+Simulations count to shrink the standard error.
+
 ## Tours and the first project wizard
 
 Guided tours walk through one analysis at a time, step by step. There
@@ -131,8 +258,10 @@ weibull1, exponential2, mixed_weibull), set a mission time t, and choose
 Run fit. Fitting is by maximum likelihood, or by median rank regression
 when Rank regression is checked. Results include the fit summary,
 reliability at t with bounds, B10, and mean life. The center shows the
-reliability curve, or the probability plot when Show probability plot
-is checked.
+reliability curve, or the probability plot titled "Empirical vs
+fitted probability" when Show probability plot is checked. The fit
+status badge beside the results is covered in the v0.3.2 section
+above.
 
 The distribution wizard lives on this screen. Choose Rank distributions
 to rank the candidate distributions on the current data by log
@@ -183,7 +312,12 @@ Pick the arrhenius, ipl (inverse power law), or eyring model, set the
 use stress and a mission time t, and choose Run ALT fit. The center
 chart shows reliability at use stress. The library also supports
 two-stress loglinear fits and step-stress profiles through the command
-line; the item screen covers the three named models.
+line; the item screen covers the three named models. Temperature
+convention: on this screen, and in the Arrhenius acceleration factor,
+temperatures are Celsius (values below 400 are converted to Kelvin
+internally). The library loglinear fit is different: it takes its
+temperature column in Kelvin exactly as given. Do not mix the two
+conventions.
 
 ### 6. Growth (Reliability Growth)
 
@@ -217,8 +351,13 @@ including standby groups.
   parallel, k-of-n, or series with standby group) with its k value and
   choose Apply topology. The headline card shows system reliability at
   t and updates as the diagram changes.
-- Availability: set the availability horizon and choose Run
-  availability (40 sims) for the Monte Carlo availability summary.
+- Availability: set the availability horizon and the Simulations
+  count, then choose Run availability for the Monte Carlo
+  availability summary. The results include a Monte Carlo standard
+  error row. See the v0.3.2 section above.
+- Viewport: Fit to view, zoom in, zoom out, and reset sit above the
+  canvas; drag empty canvas to pan and Ctrl+scroll to zoom. See the
+  v0.3.2 section above.
 - Reliability importance: choose Compute importance measures for
   Birnbaum, Fussell-Vesely, and criticality values per block.
 - Block inspector: when a block is selected, edit its name,
@@ -271,7 +410,12 @@ per period comma separated, and returns one per line as sale period,
 return period, both 0-based. Set the current period and the horizon in
 periods, then choose Run warranty analysis. The center shows the Nevada
 table (rows are sale periods, columns are age in periods) and the
-forecast results.
+forecast results. Ages count inclusively: a return in the sale period
+is a failure at age 1 (age = return period - sale period + 1), units
+in service are censored at age current period - sale period + 1, and
+returns recorded after the current period are excluded as future
+returns, with the count and the cutoff named in the result notes. See
+the v0.3.2 section above.
 
 ### 12. Prediction
 
@@ -383,7 +527,11 @@ CorrectiveAction, Closed), and a corrective action.
 Six actions move results from one item to another, so chained analyses
 do not need retyping. Targets are found or created for you: a flow that
 needs a QCP, Prediction, or RCM item creates one named QCP 1,
-Prediction 1, or RCM 1 when the project has none.
+Prediction 1, or RCM 1 when the project has none. Each send copies a
+snapshot of the result at send time; later edits to the source do not
+update the target. If the source results are outdated, a dialog asks
+you to confirm before the send goes ahead. See the v0.3.2 section
+above.
 
 1. Assign fit to RBD block (Life Data to RBD). Run a fit, then in the
    Send this fit panel pick the target RBD item and the block, and
@@ -556,7 +704,7 @@ global shortcuts.
   notarized, Gatekeeper may ask you to confirm before the first run.
 - Windows: the app is unsigned, so SmartScreen may show a warning on
   the first run. Choose the option to run anyway only when the file
-  came from the official v0.3.1 release page.
+  came from the official v0.3.2 release page.
 - Browser demo: the demo needs a current browser with WebAssembly. It
   runs fully in the page; project files, CSV imports, and exports move
   through your browser downloads and file picker, and nothing is

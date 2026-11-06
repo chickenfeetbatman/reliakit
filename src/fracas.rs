@@ -27,6 +27,7 @@ impl IncidentStatus {
         }
     }
 
+    #[allow(clippy::should_implement_trait)]
     pub fn from_str(s: &str) -> Result<Self, String> {
         let key: String = s
             .trim()
@@ -90,7 +91,10 @@ pub fn count_by_status(incidents: &[Incident]) -> Vec<(String, usize)> {
 pub fn count_by_mode(incidents: &[Incident]) -> Vec<(String, usize)> {
     let mut counts: Vec<(String, usize)> = Vec::new();
     for incident in incidents {
-        if let Some(entry) = counts.iter_mut().find(|(name, _)| *name == incident.failure_mode) {
+        if let Some(entry) = counts
+            .iter_mut()
+            .find(|(name, _)| *name == incident.failure_mode)
+        {
             entry.1 += 1;
         } else {
             counts.push((incident.failure_mode.clone(), 1));

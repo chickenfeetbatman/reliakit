@@ -24,7 +24,7 @@ use reliakit::markov::MarkovModel;
 use reliakit::mcmc;
 use reliakit::prediction::{self, MissionPhase, PartEntry};
 use reliakit::quickcalc;
-use reliakit::rcm::{self, Consequence, RcmMode};
+use reliakit::rcm::{Consequence, RcmMode};
 use reliakit::standards217::{self, FactorInput};
 use reliakit::system;
 use reliakit::warranty::{self, WarrantyRecord};
@@ -36,6 +36,237 @@ use std::path::PathBuf;
 pub const EXAMPLE3_JSON: &str = r#"{"type":"series","children":[{"type":"block","name":"power supply","dist":"weibull2","params":{"beta":1.4,"eta":8000},"mtbf":6000,"mttr":24},{"type":"standby_group","name":"pumps","n_units":2,"dist":"exponential","params":{"theta":5000},"mtbf":5000,"mttr":8,"dormancy":0.0,"switch_reliability":0.98,"swap_time":0.5},{"type":"parallel","children":[{"type":"block","name":"controller A","dist":"exponential","params":{"theta":12000},"mtbf":12000,"mttr":4},{"type":"block","name":"controller B","dist":"exponential","params":{"theta":12000},"mtbf":12000,"mttr":4}]}]}"#;
 
 // ---------------- text parsing helpers ----------------
+
+pub fn fmt_num(v: f64) -> String {
+    format!("{}", v)
+}
+
+#[derive(Clone, Debug)]
+pub struct ValidationError {
+    pub field: String,
+    pub token: String,
+    pub reason: String,
+}
+impl ValidationError {
+    pub fn new(field: &str, token: &str, reason: &str) -> Self {
+        Self {
+            field: field.to_string(),
+            token: token.to_string(),
+            reason: reason.to_string(),
+        }
+    }
+    pub fn message(&self) -> String {
+        format!(
+            "Invalid value '{}' in {}: {}",
+            self.token, self.field, self.reason
+        )
+    }
+}
+pub type VResult<T> = Result<T, ValidationError>;
+
+fn check_number_token(tok: &str, field: &str) -> VResult<f64> {
+    let low = tok.trim().to_ascii_lowercase();
+    if low.is_empty() {
+        return Err(ValidationError::new(field, tok, "empty required field"));
+    }
+    if matches!(
+        low.as_str(),
+        "nan" | "+nan" | "-nan" | "inf" | "+inf" | "-inf" | "infinity" | "+infinity" | "-infinity"
+    ) {
+        return Err(ValidationError::new(
+            field,
+            tok,
+            "non-finite value is not allowed",
+        ));
+    }
+    match tok.trim().parse::<f64>() {
+        Ok(v) if v.is_finite() => Ok(v),
+        Ok(_) => Err(ValidationError::new(
+            field,
+            tok,
+            "non-finite value (overflow)",
+        )),
+        Err(_) => Err(ValidationError::new(field, tok, "not a number")),
+    }
+}
+pub fn valid_f64(s: &str, field: &str) -> VResult<f64> {
+    if s.trim().is_empty() {
+        return Err(ValidationError::new(field, "", "empty required field"));
+    }
+    check_number_token(s.trim(), field)
+}
+pub fn valid_f64_nonneg(s: &str, field: &str) -> VResult<f64> {
+    let v = valid_f64(s, field)?;
+    if v < 0.0 {
+        return Err(ValidationError::new(
+            field,
+            s.trim(),
+            "negative value is not allowed",
+        ));
+    }
+    Ok(v)
+}
+pub fn valid_int(s: &str, field: &str) -> VResult<i64> {
+    let tr = s.trim();
+    if tr.is_empty() {
+        return Err(ValidationError::new(field, "", "empty required field"));
+    }
+    let low = tr.to_ascii_lowercase();
+    if matches!(
+        low.as_str(),
+        "nan" | "inf" | "-inf" | "+inf" | "infinity" | "-infinity" | "+infinity"
+    ) {
+        return Err(ValidationError::new(
+            field,
+            tr,
+            "non-finite value is not allowed",
+        ));
+    }
+    if let Ok(v) = tr.parse::<i64>() {
+        return Ok(v);
+    }
+    // fractional or malformed
+    if let Ok(v) = tr.parse::<f64>() {
+        if !v.is_finite() {
+            return Err(ValidationError::new(
+                field,
+                tr,
+                "non-finite value (overflow)",
+            ));
+        }
+        return Err(ValidationError::new(
+            field,
+            tr,
+            "fractional value in integer field",
+        ));
+    }
+    Err(ValidationError::new(field, tr, "not an integer"))
+}
+pub fn valid_usize(s: &str, field: &str) -> VResult<usize> {
+    let v = valid_int(s, field)?;
+    if v < 0 {
+        return Err(ValidationError::new(
+            field,
+            s.trim(),
+            "negative value is not allowed",
+        ));
+    }
+    Ok(v as usize)
+}
+pub fn valid_parse_numbers(text: &str, field: &str) -> VResult<Vec<f64>> {
+    if text.trim().is_empty() {
+        return Err(ValidationError::new(field, "", "empty required field"));
+    }
+    let mut out = Vec::new();
+    for tok in text.split(|c: char| c == ',' || c == ';' || c.is_whitespace()) {
+        let tok = tok.trim();
+        if tok.is_empty() {
+            continue;
+        }
+        out.push(check_number_token(tok, field)?);
+    }
+    if out.is_empty() {
+        return Err(ValidationError::new(field, "", "empty required field"));
+    }
+    Ok(out)
+}
+pub fn valid_parse_numbers_nonneg(text: &str, field: &str) -> VResult<Vec<f64>> {
+    let v = valid_parse_numbers(text, field)?;
+    for (i, x) in v.iter().enumerate() {
+        if *x < 0.0 {
+            let toks: Vec<&str> = text
+                .split(|c: char| c == ',' || c == ';' || c.is_whitespace())
+                .filter(|s| !s.trim().is_empty())
+                .collect();
+            return Err(ValidationError::new(
+                field,
+                toks.get(i).copied().unwrap_or(""),
+                "negative time is not allowed",
+            ));
+        }
+    }
+    Ok(v)
+}
+pub fn valid_parse_life(text: &str, field: &str) -> VResult<(Vec<f64>, Vec<bool>)> {
+    if text.trim().is_empty() {
+        return Err(ValidationError::new(field, "", "empty required field"));
+    }
+    let mut times = Vec::new();
+    let mut failed = Vec::new();
+    for tok in text.split(|c: char| c == ',' || c == ';' || c.is_whitespace()) {
+        let tok = tok.trim();
+        if tok.is_empty() {
+            continue;
+        }
+        let (num, cens) = if let Some(s) = tok.strip_suffix(['c', 'C', '+']) {
+            (s, true)
+        } else {
+            (tok, false)
+        };
+        if num.is_empty() {
+            return Err(ValidationError::new(field, tok, "invalid censoring flag"));
+        }
+        let v = check_number_token(num, field).map_err(|mut e| {
+            e.token = tok.to_string();
+            e
+        })?;
+        if v < 0.0 {
+            return Err(ValidationError::new(
+                field,
+                tok,
+                "negative time is not allowed",
+            ));
+        }
+        times.push(v);
+        failed.push(!cens);
+    }
+    if times.is_empty() {
+        return Err(ValidationError::new(field, "", "empty required field"));
+    }
+    Ok((times, failed))
+}
+pub fn valid_parse_params(text: &str, field: &str) -> VResult<dist_mod::Params> {
+    let mut p = dist_mod::Params::new();
+    for pair in text.split(|c: char| c == ',' || c == ';' || c.is_whitespace()) {
+        let pair = pair.trim();
+        if pair.is_empty() {
+            continue;
+        }
+        match pair.split_once('=') {
+            Some((k, v)) => {
+                let val = check_number_token(v.trim(), field).map_err(|mut e| {
+                    e.token = pair.to_string();
+                    e
+                })?;
+                p.insert(k.trim().to_string(), val);
+            }
+            None => {
+                return Err(ValidationError::new(field, pair, "expected name=value"));
+            }
+        }
+    }
+    Ok(p)
+}
+#[derive(Clone, Debug)]
+pub struct FitStatusInfo {
+    pub status: String,
+    pub note: String,
+    pub warnings: Vec<String>,
+}
+pub fn fit_status_info(fit: &dist_mod::FitResult) -> FitStatusInfo {
+    FitStatusInfo {
+        status: fit.status_str().to_string(),
+        note: fit.status_note.clone(),
+        warnings: fit.warnings.clone(),
+    }
+}
+pub fn clean_val(v: f64, reason: &str) -> String {
+    if v.is_finite() {
+        format!("{:.4}", v)
+    } else {
+        format!("unavailable: {}", reason)
+    }
+}
 
 pub fn parse_numbers(text: &str) -> Vec<f64> {
     text.split(|c: char| c == ',' || c == ';' || c.is_whitespace())
@@ -71,7 +302,13 @@ pub fn format_life(times: &[f64], failed: &[bool]) -> String {
     times
         .iter()
         .zip(failed)
-        .map(|(t, f)| if *f { format!("{:.0}", t) } else { format!("{:.0}c", t) })
+        .map(|(t, f)| {
+            if *f {
+                fmt_num(*t)
+            } else {
+                format!("{}c", fmt_num(*t))
+            }
+        })
         .collect::<Vec<String>>()
         .join(", ")
 }
@@ -143,7 +380,13 @@ pub fn rows_of(text: &str) -> Vec<(String, String)> {
 
 pub fn rows_text(rows: &[(String, String)]) -> String {
     rows.iter()
-        .map(|(a, b)| if a.is_empty() { b.clone() } else { format!("{}: {}", a, b) })
+        .map(|(a, b)| {
+            if a.is_empty() {
+                b.clone()
+            } else {
+                format!("{}: {}", a, b)
+            }
+        })
         .collect::<Vec<String>>()
         .join("\n")
 }
@@ -155,7 +398,9 @@ pub fn datasets_dir() -> PathBuf {
     if p.is_dir() {
         return p;
     }
-    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("..").join("datasets")
+    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("..")
+        .join("datasets")
 }
 
 pub fn mil217_dir() -> PathBuf {
@@ -163,7 +408,10 @@ pub fn mil217_dir() -> PathBuf {
     if p.is_dir() {
         return p;
     }
-    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("..").join("libraries").join("mil217")
+    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("..")
+        .join("libraries")
+        .join("mil217")
 }
 
 /// The 16 bundled dataset files documented in datasets/README.md.
@@ -294,10 +542,18 @@ pub const KIND_DEFS: [(ItemKind, &str, &str); 18] = [
 
 impl ItemKind {
     pub fn label(self) -> &'static str {
-        KIND_DEFS.iter().find(|(k, _, _)| *k == self).map(|(_, l, _)| *l).unwrap_or("")
+        KIND_DEFS
+            .iter()
+            .find(|(k, _, _)| *k == self)
+            .map(|(_, l, _)| *l)
+            .unwrap_or("")
     }
     pub fn icon(self) -> &'static str {
-        KIND_DEFS.iter().find(|(k, _, _)| *k == self).map(|(_, _, i)| *i).unwrap_or("life")
+        KIND_DEFS
+            .iter()
+            .find(|(k, _, _)| *k == self)
+            .map(|(_, _, i)| *i)
+            .unwrap_or("life")
     }
     pub fn key(self) -> &'static str {
         // Screen key used by the .slint shell.
@@ -323,14 +579,20 @@ impl ItemKind {
         }
     }
     pub fn from_label(s: &str) -> Option<ItemKind> {
-        KIND_DEFS.iter().find(|(_, l, _)| *l == s).map(|(k, _, _)| *k)
+        KIND_DEFS
+            .iter()
+            .find(|(_, l, _)| *l == s)
+            .map(|(k, _, _)| *k)
     }
     pub fn from_key(s: &str) -> Option<ItemKind> {
-        let key = s.to_lowercase().replace(' ', "").replace('-', "");
-        KIND_DEFS.iter().find(|(k, l, _)| {
-            l.to_lowercase().replace(' ', "").replace('-', "") == key
-                || format!("{:?}", k).to_lowercase() == key
-        }).map(|(k, _, _)| *k)
+        let key = s.to_lowercase().replace([' ', '-'], "");
+        KIND_DEFS
+            .iter()
+            .find(|(k, l, _)| {
+                l.to_lowercase().replace([' ', '-'], "") == key
+                    || format!("{:?}", k).to_lowercase() == key
+            })
+            .map(|(k, _, _)| *k)
     }
 }
 
@@ -359,7 +621,11 @@ pub fn dataset_kind(file: &str) -> ItemKind {
 }
 
 /// Pure project serialization: one JSON value for the whole project.
-pub fn project_to_value(project_name: &str, items: &[ProjectItem], selected: Option<usize>) -> Value {
+pub fn project_to_value(
+    project_name: &str,
+    items: &[ProjectItem],
+    selected: Option<usize>,
+) -> Value {
     json!({
         "format": "reliakit-project-2",
         "project_name": project_name,
@@ -379,18 +645,43 @@ pub fn project_from_value(v: &Value) -> Option<(String, Vec<ProjectItem>, Option
     if v.get("format").and_then(|x| x.as_str()) != Some("reliakit-project-2") {
         return None;
     }
-    let name = v.get("project_name").and_then(|x| x.as_str()).unwrap_or("Untitled project").to_string();
+    let name = v
+        .get("project_name")
+        .and_then(|x| x.as_str())
+        .unwrap_or("Untitled project")
+        .to_string();
     let mut items: Vec<ProjectItem> = Vec::new();
-    for (i, iv) in v.get("items").and_then(|x| x.as_array()).map(|a| a.as_slice()).unwrap_or(&[]).iter().enumerate() {
-        let kind = iv.get("kind").and_then(|x| x.as_str()).and_then(ItemKind::from_key)?;
+    for (i, iv) in v
+        .get("items")
+        .and_then(|x| x.as_array())
+        .map(|a| a.as_slice())
+        .unwrap_or(&[])
+        .iter()
+        .enumerate()
+    {
+        let kind = iv
+            .get("kind")
+            .and_then(|x| x.as_str())
+            .and_then(ItemKind::from_key)?;
         items.push(ProjectItem {
-            id: iv.get("id").and_then(|x| x.as_u64()).unwrap_or((i + 1) as u64),
+            id: iv
+                .get("id")
+                .and_then(|x| x.as_u64())
+                .unwrap_or((i + 1) as u64),
             kind,
-            name: iv.get("name").and_then(|x| x.as_str()).unwrap_or(kind.label()).to_string(),
+            name: iv
+                .get("name")
+                .and_then(|x| x.as_str())
+                .unwrap_or(kind.label())
+                .to_string(),
             state: iv.get("state").cloned().unwrap_or(json!({})),
         });
     }
-    let sel = v.get("selected_index").and_then(|x| x.as_u64()).map(|i| i as usize).filter(|i| *i < items.len());
+    let sel = v
+        .get("selected_index")
+        .and_then(|x| x.as_u64())
+        .map(|i| i as usize)
+        .filter(|i| *i < items.len());
     Some((name, items, sel))
 }
 
@@ -423,12 +714,30 @@ impl RcmRowUi {
     pub fn from_json(v: &Value) -> Self {
         let g = |k: &str| v.get(k).and_then(|x| x.as_str()).unwrap_or("").to_string();
         RcmRowUi {
-            asset: g("asset"), function: g("function"), mode: g("mode"),
-            consequence: if g("consequence").is_empty() { "Operational".into() } else { g("consequence") },
-            monitorable: v.get("monitorable").and_then(|x| x.as_bool()).unwrap_or(false),
-            age_related: v.get("age_related").and_then(|x| x.as_bool()).unwrap_or(false),
-            restorable: v.get("restorable").and_then(|x| x.as_bool()).unwrap_or(false),
-            rate: g("rate"), alpha: g("alpha"), beta: g("beta"), hours: g("hours"),
+            asset: g("asset"),
+            function: g("function"),
+            mode: g("mode"),
+            consequence: if g("consequence").is_empty() {
+                "Operational".into()
+            } else {
+                g("consequence")
+            },
+            monitorable: v
+                .get("monitorable")
+                .and_then(|x| x.as_bool())
+                .unwrap_or(false),
+            age_related: v
+                .get("age_related")
+                .and_then(|x| x.as_bool())
+                .unwrap_or(false),
+            restorable: v
+                .get("restorable")
+                .and_then(|x| x.as_bool())
+                .unwrap_or(false),
+            rate: g("rate"),
+            alpha: g("alpha"),
+            beta: g("beta"),
+            hours: g("hours"),
         }
     }
     pub fn to_mode(&self) -> RcmMode {
@@ -436,7 +745,8 @@ impl RcmRowUi {
             asset: self.asset.clone(),
             function: self.function.clone(),
             failure_mode: self.mode.clone(),
-            consequence: Consequence::from_str(&self.consequence).unwrap_or(Consequence::Operational),
+            consequence: Consequence::from_str(&self.consequence)
+                .unwrap_or(Consequence::Operational),
             condition_monitorable: self.monitorable,
             age_related: self.age_related,
             restorable: self.restorable,
@@ -509,6 +819,7 @@ pub struct Work {
     pub rbd_spec: Value,
     pub rbd_t: String,
     pub rbd_horizon: String,
+    pub rbd_sims: String,
     pub rbd_topology: String,
     pub rbd_k: String,
     pub rbd_avail: String,
@@ -662,10 +973,37 @@ pub struct Work {
     pub pred_life_t: String,
     pub pred_life_result: String,
     pub rbd_undo: Vec<Value>,
+    // v0.3.2 correctness: validation, fit status, fingerprints, warranty notes
+    pub validation_error: Option<ValidationError>,
+    pub dispatch_warning: Option<(String, String)>,
+    pub life_fit_status: String,
+    pub life_fit_status_note: String,
+    pub life_fit_warnings: Vec<String>,
+    pub limited_fit_status: String,
+    pub limited_fit_status_note: String,
+    pub limited_fit_warnings: Vec<String>,
+    pub comp_fit_status: String,
+    pub comp_fit_status_note: String,
+    pub comp_fit_warnings: Vec<String>,
+    pub deg_fit_status: String,
+    pub deg_fit_status_note: String,
+    pub deg_fit_warnings: Vec<String>,
+    pub alt_fit_status: String,
+    pub alt_fit_status_note: String,
+    pub alt_fit_warnings: Vec<String>,
+    pub war_excluded_future: usize,
+    pub war_notes: Vec<String>,
+    pub result_fingerprints: std::collections::BTreeMap<u64, String>,
     // Presentation-only selection state (not persisted)
     pub rcm_sel: Option<usize>,
     pub fracas_sel: Option<usize>,
     pub mk_sel: Option<usize>,
+}
+
+impl Default for Work {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl Work {
@@ -673,17 +1011,43 @@ impl Work {
         let (bt, bf) = datasets::bearing_life(2026);
         let life_text = format_life(&bt, &bf);
         let groups = datasets::small_sample_groups(2026);
-        let limited_text = groups.iter().map(|(t, f)| format_life(t, f)).collect::<Vec<String>>().join("\n");
+        let limited_text = groups
+            .iter()
+            .map(|(t, f)| format_life(t, f))
+            .collect::<Vec<String>>()
+            .join("\n");
         let deg = datasets::degradation_units(2026);
-        let deg_text = deg.iter().map(|(t, y)| format!(
-            "{} | {}",
-            t.iter().map(|v| format!("{:.0}", v)).collect::<Vec<String>>().join(","),
-            y.iter().map(|v| format!("{:.2}", v)).collect::<Vec<String>>().join(",")
-        )).collect::<Vec<String>>().join("\n");
+        let deg_text = deg
+            .iter()
+            .map(|(t, y)| {
+                format!(
+                    "{} | {}",
+                    t.iter()
+                        .map(|v| fmt_num(*v))
+                        .collect::<Vec<String>>()
+                        .join(","),
+                    y.iter()
+                        .map(|v| fmt_num(*v))
+                        .collect::<Vec<String>>()
+                        .join(",")
+                )
+            })
+            .collect::<Vec<String>>()
+            .join("\n");
         let (alt_stress, alt_times) = datasets::alt_dataset(2026);
-        let alt_text = alt_stress.iter().zip(&alt_times).map(|(s, t)| format!("{:.0},{:.1}", s[0], t)).collect::<Vec<String>>().join("\n");
-        let growth_text = datasets::growth_dataset(2026).iter().map(|v| format!("{:.1}", v)).collect::<Vec<String>>().join(", ");
-        let spec: Value = serde_json::from_str(EXAMPLE3_JSON).unwrap_or(json!({"type": "series", "children": []}));
+        let alt_text = alt_stress
+            .iter()
+            .zip(&alt_times)
+            .map(|(s, t)| format!("{},{}", fmt_num(s[0]), fmt_num(*t)))
+            .collect::<Vec<String>>()
+            .join("\n");
+        let growth_text = datasets::growth_dataset(2026)
+            .iter()
+            .map(|v| fmt_num(*v))
+            .collect::<Vec<String>>()
+            .join(", ");
+        let spec: Value = serde_json::from_str(EXAMPLE3_JSON)
+            .unwrap_or(json!({"type": "series", "children": []}));
         let mut w = Work {
             status: "Ready.".into(),
             headline: String::new(),
@@ -734,6 +1098,7 @@ impl Work {
             rbd_spec: spec,
             rbd_t: "1000".into(),
             rbd_horizon: "20000".into(),
+            rbd_sims: "40".into(),
             rbd_topology: "series".into(),
             rbd_k: "2".into(),
             rbd_avail: String::new(),
@@ -883,6 +1248,15 @@ impl Work {
             rcm_sel: None,
             fracas_sel: None,
             mk_sel: None,
+            validation_error: None,
+            dispatch_warning: None,
+            life_fit_status: String::new(), life_fit_status_note: String::new(), life_fit_warnings: Vec::new(),
+            limited_fit_status: String::new(), limited_fit_status_note: String::new(), limited_fit_warnings: Vec::new(),
+            comp_fit_status: String::new(), comp_fit_status_note: String::new(), comp_fit_warnings: Vec::new(),
+            deg_fit_status: String::new(), deg_fit_status_note: String::new(), deg_fit_warnings: Vec::new(),
+            alt_fit_status: String::new(), alt_fit_status_note: String::new(), alt_fit_warnings: Vec::new(),
+            war_excluded_future: 0, war_notes: Vec::new(),
+            result_fingerprints: std::collections::BTreeMap::new(),
         };
         w.qcp_reset_params();
         w
@@ -891,11 +1265,214 @@ impl Work {
     pub fn note(&mut self, msg: impl Into<String>) {
         self.status = msg.into();
     }
+    pub fn set_validation_error(&mut self, e: ValidationError) {
+        self.status = e.message();
+        self.validation_error = Some(e);
+    }
+    pub fn compute_fingerprint(&self, kind: ItemKind) -> String {
+        let parts: Vec<String> = match kind {
+            ItemKind::LifeData => vec![
+                self.life_times.clone(),
+                self.life_dist.clone(),
+                self.life_t.clone(),
+                self.life_rank.to_string(),
+                self.life_show_prob.to_string(),
+            ],
+            ItemKind::LimitedData => vec![self.limited_groups.clone()],
+            ItemKind::Mcmc => vec![
+                self.mcmc_times.clone(),
+                self.mcmc_dist.clone(),
+                self.mcmc_draws.clone(),
+                self.mcmc_warmup.clone(),
+                self.mcmc_chains.clone(),
+                self.mcmc_seed.clone(),
+                self.mcmc_t.clone(),
+            ],
+            ItemKind::Degradation => vec![
+                self.deg_units.clone(),
+                self.deg_threshold.clone(),
+                self.deg_model.clone(),
+                self.deg_dist.clone(),
+                self.deg_increasing.to_string(),
+            ],
+            ItemKind::Alt => vec![
+                self.alt_data.clone(),
+                self.alt_model.clone(),
+                self.alt_use_stress.clone(),
+                self.alt_t.clone(),
+            ],
+            ItemKind::Growth => vec![self.growth_times.clone()],
+            ItemKind::Competing => vec![
+                self.comp_data.clone(),
+                self.comp_dist.clone(),
+                self.comp_t.clone(),
+            ],
+            ItemKind::Rbd => vec![
+                serde_json::to_string(&self.rbd_spec).unwrap_or_default(),
+                self.rbd_t.clone(),
+                self.rbd_horizon.clone(),
+                self.rbd_sims.clone(),
+                self.rbd_topology.clone(),
+                self.rbd_k.clone(),
+            ],
+            ItemKind::FaultTree => vec![self.ft_json.clone()],
+            ItemKind::Fmea => vec![
+                self.fmea_type.clone(),
+                serde_json::to_string(&self.fmea_rows).unwrap_or_default(),
+            ],
+            ItemKind::Warranty => vec![
+                self.war_sales.clone(),
+                self.war_returns.clone(),
+                self.war_current.clone(),
+                self.war_horizon.clone(),
+            ],
+            ItemKind::Prediction => vec![
+                self.pred_parts.clone(),
+                self.pred_t.clone(),
+                self.pred_life_dist.clone(),
+                self.pred_life_params.clone(),
+                self.pred_life_t.clone(),
+                self.alloc_target.clone(),
+                self.alloc_n.clone(),
+                self.alloc_weights.clone(),
+                self.der_operating.clone(),
+                self.der_rated.clone(),
+                self.der_max.clone(),
+                self.pred217_file.clone(),
+                serde_json::to_string(&self.pred217_named).unwrap_or_default(),
+                serde_json::to_string(&self.pred217_num).unwrap_or_default(),
+            ],
+            ItemKind::Doe => vec![self.doe_k.clone(), self.doe_y.clone()],
+            ItemKind::Flowchart => vec![
+                self.flow_json.clone(),
+                self.flow_sims.clone(),
+                self.flow_seed.clone(),
+            ],
+            ItemKind::Markov => vec![
+                self.mk_states.join(","),
+                self.mk_transitions
+                    .iter()
+                    .map(|tr| tr.join(","))
+                    .collect::<Vec<_>>()
+                    .join(";"),
+                self.mk_start.clone(),
+                self.mk_absorbing.clone(),
+                self.mk_time.clone(),
+            ],
+            ItemKind::Qcp => vec![
+                self.qcp_dist.clone(),
+                self.qcp_t.clone(),
+                self.qcp_bx.clone(),
+                self.qcp_params
+                    .iter()
+                    .map(|(k, v)| format!("{}={}", k, v))
+                    .collect::<Vec<_>>()
+                    .join(","),
+            ],
+            ItemKind::Rcm => vec![self
+                .rcm_rows
+                .iter()
+                .map(|r| format!("{}|{}|{}", r.asset, r.mode, r.rate))
+                .collect::<Vec<_>>()
+                .join(";")],
+            ItemKind::Fracas => vec![
+                self.fracas_total_hours.clone(),
+                self.fracas_rows
+                    .iter()
+                    .map(|r| format!("{}:{}", r.id, fmt_num(r.hours)))
+                    .collect::<Vec<_>>()
+                    .join(";"),
+            ],
+        };
+        parts.join("\u{1f}")
+    }
+    pub fn has_results(&self, kind: ItemKind) -> bool {
+        match kind {
+            ItemKind::LifeData => {
+                self.life_fit.is_some()
+                    || !self.life_result.is_empty()
+                    || !self.wizard_ranks.is_empty()
+            }
+            ItemKind::LimitedData => !self.limited_result.is_empty(),
+            ItemKind::Mcmc => !self.mcmc_result.is_empty(),
+            ItemKind::Degradation => !self.deg_result.is_empty() || self.deg_data.is_some(),
+            ItemKind::Alt => !self.alt_result.is_empty(),
+            ItemKind::Growth => !self.growth_result.is_empty() || self.growth_fit.is_some(),
+            ItemKind::Competing => !self.comp_result.is_empty(),
+            ItemKind::Rbd => !self.rbd_avail.is_empty() || !self.rbd_importance.is_empty(),
+            ItemKind::FaultTree => !self.ft_result.is_empty(),
+            ItemKind::Warranty => !self.war_result.is_empty(),
+            ItemKind::Prediction => {
+                !self.pred_result.is_empty()
+                    || !self.pred_life_result.is_empty()
+                    || !self.alloc_result.is_empty()
+                    || !self.der_result.is_empty()
+                    || !self.pred_clean_result.is_empty()
+                    || !self.pred217_result.is_empty()
+            }
+            ItemKind::Doe => !self.doe_result.is_empty(),
+            ItemKind::Flowchart => !self.flow_result.is_empty(),
+            ItemKind::Markov => !self.mk_result.is_empty(),
+            ItemKind::Qcp => !self.qcp_result.is_empty(),
+            _ => false,
+        }
+    }
+    pub fn mark_computed(&mut self) {
+        if let Some(i) = self.selected {
+            if let Some(it) = self.items.get(i).cloned() {
+                let fp = self.compute_fingerprint(it.kind);
+                self.result_fingerprints.insert(it.id, fp);
+            }
+        }
+    }
+    pub fn is_current_outdated(&self) -> bool {
+        if let Some(i) = self.selected {
+            if let Some(it) = self.items.get(i) {
+                if let Some(stored) = self.result_fingerprints.get(&it.id) {
+                    return *stored != self.compute_fingerprint(it.kind)
+                        && self.has_results(it.kind);
+                }
+            }
+        }
+        false
+    }
+    pub fn is_source_outdated(&self) -> bool {
+        self.is_current_outdated()
+    }
+    pub fn duplicate_selected_item(&mut self) {
+        self.capture_selected();
+        let (kind, orig_name, state, orig_id) =
+            match self.selected.and_then(|i| self.items.get(i).cloned()) {
+                Some(it) => (it.kind, it.name.clone(), it.state.clone(), it.id),
+                None => {
+                    self.note("No item selected to duplicate.");
+                    return;
+                }
+            };
+        let base = format!("{} copy", orig_name);
+        let mut name = base.clone();
+        let mut n = 2;
+        while self.items.iter().any(|it| it.name == name) {
+            name = format!("{} {}", base, n);
+            n += 1;
+        }
+        let idx = self.create_item_silent(kind, name.clone(), state);
+        // copy fingerprint for the copy
+        if let Some(fp) = self.result_fingerprints.get(&orig_id).cloned() {
+            let new_id = self.items[idx].id;
+            self.result_fingerprints.insert(new_id, fp);
+        }
+        self.select_index(Some(idx));
+        self.note(format!("Duplicated item as {}.", name));
+    }
 
     // ---------------- project workspace ----------------
 
     fn gs(v: &Value, k: &str, d: &str) -> String {
-        v.get(k).and_then(|x| x.as_str()).map(|s| s.to_string()).unwrap_or_else(|| d.to_string())
+        v.get(k)
+            .and_then(|x| x.as_str())
+            .map(|s| s.to_string())
+            .unwrap_or_else(|| d.to_string())
     }
     fn gb(v: &Value, k: &str, d: bool) -> bool {
         v.get(k).and_then(|x| x.as_bool()).unwrap_or(d)
@@ -906,7 +1483,12 @@ impl Work {
             return;
         }
         let st = self.capture_state(ItemKind::LifeData);
-        self.items.push(ProjectItem { id: 1, kind: ItemKind::LifeData, name: "Life Data 1".into(), state: st });
+        self.items.push(ProjectItem {
+            id: 1,
+            kind: ItemKind::LifeData,
+            name: "Life Data 1".into(),
+            state: st,
+        });
         self.next_id = 2;
         self.selected = Some(0);
         self.rename_name = "Life Data 1".into();
@@ -940,7 +1522,12 @@ impl Work {
         self.capture_selected();
         let id = self.next_id;
         self.next_id += 1;
-        self.items.push(ProjectItem { id, kind, name, state });
+        self.items.push(ProjectItem {
+            id,
+            kind,
+            name,
+            state,
+        });
         self.items.len() - 1
     }
 
@@ -994,7 +1581,10 @@ impl Work {
     pub fn save_project(&mut self) {
         self.capture_selected();
         let proj = project_to_value(&self.project_name, &self.items, self.selected);
-        match std::fs::write(&self.project_path, serde_json::to_string_pretty(&proj).unwrap_or_default()) {
+        match std::fs::write(
+            &self.project_path,
+            serde_json::to_string_pretty(&proj).unwrap_or_default(),
+        ) {
             Ok(()) => self.note(format!("Project saved to {}", self.project_path)),
             Err(e) => self.note(format!("Project save error: {}", e)),
         }
@@ -1038,7 +1628,11 @@ impl Work {
                     "life_dist": v.get("life_dist").cloned().unwrap_or(json!("weibull2")),
                     "life_t": v.get("life_t").cloned().unwrap_or(json!("1000")),
                 });
-                self.create_item_silent(ItemKind::LifeData, "Life Data (from old project)".into(), st);
+                self.create_item_silent(
+                    ItemKind::LifeData,
+                    "Life Data (from old project)".into(),
+                    st,
+                );
             }
             if let Some(rbd) = v.get("rbd") {
                 let st = json!({"rbd_spec": rbd.clone(), "rbd_t": "1000"});
@@ -1052,7 +1646,11 @@ impl Work {
                 });
                 self.create_item_silent(ItemKind::Fmea, "FMEA (from old project)".into(), st);
             }
-            self.note(format!("Old format project opened from {} as {} items.", self.project_path, self.items.len()));
+            self.note(format!(
+                "Old format project opened from {} as {} items.",
+                self.project_path,
+                self.items.len()
+            ));
             return;
         }
         self.note("Project file is not a ReliaKit project (v2 or legacy).");
@@ -1097,7 +1695,7 @@ impl Work {
             ItemKind::LifeData => json!({
                 "life_times": self.life_times, "life_dist": self.life_dist,
                 "life_rank": self.life_rank, "life_t": self.life_t,
-                "life_result": self.life_result,
+                "life_result": self.life_result, "life_fit_status": self.life_fit_status, "life_fit_status_note": self.life_fit_status_note, "life_fit_warnings": self.life_fit_warnings,
                 "life_fit": serde_json::to_value(&self.life_fit).unwrap_or(json!(null)),
                 "life_show_prob": self.life_show_prob, "wizard_note": self.wizard_note,
                 "wizard_ranks": self.wizard_ranks.iter().map(|r| json!({
@@ -1105,7 +1703,9 @@ impl Work {
                     "ad": r.ad_statistic, "success": r.success, "n_params": r.n_params,
                 })).collect::<Vec<Value>>(),
             }),
-            ItemKind::LimitedData => json!({"limited_groups": self.limited_groups, "limited_result": self.limited_result}),
+            ItemKind::LimitedData => {
+                json!({"limited_groups": self.limited_groups, "limited_result": self.limited_result, "limited_fit_status": self.limited_fit_status, "limited_fit_status_note": self.limited_fit_status_note, "limited_fit_warnings": self.limited_fit_warnings})
+            }
             ItemKind::Mcmc => json!({
                 "mcmc_times": self.mcmc_times, "mcmc_dist": self.mcmc_dist,
                 "mcmc_draws": self.mcmc_draws, "mcmc_warmup": self.mcmc_warmup,
@@ -1115,7 +1715,7 @@ impl Work {
             ItemKind::Degradation => json!({
                 "deg_units": self.deg_units, "deg_threshold": self.deg_threshold,
                 "deg_model": self.deg_model, "deg_dist": self.deg_dist,
-                "deg_increasing": self.deg_increasing, "deg_result": self.deg_result,
+                "deg_increasing": self.deg_increasing, "deg_result": self.deg_result, "deg_fit_status": self.deg_fit_status, "deg_fit_status_note": self.deg_fit_status_note, "deg_fit_warnings": self.deg_fit_warnings,
                 "deg_parsed": serde_json::to_value(&self.deg_parsed).unwrap_or(json!([])),
                 "deg_data": self.deg_data.as_ref().map(|r| json!({
                     "paths": r.paths.iter().map(|(a, b)| json!([a, b])).collect::<Vec<Value>>(),
@@ -1126,7 +1726,7 @@ impl Work {
             }),
             ItemKind::Alt => json!({
                 "alt_data": self.alt_data, "alt_model": self.alt_model,
-                "alt_use_stress": self.alt_use_stress, "alt_t": self.alt_t, "alt_result": self.alt_result,
+                "alt_use_stress": self.alt_use_stress, "alt_t": self.alt_t, "alt_result": self.alt_result, "alt_fit_status": self.alt_fit_status, "alt_fit_status_note": self.alt_fit_status_note, "alt_fit_warnings": self.alt_fit_warnings,
             }),
             ItemKind::Growth => json!({
                 "growth_times": self.growth_times, "growth_result": self.growth_result,
@@ -1134,10 +1734,11 @@ impl Work {
             }),
             ItemKind::Competing => json!({
                 "comp_data": self.comp_data, "comp_dist": self.comp_dist,
-                "comp_t": self.comp_t, "comp_result": self.comp_result,
+                "comp_t": self.comp_t, "comp_result": self.comp_result, "comp_fit_status": self.comp_fit_status, "comp_fit_status_note": self.comp_fit_status_note, "comp_fit_warnings": self.comp_fit_warnings,
             }),
             ItemKind::Rbd => json!({
                 "rbd_spec": self.rbd_spec, "rbd_t": self.rbd_t, "rbd_horizon": self.rbd_horizon,
+                "rbd_sims": self.rbd_sims,
                 "rbd_topology": self.rbd_topology, "rbd_k": self.rbd_k, "rbd_avail": self.rbd_avail,
                 "rbd_path": self.rbd_path, "rbd_status": self.rbd_status, "rbd_sel": self.rbd_sel,
                 "rbd_importance": self.rbd_importance.iter().map(|b| json!({
@@ -1171,7 +1772,7 @@ impl Work {
             ItemKind::Warranty => json!({
                 "war_sales": self.war_sales, "war_returns": self.war_returns,
                 "war_current": self.war_current, "war_horizon": self.war_horizon,
-                "war_result": self.war_result,
+                "war_result": self.war_result, "war_excluded_future": self.war_excluded_future, "war_notes": self.war_notes,
                 "war_table": serde_json::to_value(&self.war_table).unwrap_or(json!([])),
                 "war_sale_labels": self.war_sale_labels,
             }),
@@ -1201,7 +1802,9 @@ impl Work {
                 "pred_life_dist": self.pred_life_dist, "pred_life_params": self.pred_life_params,
                 "pred_life_t": self.pred_life_t, "pred_life_result": self.pred_life_result,
             }),
-            ItemKind::Doe => json!({"doe_k": self.doe_k, "doe_y": self.doe_y, "doe_result": self.doe_result}),
+            ItemKind::Doe => {
+                json!({"doe_k": self.doe_k, "doe_y": self.doe_y, "doe_result": self.doe_result})
+            }
             ItemKind::Flowchart => json!({
                 "flow_json": self.flow_json, "flow_sims": self.flow_sims,
                 "flow_seed": self.flow_seed, "flow_result": self.flow_result,
@@ -1248,29 +1851,61 @@ impl Work {
                 self.life_rank = Self::gb(v, "life_rank", false);
                 self.life_t = gs("life_t", "1000");
                 self.life_result = gs("life_result", "");
-                self.life_fit = v.get("life_fit").and_then(|x| serde_json::from_value(x.clone()).ok());
+                self.life_fit_status = gs("life_fit_status", "");
+                self.life_fit_status_note = gs("life_fit_status_note", "");
+                self.life_fit_warnings = v
+                    .get("life_fit_warnings")
+                    .and_then(|x| serde_json::from_value(x.clone()).ok())
+                    .unwrap_or_default();
+                self.life_fit = v
+                    .get("life_fit")
+                    .and_then(|x| serde_json::from_value(x.clone()).ok());
                 self.life_show_prob = Self::gb(v, "life_show_prob", false);
                 self.wizard_note = gs("wizard_note", "");
-                self.wizard_ranks = v.get("wizard_ranks").and_then(|x| x.as_array()).map(|arr| arr.iter().map(|r| FitRank {
-                    dist: Self::gs(r, "dist", ""), loglik: r.get("loglik").and_then(|x| x.as_f64()).unwrap_or(0.0),
-                    aic: r.get("aic").and_then(|x| x.as_f64()).unwrap_or(0.0),
-                    bic: r.get("bic").and_then(|x| x.as_f64()).unwrap_or(0.0),
-                    ad_statistic: r.get("ad").and_then(|x| x.as_f64()),
-                    n_params: r.get("n_params").and_then(|x| x.as_u64()).unwrap_or(0) as usize,
-                    success: Self::gb(r, "success", false),
-                }).collect()).unwrap_or_default();
+                self.wizard_ranks = v
+                    .get("wizard_ranks")
+                    .and_then(|x| x.as_array())
+                    .map(|arr| {
+                        arr.iter()
+                            .map(|r| FitRank {
+                                dist: Self::gs(r, "dist", ""),
+                                loglik: r.get("loglik").and_then(|x| x.as_f64()).unwrap_or(0.0),
+                                aic: r.get("aic").and_then(|x| x.as_f64()).unwrap_or(0.0),
+                                bic: r.get("bic").and_then(|x| x.as_f64()).unwrap_or(0.0),
+                                ad_statistic: r.get("ad").and_then(|x| x.as_f64()),
+                                n_params: r.get("n_params").and_then(|x| x.as_u64()).unwrap_or(0)
+                                    as usize,
+                                success: Self::gb(r, "success", false),
+                            })
+                            .collect()
+                    })
+                    .unwrap_or_default();
             }
             ItemKind::LimitedData => {
                 if v.get("limited_groups").and_then(|x| x.as_str()).is_some() {
                     self.limited_groups = gs("limited_groups", "");
                 } else {
                     let groups = datasets::small_sample_groups(2026);
-                    self.limited_groups = groups.iter().map(|(t, f)| format_life(t, f)).collect::<Vec<String>>().join("\n");
+                    self.limited_groups = groups
+                        .iter()
+                        .map(|(t, f)| format_life(t, f))
+                        .collect::<Vec<String>>()
+                        .join("\n");
                 }
                 self.limited_result = gs("limited_result", "");
+                self.limited_fit_status = gs("limited_fit_status", "");
+                self.limited_fit_status_note = gs("limited_fit_status_note", "");
+                self.limited_fit_warnings = v
+                    .get("limited_fit_warnings")
+                    .and_then(|x| serde_json::from_value(x.clone()).ok())
+                    .unwrap_or_default();
             }
             ItemKind::Mcmc => {
-                self.mcmc_times = if v.get("mcmc_times").and_then(|x| x.as_str()).is_some() { gs("mcmc_times", "") } else { self.life_times.clone() };
+                self.mcmc_times = if v.get("mcmc_times").and_then(|x| x.as_str()).is_some() {
+                    gs("mcmc_times", "")
+                } else {
+                    self.life_times.clone()
+                };
                 self.mcmc_dist = gs("mcmc_dist", "weibull2");
                 self.mcmc_draws = gs("mcmc_draws", "300");
                 self.mcmc_warmup = gs("mcmc_warmup", "300");
@@ -1284,22 +1919,65 @@ impl Work {
                     self.deg_units = gs("deg_units", "");
                 } else {
                     let deg = datasets::degradation_units(2026);
-                    self.deg_units = deg.iter().map(|(t, y)| format!("{} | {}", t.iter().map(|v2| format!("{:.0}", v2)).collect::<Vec<String>>().join(","), y.iter().map(|v2| format!("{:.2}", v2)).collect::<Vec<String>>().join(","))).collect::<Vec<String>>().join("\n");
+                    self.deg_units = deg
+                        .iter()
+                        .map(|(t, y)| {
+                            format!(
+                                "{} | {}",
+                                t.iter()
+                                    .map(|v2| fmt_num(*v2))
+                                    .collect::<Vec<String>>()
+                                    .join(","),
+                                y.iter()
+                                    .map(|v2| fmt_num(*v2))
+                                    .collect::<Vec<String>>()
+                                    .join(",")
+                            )
+                        })
+                        .collect::<Vec<String>>()
+                        .join("\n");
                 }
                 self.deg_threshold = gs("deg_threshold", "70");
                 self.deg_model = gs("deg_model", "linear");
                 self.deg_dist = gs("deg_dist", "weibull2");
                 self.deg_increasing = Self::gb(v, "deg_increasing", false);
                 self.deg_result = gs("deg_result", "");
-                self.deg_parsed = v.get("deg_parsed").and_then(|x| serde_json::from_value(x.clone()).ok()).unwrap_or_default();
+                self.deg_fit_status = gs("deg_fit_status", "");
+                self.deg_fit_status_note = gs("deg_fit_status_note", "");
+                self.deg_fit_warnings = v
+                    .get("deg_fit_warnings")
+                    .and_then(|x| serde_json::from_value(x.clone()).ok())
+                    .unwrap_or_default();
+                self.deg_parsed = v
+                    .get("deg_parsed")
+                    .and_then(|x| serde_json::from_value(x.clone()).ok())
+                    .unwrap_or_default();
                 self.deg_data = v.get("deg_data").and_then(|d| {
-                    if d.is_null() { return None; }
-                    let paths: Vec<(f64, f64)> = d.get("paths").and_then(|x| serde_json::from_value::<Vec<[f64; 2]>>(x.clone()).ok())
-                        .map(|a| a.iter().map(|p| (p[0], p[1])).collect()).unwrap_or_default();
-                    let pseudo: Vec<f64> = d.get("pseudo_times").and_then(|x| serde_json::from_value(x.clone()).ok())?;
-                    let failed: Vec<bool> = d.get("failed").and_then(|x| serde_json::from_value(x.clone()).ok())?;
-                    let fit: Option<dist_mod::FitResult> = d.get("fit").and_then(|x| serde_json::from_value(x.clone()).ok()).flatten();
-                    Some(degradation::DegradationResult { paths, pseudo_times: pseudo, failed, fit, model: Self::gs(d, "model", "linear") })
+                    if d.is_null() {
+                        return None;
+                    }
+                    let paths: Vec<(f64, f64)> = d
+                        .get("paths")
+                        .and_then(|x| serde_json::from_value::<Vec<[f64; 2]>>(x.clone()).ok())
+                        .map(|a| a.iter().map(|p| (p[0], p[1])).collect())
+                        .unwrap_or_default();
+                    let pseudo: Vec<f64> = d
+                        .get("pseudo_times")
+                        .and_then(|x| serde_json::from_value(x.clone()).ok())?;
+                    let failed: Vec<bool> = d
+                        .get("failed")
+                        .and_then(|x| serde_json::from_value(x.clone()).ok())?;
+                    let fit: Option<dist_mod::FitResult> = d
+                        .get("fit")
+                        .and_then(|x| serde_json::from_value(x.clone()).ok())
+                        .flatten();
+                    Some(degradation::DegradationResult {
+                        paths,
+                        pseudo_times: pseudo,
+                        failed,
+                        fit,
+                        model: Self::gs(d, "model", "linear"),
+                    })
                 });
             }
             ItemKind::Alt => {
@@ -1307,45 +1985,93 @@ impl Work {
                     self.alt_data = gs("alt_data", "");
                 } else {
                     let (alt_stress, alt_times) = datasets::alt_dataset(2026);
-                    self.alt_data = alt_stress.iter().zip(&alt_times).map(|(s2, t)| format!("{:.0},{:.1}", s2[0], t)).collect::<Vec<String>>().join("\n");
+                    self.alt_data = alt_stress
+                        .iter()
+                        .zip(&alt_times)
+                        .map(|(s2, t)| format!("{},{}", fmt_num(s2[0]), fmt_num(*t)))
+                        .collect::<Vec<String>>()
+                        .join("\n");
                 }
                 self.alt_model = gs("alt_model", "arrhenius");
                 self.alt_use_stress = gs("alt_use_stress", "55");
                 self.alt_t = gs("alt_t", "1000");
                 self.alt_result = gs("alt_result", "");
+                self.alt_fit_status = gs("alt_fit_status", "");
+                self.alt_fit_status_note = gs("alt_fit_status_note", "");
+                self.alt_fit_warnings = v
+                    .get("alt_fit_warnings")
+                    .and_then(|x| serde_json::from_value(x.clone()).ok())
+                    .unwrap_or_default();
                 self.alt_series = Vec::new();
             }
             ItemKind::Growth => {
                 if v.get("growth_times").and_then(|x| x.as_str()).is_some() {
                     self.growth_times = gs("growth_times", "");
                 } else {
-                    self.growth_times = datasets::growth_dataset(2026).iter().map(|v2| format!("{:.1}", v2)).collect::<Vec<String>>().join(", ");
+                    self.growth_times = datasets::growth_dataset(2026)
+                        .iter()
+                        .map(|v2| fmt_num(*v2))
+                        .collect::<Vec<String>>()
+                        .join(", ");
                 }
                 self.growth_result = gs("growth_result", "");
-                self.growth_fit = v.get("growth_fit").and_then(|x| serde_json::from_value(x.clone()).ok());
+                self.growth_fit = v
+                    .get("growth_fit")
+                    .and_then(|x| serde_json::from_value(x.clone()).ok());
             }
             ItemKind::Competing => {
                 self.comp_data = gs("comp_data", "120,wear\n340,electrical\n560,wear\n800,\n950,electrical\n1300,wear\n1700,\n2200,electrical");
                 self.comp_dist = gs("comp_dist", "weibull2");
                 self.comp_t = gs("comp_t", "1000");
                 self.comp_result = gs("comp_result", "");
+                self.comp_fit_status = gs("comp_fit_status", "");
+                self.comp_fit_status_note = gs("comp_fit_status_note", "");
+                self.comp_fit_warnings = v
+                    .get("comp_fit_warnings")
+                    .and_then(|x| serde_json::from_value(x.clone()).ok())
+                    .unwrap_or_default();
             }
             ItemKind::Rbd => {
-                self.rbd_spec = v.get("rbd_spec").cloned().filter(|x| !x.is_null())
-                    .unwrap_or_else(|| serde_json::from_str(EXAMPLE3_JSON).unwrap_or(json!({"type": "series", "children": []})));
+                self.rbd_spec = v
+                    .get("rbd_spec")
+                    .cloned()
+                    .filter(|x| !x.is_null())
+                    .unwrap_or_else(|| {
+                        serde_json::from_str(EXAMPLE3_JSON)
+                            .unwrap_or(json!({"type": "series", "children": []}))
+                    });
                 self.rbd_t = gs("rbd_t", "1000");
                 self.rbd_horizon = gs("rbd_horizon", "20000");
+                self.rbd_sims = gs("rbd_sims", "40");
                 self.rbd_topology = gs("rbd_topology", "series");
                 self.rbd_k = gs("rbd_k", "2");
                 self.rbd_avail = gs("rbd_avail", "");
                 self.rbd_path = gs("rbd_path", "rbd.json");
                 self.rbd_status = gs("rbd_status", "");
-                self.rbd_sel = v.get("rbd_sel").and_then(|x| x.as_u64()).map(|i| i as usize);
-                self.rbd_importance = v.get("rbd_importance").and_then(|x| x.as_array()).map(|arr| arr.iter().map(|b| BlockImportance {
-                    name: Self::gs(b, "name", ""), birnbaum: b.get("birnbaum").and_then(|x| x.as_f64()).unwrap_or(0.0),
-                    fussell_vesely: b.get("fussell_vesely").and_then(|x| x.as_f64()).unwrap_or(0.0),
-                    criticality: b.get("criticality").and_then(|x| x.as_f64()).unwrap_or(0.0),
-                }).collect()).unwrap_or_default();
+                self.rbd_sel = v
+                    .get("rbd_sel")
+                    .and_then(|x| x.as_u64())
+                    .map(|i| i as usize);
+                self.rbd_importance = v
+                    .get("rbd_importance")
+                    .and_then(|x| x.as_array())
+                    .map(|arr| {
+                        arr.iter()
+                            .map(|b| BlockImportance {
+                                name: Self::gs(b, "name", ""),
+                                birnbaum: b.get("birnbaum").and_then(|x| x.as_f64()).unwrap_or(0.0),
+                                fussell_vesely: b
+                                    .get("fussell_vesely")
+                                    .and_then(|x| x.as_f64())
+                                    .unwrap_or(0.0),
+                                criticality: b
+                                    .get("criticality")
+                                    .and_then(|x| x.as_f64())
+                                    .unwrap_or(0.0),
+                            })
+                            .collect()
+                    })
+                    .unwrap_or_default();
                 self.rbd_importance_note = gs("rbd_importance_note", "");
                 self.ed_name = gs("ed_name", "");
                 self.ed_dist = gs("ed_dist", "weibull2");
@@ -1376,16 +2102,43 @@ impl Work {
             }
             ItemKind::Fmea => {
                 self.fmea_type = gs("fmea_type", "Design");
-                let had_rows = v.get("fmea_rows").and_then(|x| x.as_array()).map(|a| !a.is_empty()).unwrap_or(false);
+                let had_rows = v
+                    .get("fmea_rows")
+                    .and_then(|x| x.as_array())
+                    .map(|a| !a.is_empty())
+                    .unwrap_or(false);
                 if had_rows {
-                    self.fmea_rows = serde_json::from_value(v.get("fmea_rows").cloned().unwrap_or(json!([]))).unwrap_or_default();
-                    self.fmea_crit = v.get("fmea_crit").and_then(|x| serde_json::from_value(x.clone()).ok())
-                        .unwrap_or_else(|| vec![[String::new(), String::new(), String::new(), String::new()]; self.fmea_rows.len()]);
-                    self.dvpr_entries = v.get("dvpr").and_then(|x| x.as_array()).map(|arr| arr.iter().map(|e| DvprEntry {
-                        id: Self::gs(e, "id", ""), failure_mode_ref: Self::gs(e, "failure_mode_ref", ""),
-                        test: Self::gs(e, "test", ""), sample_size: e.get("sample_size").and_then(|x| x.as_u64()).unwrap_or(0) as u32,
-                        acceptance_criteria: Self::gs(e, "acceptance_criteria", ""),
-                    }).collect()).unwrap_or_default();
+                    self.fmea_rows =
+                        serde_json::from_value(v.get("fmea_rows").cloned().unwrap_or(json!([])))
+                            .unwrap_or_default();
+                    self.fmea_crit = v
+                        .get("fmea_crit")
+                        .and_then(|x| serde_json::from_value(x.clone()).ok())
+                        .unwrap_or_else(|| {
+                            vec![
+                                [String::new(), String::new(), String::new(), String::new()];
+                                self.fmea_rows.len()
+                            ]
+                        });
+                    self.dvpr_entries = v
+                        .get("dvpr")
+                        .and_then(|x| x.as_array())
+                        .map(|arr| {
+                            arr.iter()
+                                .map(|e| DvprEntry {
+                                    id: Self::gs(e, "id", ""),
+                                    failure_mode_ref: Self::gs(e, "failure_mode_ref", ""),
+                                    test: Self::gs(e, "test", ""),
+                                    sample_size: e
+                                        .get("sample_size")
+                                        .and_then(|x| x.as_u64())
+                                        .unwrap_or(0)
+                                        as u32,
+                                    acceptance_criteria: Self::gs(e, "acceptance_criteria", ""),
+                                })
+                                .collect()
+                        })
+                        .unwrap_or_default();
                 } else {
                     self.load_fmea_example();
                 }
@@ -1413,8 +2166,22 @@ impl Work {
                 self.war_current = gs("war_current", "3");
                 self.war_horizon = gs("war_horizon", "6");
                 self.war_result = gs("war_result", "");
-                self.war_table = v.get("war_table").and_then(|x| serde_json::from_value(x.clone()).ok()).unwrap_or_default();
-                self.war_sale_labels = v.get("war_sale_labels").and_then(|x| serde_json::from_value(x.clone()).ok()).unwrap_or_default();
+                self.war_excluded_future = v
+                    .get("war_excluded_future")
+                    .and_then(|x| x.as_u64())
+                    .unwrap_or(0) as usize;
+                self.war_notes = v
+                    .get("war_notes")
+                    .and_then(|x| serde_json::from_value(x.clone()).ok())
+                    .unwrap_or_default();
+                self.war_table = v
+                    .get("war_table")
+                    .and_then(|x| serde_json::from_value(x.clone()).ok())
+                    .unwrap_or_default();
+                self.war_sale_labels = v
+                    .get("war_sale_labels")
+                    .and_then(|x| serde_json::from_value(x.clone()).ok())
+                    .unwrap_or_default();
             }
             ItemKind::Prediction => {
                 self.pred_parts = gs("pred_parts", "Resistor, 2.5, 10, 1.0, 1.0\nCapacitor, 1.2, 6, 1.1, 1.0\nConnector, 0.8, 4, 1.0, 1.2");
@@ -1426,8 +2193,14 @@ impl Work {
                 self.pred_lib_note = gs("pred_lib_note", "");
                 self.pred217_file = gs("pred217_file", "resistors.json");
                 self.pred217_json = v.get("pred217_json").cloned().filter(|x| !x.is_null());
-                self.pred217_named = v.get("pred217_named").and_then(|x| serde_json::from_value(x.clone()).ok()).unwrap_or_default();
-                self.pred217_num = v.get("pred217_num").and_then(|x| serde_json::from_value(x.clone()).ok()).unwrap_or_default();
+                self.pred217_named = v
+                    .get("pred217_named")
+                    .and_then(|x| serde_json::from_value(x.clone()).ok())
+                    .unwrap_or_default();
+                self.pred217_num = v
+                    .get("pred217_num")
+                    .and_then(|x| serde_json::from_value(x.clone()).ok())
+                    .unwrap_or_default();
                 self.pred217_result = gs("pred217_result", "");
                 self.alloc_target = gs("alloc_target", "0.99");
                 self.alloc_n = gs("alloc_n", "3");
@@ -1462,7 +2235,10 @@ impl Work {
                 self.mp_ea = gs("mp_ea", "0.35");
                 self.mp_ref = gs("mp_ref", "25");
                 self.mp_cyc_factor = gs("mp_cyc_factor", "0.001");
-                self.mp_phases = gs("mp_phases", "Operating, 8000, 55, 100, 0, 1.0\nDormant, 760, 25, 0, 1, 0.1");
+                self.mp_phases = gs(
+                    "mp_phases",
+                    "Operating, 8000, 55, 100, 0, 1.0\nDormant, 760, 25, 0, 1, 0.1",
+                );
                 self.pred_clean_result = gs("pred_clean_result", "");
                 self.pred_life_dist = gs("pred_life_dist", "weibull2");
                 self.pred_life_params = gs("pred_life_params", "beta=1.5, eta=5000");
@@ -1481,14 +2257,22 @@ impl Work {
                 self.flow_result = gs("flow_result", "");
             }
             ItemKind::Markov => {
-                self.mk_states = v.get("mk_states").and_then(|x| serde_json::from_value(x.clone()).ok())
-                    .unwrap_or_else(|| vec!["Both up".into(), "One down".into(), "System down".into()]);
-                self.mk_transitions = v.get("mk_transitions").and_then(|x| serde_json::from_value(x.clone()).ok())
-                    .unwrap_or_else(|| vec![
-                        ["Both up".into(), "One down".into(), "0.02".into()],
-                        ["One down".into(), "Both up".into(), "0.1".into()],
-                        ["One down".into(), "System down".into(), "0.01".into()],
-                    ]);
+                self.mk_states = v
+                    .get("mk_states")
+                    .and_then(|x| serde_json::from_value(x.clone()).ok())
+                    .unwrap_or_else(|| {
+                        vec!["Both up".into(), "One down".into(), "System down".into()]
+                    });
+                self.mk_transitions = v
+                    .get("mk_transitions")
+                    .and_then(|x| serde_json::from_value(x.clone()).ok())
+                    .unwrap_or_else(|| {
+                        vec![
+                            ["Both up".into(), "One down".into(), "0.02".into()],
+                            ["One down".into(), "Both up".into(), "0.1".into()],
+                            ["One down".into(), "System down".into(), "0.01".into()],
+                        ]
+                    });
                 self.mk_new_state = String::new();
                 self.mk_absorbing = gs("mk_absorbing", "System down");
                 self.mk_start = gs("mk_start", "Both up");
@@ -1498,9 +2282,15 @@ impl Work {
             }
             ItemKind::Qcp => {
                 self.qcp_dist = gs("qcp_dist", "weibull2");
-                let had = v.get("qcp_params").and_then(|x| x.as_object()).map(|m| !m.is_empty()).unwrap_or(false);
+                let had = v
+                    .get("qcp_params")
+                    .and_then(|x| x.as_object())
+                    .map(|m| !m.is_empty())
+                    .unwrap_or(false);
                 if had {
-                    self.qcp_params = serde_json::from_value(v.get("qcp_params").cloned().unwrap_or(json!({}))).unwrap_or_default();
+                    self.qcp_params =
+                        serde_json::from_value(v.get("qcp_params").cloned().unwrap_or(json!({})))
+                            .unwrap_or_default();
                 } else {
                     self.qcp_reset_params();
                 }
@@ -1513,27 +2303,55 @@ impl Work {
                     self.rcm_rows = arr.iter().map(RcmRowUi::from_json).collect();
                 } else {
                     self.rcm_rows = vec![RcmRowUi {
-                        asset: "Pump".into(), function: "Move fluid".into(), mode: "Seal leaks".into(),
-                        consequence: "Operational".into(), monitorable: true, age_related: false,
-                        restorable: false, rate: "0.00001".into(), alpha: "0.3".into(),
-                        beta: "1.0".into(), hours: "8760".into(),
+                        asset: "Pump".into(),
+                        function: "Move fluid".into(),
+                        mode: "Seal leaks".into(),
+                        consequence: "Operational".into(),
+                        monitorable: true,
+                        age_related: false,
+                        restorable: false,
+                        rate: "0.00001".into(),
+                        alpha: "0.3".into(),
+                        beta: "1.0".into(),
+                        hours: "8760".into(),
                     }];
                 }
             }
             ItemKind::Fracas => {
                 if let Some(arr) = v.get("fracas_rows").and_then(|x| x.as_array()) {
-                    self.fracas_rows = arr.iter().map(|r| Incident {
-                        id: Self::gs(r, "id", ""), part: Self::gs(r, "part", ""),
-                        failure_mode: Self::gs(r, "failure_mode", ""),
-                        hours: r.get("hours").and_then(|x| x.as_f64()).unwrap_or(0.0),
-                        date: Self::gs(r, "date", ""),
-                        status: IncidentStatus::from_str(&Self::gs(r, "status", "Open")).unwrap_or(IncidentStatus::Open),
-                        corrective_action: Self::gs(r, "corrective_action", ""),
-                    }).collect();
+                    self.fracas_rows = arr
+                        .iter()
+                        .map(|r| Incident {
+                            id: Self::gs(r, "id", ""),
+                            part: Self::gs(r, "part", ""),
+                            failure_mode: Self::gs(r, "failure_mode", ""),
+                            hours: r.get("hours").and_then(|x| x.as_f64()).unwrap_or(0.0),
+                            date: Self::gs(r, "date", ""),
+                            status: IncidentStatus::from_str(&Self::gs(r, "status", "Open"))
+                                .unwrap_or(IncidentStatus::Open),
+                            corrective_action: Self::gs(r, "corrective_action", ""),
+                        })
+                        .collect();
                 } else {
                     self.fracas_rows = vec![
-                        Incident { id: "FR-1".into(), part: "Pump seal".into(), failure_mode: "Leak".into(), hours: 1200.0, date: "2026-01-15".into(), status: IncidentStatus::Closed, corrective_action: "Replaced seal material".into() },
-                        Incident { id: "FR-2".into(), part: "Controller board".into(), failure_mode: "Overheat".into(), hours: 3400.0, date: "2026-03-02".into(), status: IncidentStatus::Analysis, corrective_action: String::new() },
+                        Incident {
+                            id: "FR-1".into(),
+                            part: "Pump seal".into(),
+                            failure_mode: "Leak".into(),
+                            hours: 1200.0,
+                            date: "2026-01-15".into(),
+                            status: IncidentStatus::Closed,
+                            corrective_action: "Replaced seal material".into(),
+                        },
+                        Incident {
+                            id: "FR-2".into(),
+                            part: "Controller board".into(),
+                            failure_mode: "Overheat".into(),
+                            hours: 3400.0,
+                            date: "2026-03-02".into(),
+                            status: IncidentStatus::Analysis,
+                            corrective_action: String::new(),
+                        },
                     ];
                 }
                 self.fracas_total_hours = gs("fracas_total_hours", "10000");
@@ -1789,15 +2607,47 @@ impl Work {
         let paths = Self::leaf_paths(&self.rbd_spec);
         if let Some(p) = paths.get(idx) {
             if let Some(node) = Self::node_at(&self.rbd_spec, p) {
-                self.ed_name = node.get("name").and_then(|v| v.as_str()).unwrap_or("block").to_string();
-                self.ed_dist = node.get("dist").and_then(|v| v.as_str()).unwrap_or("weibull2").to_string();
+                self.ed_name = node
+                    .get("name")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("block")
+                    .to_string();
+                self.ed_dist = node
+                    .get("dist")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("weibull2")
+                    .to_string();
                 self.ed_params = params_to_text(&node.get("params").cloned().unwrap_or(json!({})));
-                self.ed_mtbf = node.get("mtbf").and_then(|v| v.as_f64()).map(|x| x.to_string()).unwrap_or_default();
-                self.ed_mttr = node.get("mttr").and_then(|v| v.as_f64()).map(|x| x.to_string()).unwrap_or_default();
-                self.ed_units = node.get("n_units").and_then(|v| v.as_u64()).unwrap_or(2).to_string();
-                self.ed_k = node.get("k").and_then(|v| v.as_u64()).unwrap_or(1).to_string();
-                self.ed_dormancy = node.get("dormancy").and_then(|v| v.as_f64()).unwrap_or(0.0).to_string();
-                self.ed_switch = node.get("switch_reliability").and_then(|v| v.as_f64()).unwrap_or(1.0).to_string();
+                self.ed_mtbf = node
+                    .get("mtbf")
+                    .and_then(|v| v.as_f64())
+                    .map(|x| x.to_string())
+                    .unwrap_or_default();
+                self.ed_mttr = node
+                    .get("mttr")
+                    .and_then(|v| v.as_f64())
+                    .map(|x| x.to_string())
+                    .unwrap_or_default();
+                self.ed_units = node
+                    .get("n_units")
+                    .and_then(|v| v.as_u64())
+                    .unwrap_or(2)
+                    .to_string();
+                self.ed_k = node
+                    .get("k")
+                    .and_then(|v| v.as_u64())
+                    .unwrap_or(1)
+                    .to_string();
+                self.ed_dormancy = node
+                    .get("dormancy")
+                    .and_then(|v| v.as_f64())
+                    .unwrap_or(0.0)
+                    .to_string();
+                self.ed_switch = node
+                    .get("switch_reliability")
+                    .and_then(|v| v.as_f64())
+                    .unwrap_or(1.0)
+                    .to_string();
                 self.rbd_sel = Some(idx);
             }
         }
@@ -1933,7 +2783,11 @@ impl Work {
         if let Some(p) = paths.get(sel).cloned() {
             if let Some(node) = Self::node_at(&self.rbd_spec, &p) {
                 let mut copy = node.clone();
-                let old_name = copy.get("name").and_then(|v| v.as_str()).unwrap_or("block").to_string();
+                let old_name = copy
+                    .get("name")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("block")
+                    .to_string();
                 copy["name"] = json!(format!("{} copy", old_name));
                 let pos = Self::leaf_pos(&copy, sel);
                 copy["pos"] = json!([pos.0 + 30.0, pos.1 + 60.0]);
@@ -2082,8 +2936,10 @@ impl Work {
         self.qcp_params.clear();
         if let Some(spec) = dist_mod::dist_spec(&self.qcp_dist) {
             for (name, _kind) in spec {
-                self.qcp_params
-                    .insert(name.to_string(), Self::qcp_default(&self.qcp_dist, name).to_string());
+                self.qcp_params.insert(
+                    name.to_string(),
+                    Self::qcp_default(&self.qcp_dist, name).to_string(),
+                );
             }
         }
     }
@@ -2092,10 +2948,27 @@ impl Work {
 // ---------------- examples and datasets ----------------
 
 impl Work {
+    pub fn example_title(n: usize) -> &'static str {
+        match n {
+            1 => "Bearing life data",
+            2 => "Limited data lots",
+            3 => "RBD with cold standby",
+            4 => "FMEA sample",
+            5 => "ALT dataset",
+            6 => "Growth dataset",
+            7 => "Degradation units",
+            8 => "Markov preset",
+            _ => "Example",
+        }
+    }
     pub fn load_example_item(&mut self, n: usize) {
         match n {
             1 => {
-                let idx = self.create_item_silent(ItemKind::LifeData, self.default_item_name(ItemKind::LifeData), json!({}));
+                let idx = self.create_item_silent(
+                    ItemKind::LifeData,
+                    format!("Example: {}", Self::example_title(1)),
+                    json!({}),
+                );
                 self.select_index(Some(idx));
                 let (t, f) = datasets::bearing_life(2026);
                 self.life_times = format_life(&t, &f);
@@ -2105,15 +2978,27 @@ impl Work {
                 self.note("Example 1 loaded as a new Life Data item.");
             }
             2 => {
-                let idx = self.create_item_silent(ItemKind::LimitedData, self.default_item_name(ItemKind::LimitedData), json!({}));
+                let idx = self.create_item_silent(
+                    ItemKind::LimitedData,
+                    format!("Example: {}", Self::example_title(2)),
+                    json!({}),
+                );
                 self.select_index(Some(idx));
                 let groups = datasets::small_sample_groups(2026);
-                self.limited_groups = groups.iter().map(|(t, f)| format_life(t, f)).collect::<Vec<String>>().join("\n");
+                self.limited_groups = groups
+                    .iter()
+                    .map(|(t, f)| format_life(t, f))
+                    .collect::<Vec<String>>()
+                    .join("\n");
                 self.limited_result = "Loaded Example 2 (limited data lots).".into();
                 self.note("Example 2 loaded as a new Limited Data item.");
             }
             3 => {
-                let idx = self.create_item_silent(ItemKind::Rbd, self.default_item_name(ItemKind::Rbd), json!({}));
+                let idx = self.create_item_silent(
+                    ItemKind::Rbd,
+                    format!("Example: {}", Self::example_title(3)),
+                    json!({}),
+                );
                 self.select_index(Some(idx));
                 let spec: Value = serde_json::from_str(EXAMPLE3_JSON).unwrap_or(json!({}));
                 self.set_rbd_spec(spec);
@@ -2122,37 +3007,82 @@ impl Work {
                 self.note("Example 3 loaded as a new RBD item.");
             }
             4 => {
-                let idx = self.create_item_silent(ItemKind::Fmea, self.default_item_name(ItemKind::Fmea), json!({}));
+                let idx = self.create_item_silent(
+                    ItemKind::Fmea,
+                    format!("Example: {}", Self::example_title(4)),
+                    json!({}),
+                );
                 self.select_index(Some(idx));
                 self.load_fmea_example();
                 self.fmea_status = "Loaded Example 4 (3 sample rows).".into();
                 self.note("Example 4 loaded as a new FMEA item.");
             }
             5 => {
-                let idx = self.create_item_silent(ItemKind::Alt, self.default_item_name(ItemKind::Alt), json!({}));
+                let idx = self.create_item_silent(
+                    ItemKind::Alt,
+                    format!("Example: {}", Self::example_title(5)),
+                    json!({}),
+                );
                 self.select_index(Some(idx));
                 let (stress, times) = datasets::alt_dataset(2026);
-                self.alt_data = stress.iter().zip(&times).map(|(s2, t)| format!("{:.0},{:.1}", s2[0], t)).collect::<Vec<String>>().join("\n");
+                self.alt_data = stress
+                    .iter()
+                    .zip(&times)
+                    .map(|(s2, t)| format!("{},{}", fmt_num(s2[0]), fmt_num(*t)))
+                    .collect::<Vec<String>>()
+                    .join("\n");
                 self.alt_result = "Loaded ALT example.".into();
                 self.note("Example 5 loaded as a new ALT item.");
             }
             6 => {
-                let idx = self.create_item_silent(ItemKind::Growth, self.default_item_name(ItemKind::Growth), json!({}));
+                let idx = self.create_item_silent(
+                    ItemKind::Growth,
+                    format!("Example: {}", Self::example_title(6)),
+                    json!({}),
+                );
                 self.select_index(Some(idx));
-                self.growth_times = datasets::growth_dataset(2026).iter().map(|v| format!("{:.1}", v)).collect::<Vec<String>>().join(", ");
+                self.growth_times = datasets::growth_dataset(2026)
+                    .iter()
+                    .map(|v| fmt_num(*v))
+                    .collect::<Vec<String>>()
+                    .join(", ");
                 self.growth_result = "Loaded growth example.".into();
                 self.note("Example 6 loaded as a new Growth item.");
             }
             7 => {
-                let idx = self.create_item_silent(ItemKind::Degradation, self.default_item_name(ItemKind::Degradation), json!({}));
+                let idx = self.create_item_silent(
+                    ItemKind::Degradation,
+                    format!("Example: {}", Self::example_title(7)),
+                    json!({}),
+                );
                 self.select_index(Some(idx));
                 let deg = datasets::degradation_units(2026);
-                self.deg_units = deg.iter().map(|(t, y)| format!("{} | {}", t.iter().map(|v| format!("{:.0}", v)).collect::<Vec<String>>().join(","), y.iter().map(|v| format!("{:.2}", v)).collect::<Vec<String>>().join(","))).collect::<Vec<String>>().join("\n");
+                self.deg_units = deg
+                    .iter()
+                    .map(|(t, y)| {
+                        format!(
+                            "{} | {}",
+                            t.iter()
+                                .map(|v| fmt_num(*v))
+                                .collect::<Vec<String>>()
+                                .join(","),
+                            y.iter()
+                                .map(|v| fmt_num(*v))
+                                .collect::<Vec<String>>()
+                                .join(",")
+                        )
+                    })
+                    .collect::<Vec<String>>()
+                    .join("\n");
                 self.deg_result = "Loaded degradation example.".into();
                 self.note("Example 7 loaded as a new Degradation item.");
             }
             _ => {
-                let idx = self.create_item_silent(ItemKind::Markov, self.default_item_name(ItemKind::Markov), json!({}));
+                let idx = self.create_item_silent(
+                    ItemKind::Markov,
+                    format!("Example: {}", Self::example_title(8)),
+                    json!({}),
+                );
                 self.select_index(Some(idx));
                 self.mk_states = vec!["Both up".into(), "One down".into(), "System down".into()];
                 self.mk_transitions = vec![
@@ -2162,7 +3092,8 @@ impl Work {
                 ];
                 self.mk_absorbing = "System down".into();
                 self.mk_start = "Both up".into();
-                self.mk_result = "Loaded Markov preset. MTTF from Both up should be 650 hours.".into();
+                self.mk_result =
+                    "Loaded Markov preset. MTTF from Both up should be 650 hours.".into();
                 self.note("Example 8 loaded as a new Markov item.");
             }
         }
@@ -2181,7 +3112,11 @@ impl Work {
         let idx = self.create_item_silent(kind, format!("{} ({})", file, kind.label()), json!({}));
         self.select_index(Some(idx));
         self.apply_csv_to_current(&text);
-        self.note(format!("Loaded dataset {} as a new {} item.", file, kind.label()));
+        self.note(format!(
+            "Loaded dataset {} as a new {} item.",
+            file,
+            kind.label()
+        ));
     }
 
     /// Load the bundled dataset chosen in the shared CSV controls
@@ -2212,7 +3147,11 @@ impl Work {
     /// Apply CSV text to the currently selected item, using the same
     /// column rules as that item view's own CSV loader.
     pub fn apply_csv_to_current(&mut self, text: &str) {
-        let kind = match self.selected.and_then(|i| self.items.get(i)).map(|it| it.kind) {
+        let kind = match self
+            .selected
+            .and_then(|i| self.items.get(i))
+            .map(|it| it.kind)
+        {
             Some(k) => k,
             None => return,
         };
@@ -2228,13 +3167,61 @@ impl Work {
                     let mut times: Vec<f64> = Vec::new();
                     let mut failed: Vec<bool> = Vec::new();
                     for r in &rows {
-                        if let (Some(tv), Some(fv)) = (r.get(t).and_then(|s2| s2.parse::<f64>().ok()), r.get(f).and_then(|s2| s2.parse::<f64>().ok())) {
-                            let count = ni.and_then(|n| r.get(n)).and_then(|s2| s2.parse::<usize>().ok()).unwrap_or(1);
-                            let is_failed = if is_failed_col { fv != 0.0 } else { fv == 0.0 };
-                            for _ in 0..count {
-                                times.push(tv);
-                                failed.push(is_failed);
+                        let tv_raw = match r.get(t) {
+                            Some(s) if !s.trim().is_empty() => s.clone(),
+                            _ => {
+                                self.set_validation_error(ValidationError::new(
+                                    "csv.time",
+                                    "",
+                                    "missing CSV cell",
+                                ));
+                                return;
                             }
+                        };
+                        let fv_raw = match r.get(f) {
+                            Some(s) if !s.trim().is_empty() => s.clone(),
+                            _ => {
+                                self.set_validation_error(ValidationError::new(
+                                    "csv.failed",
+                                    "",
+                                    "missing CSV cell",
+                                ));
+                                return;
+                            }
+                        };
+                        let tv = match valid_f64_nonneg(&tv_raw, "csv.time") {
+                            Ok(v) => v,
+                            Err(e) => {
+                                self.set_validation_error(e);
+                                return;
+                            }
+                        };
+                        let fv = match valid_f64(&fv_raw, "csv.failed") {
+                            Ok(v) => v,
+                            Err(e) => {
+                                self.set_validation_error(e);
+                                return;
+                            }
+                        };
+                        let count = match ni {
+                            Some(n) => match r.get(n) {
+                                Some(s) if !s.trim().is_empty() => {
+                                    match valid_usize(s, "csv.count") {
+                                        Ok(v) => v,
+                                        Err(e) => {
+                                            self.set_validation_error(e);
+                                            return;
+                                        }
+                                    }
+                                }
+                                _ => 1,
+                            },
+                            None => 1,
+                        };
+                        let is_failed = if is_failed_col { fv != 0.0 } else { fv == 0.0 };
+                        for _ in 0..count {
+                            times.push(tv);
+                            failed.push(is_failed);
                         }
                     }
                     if !times.is_empty() {
@@ -2249,16 +3236,26 @@ impl Work {
                 }
             }
             ItemKind::Alt => {
-                if let (Some(si), Some(ti)) = (col_idx(&header, "stress"), col_idx(&header, "time")) {
+                if let (Some(si), Some(ti)) = (col_idx(&header, "stress"), col_idx(&header, "time"))
+                {
                     let fi = col_idx(&header, "failed");
                     let s2i = col_idx(&header, "stress2");
                     let mut lines: Vec<String> = Vec::new();
                     for r in &rows {
                         let s2 = r.get(si).cloned().unwrap_or_default();
                         let t = r.get(ti).cloned().unwrap_or_default();
-                        let f = fi.and_then(|i| r.get(i)).cloned().unwrap_or_else(|| "1".into());
+                        let f = fi
+                            .and_then(|i| r.get(i))
+                            .cloned()
+                            .unwrap_or_else(|| "1".into());
                         match s2i {
-                            Some(i2) => lines.push(format!("{},{},{},{}", s2, r.get(i2).cloned().unwrap_or_default(), t, f)),
+                            Some(i2) => lines.push(format!(
+                                "{},{},{},{}",
+                                s2,
+                                r.get(i2).cloned().unwrap_or_default(),
+                                t,
+                                f
+                            )),
                             None => lines.push(format!("{},{},{}", s2, t, f)),
                         }
                     }
@@ -2271,7 +3268,11 @@ impl Work {
                 }
             }
             ItemKind::Degradation => {
-                if let (Some(ui_i), Some(ti), Some(vi)) = (col_idx(&header, "unit"), col_idx(&header, "time"), col_idx(&header, "value")) {
+                if let (Some(ui_i), Some(ti), Some(vi)) = (
+                    col_idx(&header, "unit"),
+                    col_idx(&header, "time"),
+                    col_idx(&header, "value"),
+                ) {
                     let mut units: Vec<(Vec<f64>, Vec<f64>)> = Vec::new();
                     let mut order: Vec<String> = Vec::new();
                     for r in &rows {
@@ -2281,14 +3282,67 @@ impl Work {
                             units.push((Vec::new(), Vec::new()));
                         }
                         let k = order.iter().position(|u| *u == unit).unwrap_or(0);
-                        if let (Some(t), Some(vv)) = (r.get(ti).and_then(|s2| s2.parse::<f64>().ok()), r.get(vi).and_then(|s2| s2.parse::<f64>().ok())) {
-                            units[k].0.push(t);
-                            units[k].1.push(vv);
-                        }
+                        let traw = match r.get(ti) {
+                            Some(s) if !s.trim().is_empty() => s.clone(),
+                            _ => {
+                                self.set_validation_error(ValidationError::new(
+                                    "csv.time",
+                                    "",
+                                    "missing CSV cell",
+                                ));
+                                return;
+                            }
+                        };
+                        let vraw = match r.get(vi) {
+                            Some(s) if !s.trim().is_empty() => s.clone(),
+                            _ => {
+                                self.set_validation_error(ValidationError::new(
+                                    "csv.value",
+                                    "",
+                                    "missing CSV cell",
+                                ));
+                                return;
+                            }
+                        };
+                        let tv2 = match valid_f64_nonneg(&traw, "csv.time") {
+                            Ok(v) => v,
+                            Err(e) => {
+                                self.set_validation_error(e);
+                                return;
+                            }
+                        };
+                        let vv2 = match valid_f64(&vraw, "csv.value") {
+                            Ok(v) => v,
+                            Err(e) => {
+                                self.set_validation_error(e);
+                                return;
+                            }
+                        };
+                        units[k].0.push(tv2);
+                        units[k].1.push(vv2);
                     }
                     if !units.is_empty() {
-                        self.deg_units = units.iter().map(|(t, y)| format!("{} | {}", t.iter().map(|v2| format!("{:.4}", v2)).collect::<Vec<String>>().join(","), y.iter().map(|v2| format!("{:.4}", v2)).collect::<Vec<String>>().join(","))).collect::<Vec<String>>().join("\n");
-                        self.note(format!("Imported degradation data for {} units.", units.len()));
+                        self.deg_units = units
+                            .iter()
+                            .map(|(t, y)| {
+                                format!(
+                                    "{} | {}",
+                                    t.iter()
+                                        .map(|v2| fmt_num(*v2))
+                                        .collect::<Vec<String>>()
+                                        .join(","),
+                                    y.iter()
+                                        .map(|v2| fmt_num(*v2))
+                                        .collect::<Vec<String>>()
+                                        .join(",")
+                                )
+                            })
+                            .collect::<Vec<String>>()
+                            .join("\n");
+                        self.note(format!(
+                            "Imported degradation data for {} units.",
+                            units.len()
+                        ));
                     }
                 } else {
                     self.note("Degradation CSV needs unit, time, value columns.");
@@ -2296,7 +3350,26 @@ impl Work {
             }
             ItemKind::Growth => {
                 if let Some(ti) = col_idx(&header, "time") {
-                    let times: Vec<String> = rows.iter().filter_map(|r| r.get(ti).cloned()).collect();
+                    for r in &rows {
+                        match r.get(ti) {
+                            Some(s) if !s.trim().is_empty() => {
+                                if let Err(e) = valid_f64_nonneg(s, "csv.time") {
+                                    self.set_validation_error(e);
+                                    return;
+                                }
+                            }
+                            _ => {
+                                self.set_validation_error(ValidationError::new(
+                                    "csv.time",
+                                    "",
+                                    "missing CSV cell",
+                                ));
+                                return;
+                            }
+                        }
+                    }
+                    let times: Vec<String> =
+                        rows.iter().filter_map(|r| r.get(ti).cloned()).collect();
                     if !times.is_empty() {
                         self.growth_times = times.join(", ");
                         self.note(format!("Imported {} growth failure times.", times.len()));
@@ -2312,9 +3385,25 @@ impl Work {
                     let mut lines: Vec<String> = Vec::new();
                     for r in &rows {
                         let t = r.get(ti).cloned().unwrap_or_default();
+                        if t.trim().is_empty() {
+                            self.set_validation_error(ValidationError::new(
+                                "csv.time",
+                                "",
+                                "missing CSV cell",
+                            ));
+                            return;
+                        }
+                        if let Err(e) = valid_f64_nonneg(&t, "csv.time") {
+                            self.set_validation_error(e);
+                            return;
+                        }
                         let failed = fi.and_then(|i| r.get(i)).map(|s| s != "0").unwrap_or(true);
                         let cause = ci.and_then(|i| r.get(i)).cloned().unwrap_or_default();
-                        lines.push(format!("{},{}", t, if failed { cause } else { String::new() }));
+                        lines.push(format!(
+                            "{},{}",
+                            t,
+                            if failed { cause } else { String::new() }
+                        ));
                     }
                     if !lines.is_empty() {
                         self.comp_data = lines.join("\n");
@@ -2325,13 +3414,24 @@ impl Work {
                 }
             }
             ItemKind::Warranty => {
-                if let (Some(sp), Some(sa), Some(lg), Some(rt)) = (col_idx(&header, "ship_period"), col_idx(&header, "sales"), col_idx(&header, "lag_months"), col_idx(&header, "returns")) {
+                if let (Some(sp), Some(sa), Some(lg), Some(rt)) = (
+                    col_idx(&header, "ship_period"),
+                    col_idx(&header, "sales"),
+                    col_idx(&header, "lag_months"),
+                    col_idx(&header, "returns"),
+                ) {
                     let mut sales_map: BTreeMap<usize, u32> = BTreeMap::new();
                     let mut records: Vec<String> = Vec::new();
                     for r in &rows {
-                        let ship = r.get(sp).and_then(|s2| s2.parse::<usize>().ok()).unwrap_or(1);
+                        let ship = r
+                            .get(sp)
+                            .and_then(|s2| s2.parse::<usize>().ok())
+                            .unwrap_or(1);
                         let sale = r.get(sa).and_then(|s2| s2.parse::<u32>().ok()).unwrap_or(0);
-                        let lag = r.get(lg).and_then(|s2| s2.parse::<usize>().ok()).unwrap_or(0);
+                        let lag = r
+                            .get(lg)
+                            .and_then(|s2| s2.parse::<usize>().ok())
+                            .unwrap_or(0);
                         let ret = r.get(rt).and_then(|s2| s2.parse::<u32>().ok()).unwrap_or(0);
                         sales_map.insert(ship, sale);
                         for _ in 0..ret {
@@ -2339,13 +3439,18 @@ impl Work {
                         }
                     }
                     let max_ship = sales_map.keys().max().copied().unwrap_or(0);
-                    self.war_sales = (1..=max_ship).map(|k| sales_map.get(&k).copied().unwrap_or(0).to_string()).collect::<Vec<String>>().join(", ");
+                    self.war_sales = (1..=max_ship)
+                        .map(|k| sales_map.get(&k).copied().unwrap_or(0).to_string())
+                        .collect::<Vec<String>>()
+                        .join(", ");
                     self.war_returns = records.join("\n");
                     self.note("Imported Nevada warranty CSV. Run the analysis to see the table.");
                 } else if col_idx(&header, "time").is_some() {
                     self.note("That file is time-to-failure warranty format. Load it on the Life Data screen, where the grouped time,failed,count format is handled.");
                 } else {
-                    self.note("Warranty CSV needs ship_period, sales, lag_months, returns columns.");
+                    self.note(
+                        "Warranty CSV needs ship_period, sales, lag_months, returns columns.",
+                    );
                 }
             }
             _ => {}
@@ -2357,13 +3462,28 @@ impl Work {
 
 /// Pure helper for flow (a): set one leaf of an RBD state to a fitted
 /// distribution. Returns the block name on success.
-pub fn apply_fit_to_rbd_state(state: &mut Value, block_idx: usize, dist: &str, params: &dist_mod::Params) -> Result<String, String> {
-    let spec = state.get("rbd_spec").cloned().filter(|x| !x.is_null())
+pub fn apply_fit_to_rbd_state(
+    state: &mut Value,
+    block_idx: usize,
+    dist: &str,
+    params: &dist_mod::Params,
+) -> Result<String, String> {
+    let spec = state
+        .get("rbd_spec")
+        .cloned()
+        .filter(|x| !x.is_null())
         .unwrap_or_else(|| serde_json::from_str(EXAMPLE3_JSON).unwrap_or(json!({})));
     let paths = Work::leaf_paths(&spec);
-    let path = paths.get(block_idx).cloned().ok_or_else(|| "Block index out of range.".to_string())?;
+    let path = paths
+        .get(block_idx)
+        .cloned()
+        .ok_or_else(|| "Block index out of range.".to_string())?;
     let mut node = Work::node_at(&spec, &path).ok_or_else(|| "Block not found.".to_string())?;
-    let name = node.get("name").and_then(|v| v.as_str()).unwrap_or("block").to_string();
+    let name = node
+        .get("name")
+        .and_then(|v| v.as_str())
+        .unwrap_or("block")
+        .to_string();
     node["dist"] = json!(dist);
     node["params"] = params_to_json(params);
     let new_spec = Work::replace_at(&spec, &path, node);
@@ -2376,7 +3496,10 @@ impl Work {
     pub fn flow_send_fit_to_qcp(&mut self) {
         let fit = match self.life_fit.clone() {
             Some(f) => f,
-            None => { self.note("Run a fit first, then send it to QCP."); return; }
+            None => {
+                self.note("Run a fit first, then send it to QCP.");
+                return;
+            }
         };
         let idx = self.find_or_create_item(ItemKind::Qcp, "QCP 1");
         let mut params = serde_json::Map::new();
@@ -2384,25 +3507,40 @@ impl Work {
             params.insert(k.clone(), json!(val.to_string()));
         }
         let mut st = self.items[idx].state.clone();
-        if !st.is_object() { st = json!({}); }
+        if !st.is_object() {
+            st = json!({});
+        }
         st["qcp_dist"] = json!(fit.dist);
         st["qcp_params"] = Value::Object(params);
         st["qcp_t"] = json!(self.life_t);
         let name = self.items[idx].name.clone();
         self.items[idx].state = st;
         self.headline = format!("Fit sent to QCP item {}", name);
-        self.note(format!("Sent {} fit to QCP item {}. Open it to run the calculation.", fit.dist, name));
+        self.note(format!(
+            "Sent {} fit to QCP item {}. Open it to run the calculation.",
+            fit.dist, name
+        ));
     }
 
     pub fn flow_send_fit_to_prediction(&mut self) {
         let fit = match self.life_fit.clone() {
             Some(f) => f,
-            None => { self.note("Run a fit first, then send it to Prediction."); return; }
+            None => {
+                self.note("Run a fit first, then send it to Prediction.");
+                return;
+            }
         };
         let idx = self.find_or_create_item(ItemKind::Prediction, "Prediction 1");
-        let params_text = fit.params.iter().map(|(k, val)| format!("{}={}", k, val)).collect::<Vec<String>>().join(", ");
+        let params_text = fit
+            .params
+            .iter()
+            .map(|(k, val)| format!("{}={}", k, val))
+            .collect::<Vec<String>>()
+            .join(", ");
         let mut st = self.items[idx].state.clone();
-        if !st.is_object() { st = json!({}); }
+        if !st.is_object() {
+            st = json!({});
+        }
         st["pred_life_dist"] = json!(fit.dist);
         st["pred_life_params"] = json!(params_text);
         st["pred_life_t"] = json!(self.life_t);
@@ -2415,23 +3553,50 @@ impl Work {
     /// Block names of the currently targeted RBD item, for the
     /// Life Data send-to panel.
     pub fn flow_target_block_names(&self) -> Vec<String> {
-        let st = self.items.iter().find(|it| it.id == self.flow_target_id).map(|it| it.state.clone()).unwrap_or(json!({}));
-        let spec = st.get("rbd_spec").cloned().filter(|x| !x.is_null())
+        let st = self
+            .items
+            .iter()
+            .find(|it| it.id == self.flow_target_id)
+            .map(|it| it.state.clone())
+            .unwrap_or(json!({}));
+        let spec = st
+            .get("rbd_spec")
+            .cloned()
+            .filter(|x| !x.is_null())
             .unwrap_or_else(|| serde_json::from_str(EXAMPLE3_JSON).unwrap_or(json!({})));
-        Self::leaf_paths(&spec).iter().enumerate().map(|(i, path)| {
-            Self::node_at(&spec, path).and_then(|n| n.get("name").and_then(|v| v.as_str()).map(|x| x.to_string()))
-                .unwrap_or_else(|| format!("block {}", i + 1))
-        }).collect()
+        Self::leaf_paths(&spec)
+            .iter()
+            .enumerate()
+            .map(|(i, path)| {
+                Self::node_at(&spec, path)
+                    .and_then(|n| {
+                        n.get("name")
+                            .and_then(|v| v.as_str())
+                            .map(|x| x.to_string())
+                    })
+                    .unwrap_or_else(|| format!("block {}", i + 1))
+            })
+            .collect()
     }
 
     pub fn flow_assign_fit_to_rbd(&mut self) {
         let fit = match self.life_fit.clone() {
             Some(f) => f,
-            None => { self.note("Run a fit first, then assign it to an RBD block."); return; }
+            None => {
+                self.note("Run a fit first, then assign it to an RBD block.");
+                return;
+            }
         };
-        let idx = match self.items.iter().position(|it| it.id == self.flow_target_id) {
+        let idx = match self
+            .items
+            .iter()
+            .position(|it| it.id == self.flow_target_id)
+        {
             Some(i) => i,
-            None => { self.note("Pick a target RBD item first."); return; }
+            None => {
+                self.note("Pick a target RBD item first.");
+                return;
+            }
         };
         let mut st = self.items[idx].state.clone();
         match apply_fit_to_rbd_state(&mut st, self.flow_block_idx, &fit.dist, &fit.params) {
@@ -2448,7 +3613,10 @@ impl Work {
     pub fn flow_fmea_to_rcm(&mut self, row_idx: usize) {
         let row = match self.fmea_rows.get(row_idx).cloned() {
             Some(r) => r,
-            None => { self.note("Pick a valid FMEA row first."); return; }
+            None => {
+                self.note("Pick a valid FMEA row first.");
+                return;
+            }
         };
         let idx = self.find_or_create_item(ItemKind::Rcm, "RCM 1");
         let new_row = json!({
@@ -2457,13 +3625,25 @@ impl Work {
             "restorable": false, "rate": "", "alpha": "", "beta": "", "hours": "",
         });
         let mut st = self.items[idx].state.clone();
-        if !st.is_object() { st = json!({}); }
-        let mut rows: Vec<Value> = st.get("rcm_rows").and_then(|x| x.as_array()).cloned().unwrap_or_default();
+        if !st.is_object() {
+            st = json!({});
+        }
+        let mut rows: Vec<Value> = st
+            .get("rcm_rows")
+            .and_then(|x| x.as_array())
+            .cloned()
+            .unwrap_or_default();
         rows.push(new_row);
         st["rcm_rows"] = json!(rows);
         let name = self.items[idx].name.clone();
         self.items[idx].state = st;
-        self.note(format!("Created an RCM row in {} from FMEA row {} ({} / {}).", name, row_idx + 1, row.item, row.failure_mode));
+        self.note(format!(
+            "Created an RCM row in {} from FMEA row {} ({} / {}).",
+            name,
+            row_idx + 1,
+            row.item,
+            row.failure_mode
+        ));
     }
 
     pub fn flow_rcm_row_from_field(&mut self) {
@@ -2472,7 +3652,11 @@ impl Work {
     }
 
     pub fn flow_fracas_to_life(&mut self) {
-        let times: Vec<String> = self.fracas_rows.iter().map(|inc| format!("{:.0}", inc.hours)).collect();
+        let times: Vec<String> = self
+            .fracas_rows
+            .iter()
+            .map(|inc| fmt_num(inc.hours))
+            .collect();
         let n = times.len();
         if n == 0 {
             self.note("No incidents to export. Add an incident first.");
@@ -2482,9 +3666,16 @@ impl Work {
             "life_times": times.join(", "), "life_dist": "weibull2", "life_t": "1000",
             "life_result": "Exported from FRACAS. All incidents are treated as failures; the FRACAS log has no censoring notion.",
         });
-        let idx = self.create_item_silent(ItemKind::LifeData, "FRACAS export (all incidents as failures)".into(), st);
+        let idx = self.create_item_silent(
+            ItemKind::LifeData,
+            "FRACAS export (all incidents as failures)".into(),
+            st,
+        );
         self.select_index(Some(idx));
-        self.note(format!("Created a Life Data item from {} FRACAS incidents. All incidents count as failures.", n));
+        self.note(format!(
+            "Created a Life Data item from {} FRACAS incidents. All incidents count as failures.",
+            n
+        ));
     }
 }
 
@@ -2492,7 +3683,20 @@ impl Work {
 
 impl Work {
     pub fn compute_life_fit(&mut self) -> Vec<(String, String)> {
-        let (times, failed) = parse_life(&self.life_times);
+        let (times, failed) = match valid_parse_life(&self.life_times, "LifeUi.times") {
+            Ok(v) => v,
+            Err(e) => {
+                self.set_validation_error(e);
+                return rows_of(&self.life_result);
+            }
+        };
+        let t_val = match valid_f64_nonneg(&self.life_t, "LifeUi.t") {
+            Ok(v) => v,
+            Err(e) => {
+                self.set_validation_error(e);
+                return rows_of(&self.life_result);
+            }
+        };
         let res = if self.life_rank {
             dist_mod::fit_rank_regression(&self.life_dist, &times, Some(&failed))
         } else {
@@ -2500,28 +3704,79 @@ impl Work {
         };
         match res {
             Ok(fit) => {
-                let t = fnum(&self.life_t, 1000.0);
+                let info = fit_status_info(&fit);
+                self.life_fit_status = info.status.clone();
+                self.life_fit_status_note = info.note.clone();
+                self.life_fit_warnings = info.warnings.clone();
+                if info.status == "failed" {
+                    self.life_fit = None;
+                    self.headline = if info.note.is_empty() {
+                        "Fit failed".into()
+                    } else {
+                        info.note.clone()
+                    };
+                    self.life_result = format!(
+                        "Fit status: unavailable: {}",
+                        if info.note.is_empty() {
+                            "fit failed".into()
+                        } else {
+                            info.note.clone()
+                        }
+                    );
+                    self.note("Life data fit failed.");
+                    return rows_of(&self.life_result);
+                }
+                let t = t_val;
                 let (lo, hi) = fit.reliability_bounds(t, 0.05);
                 let mut rows: Vec<(String, String)> = vec![
                     ("Fit".into(), fit.summary().replace('\n', " | ")),
                     (format!("R({:.0})", t), format!("{:.4}", fit.reliability(t))),
                     ("95% bounds".into(), format!("{:.4} to {:.4}", lo, hi)),
-                    ("Lower bound (one-sided 95%)".into(), format!("{:.4}", fit.reliability_lower_bound(t, 0.05))),
+                    (
+                        "Lower bound (one-sided 95%)".into(),
+                        format!("{:.4}", fit.reliability_lower_bound(t, 0.05)),
+                    ),
                     ("B10".into(), format!("{:.1}", fit.b_life(0.10))),
                     ("Mean life".into(), format!("{:.1}", fit.mean_life())),
                 ];
                 for (k, v) in &fit.params {
                     rows.push((format!("Parameter {}", k), format!("{:.6}", v)));
                 }
+                if info.status == "boundary_or_degenerate" || info.status == "success_with_warnings"
+                {
+                    rows.insert(
+                        0,
+                        (
+                            "Fit status".into(),
+                            format!("{}: {}", info.status, info.note),
+                        ),
+                    );
+                    self.headline = if info.note.is_empty() {
+                        format!("R({:.0}) = {:.4}", t, fit.reliability(t))
+                    } else {
+                        info.note.clone()
+                    };
+                } else {
+                    self.headline = format!("R({:.0}) = {:.4}", t, fit.reliability(t));
+                }
+                for r in rows.iter_mut() {
+                    if r.1.contains("NaN") || r.1.contains("inf") {
+                        r.1 = "unavailable: non-finite result".into();
+                    }
+                }
                 self.life_result = rows_text(&rows);
-                self.headline = format!("R({:.0}) = {:.4}", t, fit.reliability(t));
                 self.note("Life data fit complete.");
                 self.life_fit = Some(fit);
+                self.mark_computed();
                 rows
             }
             Err(e) => {
                 self.life_result = format!("Error: {}", e);
                 self.life_fit = None;
+                self.life_fit_status = "failed".to_string();
+                self.life_fit_status_note = e.clone();
+                self.life_fit_warnings = Vec::new();
+                self.headline = e.clone();
                 self.note("Life data fit failed.");
                 rows_of(&self.life_result)
             }
@@ -2529,8 +3784,16 @@ impl Work {
     }
 
     pub fn compute_wizard(&mut self) {
-        let (times, failed) = parse_life(&self.life_times);
-        self.wizard_ranks = wizard::rank_distributions(&times, Some(&failed), wizard::RANKABLE_DISTS);
+        let (times, failed) = match valid_parse_life(&self.life_times, "LifeUi.times") {
+            Ok(v) => v,
+            Err(e) => {
+                self.set_validation_error(e);
+                return;
+            }
+        };
+        self.wizard_ranks =
+            wizard::rank_distributions(&times, Some(&failed), wizard::RANKABLE_DISTS);
+        self.mark_computed();
         self.wizard_note = format!("Ranked {} candidates.", self.wizard_ranks.len());
         self.note("Distribution wizard ranking complete.");
     }
@@ -2542,7 +3805,11 @@ impl Work {
         };
         let data = self.life_times.clone();
         let dist = r.dist.clone();
-        let idx2 = self.create_item_silent(ItemKind::LifeData, self.default_item_name(ItemKind::LifeData), json!({}));
+        let idx2 = self.create_item_silent(
+            ItemKind::LifeData,
+            self.default_item_name(ItemKind::LifeData),
+            json!({}),
+        );
         self.select_index(Some(idx2));
         self.life_times = data;
         self.life_dist = dist.clone();
@@ -2552,16 +3819,31 @@ impl Work {
             self.life_result = fit.summary().replace('\n', " | ");
             self.life_fit = Some(fit);
         }
-        self.note(format!("Wizard created a new Life Data item with {} preselected and the current data loaded.", dist));
+        self.note(format!(
+            "Wizard created a new Life Data item with {} preselected and the current data loaded.",
+            dist
+        ));
     }
 
     pub fn compute_limited(&mut self) -> Vec<(String, String)> {
-        let groups: Vec<(Vec<f64>, Vec<bool>)> = self
-            .limited_groups
-            .lines()
-            .filter(|l| !l.trim().is_empty())
-            .map(|l| parse_life(l))
-            .collect();
+        if self.limited_groups.trim().is_empty() {
+            self.set_validation_error(ValidationError::new(
+                "LimitedUi.groups",
+                "",
+                "empty required field",
+            ));
+            return rows_of(&self.limited_result);
+        }
+        let mut groups: Vec<(Vec<f64>, Vec<bool>)> = Vec::new();
+        for l in self.limited_groups.lines().filter(|l| !l.trim().is_empty()) {
+            match valid_parse_life(l, "LimitedUi.groups") {
+                Ok(g) => groups.push(g),
+                Err(e) => {
+                    self.set_validation_error(e);
+                    return rows_of(&self.limited_result);
+                }
+            }
+        }
         match bayes::hierarchical_weibull(&groups) {
             Ok(h) => {
                 let mut rows: Vec<(String, String)> = vec![
@@ -2572,7 +3854,10 @@ impl Work {
                 for (i, f) in h.fits.iter().enumerate() {
                     rows.push((
                         format!("Lot {} shrunk eta", i + 1),
-                        format!("{:.1} (MLE eta {:.1}, shrink B {:.2})", f.params["eta"], h.group_fits[i].params["eta"], h.b[i]),
+                        format!(
+                            "{:.1} (MLE eta {:.1}, shrink B {:.2})",
+                            f.params["eta"], h.group_fits[i].params["eta"], h.b[i]
+                        ),
                     ));
                 }
                 if let Some(first) = h.group_fits.first() {
@@ -2589,12 +3874,38 @@ impl Work {
                             ),
                         ));
                     }
-                    let calib: Vec<f64> = groups.iter().flat_map(|(t, _)| t.iter().cloned()).collect();
-                    rows.push(("Conformal mission time (alpha 0.10)".into(), format!("{:.1}", bayes::conformal_mission_time(first, &calib, 0.10))));
-                    rows.push(("Conformal R lower bound at t=1000 (alpha 0.05)".into(), format!("{:.3}", bayes::conformal_reliability_lower(&calib, 1000.0, 0.05))));
+                    let calib: Vec<f64> =
+                        groups.iter().flat_map(|(t, _)| t.iter().cloned()).collect();
+                    rows.push((
+                        "Conformal mission time (alpha 0.10)".into(),
+                        format!("{:.1}", bayes::conformal_mission_time(first, &calib, 0.10)),
+                    ));
+                    rows.push((
+                        "Conformal R lower bound at t=1000 (alpha 0.05)".into(),
+                        format!(
+                            "{:.3}",
+                            bayes::conformal_reliability_lower(&calib, 1000.0, 0.05)
+                        ),
+                    ));
+                }
+                if let Some(f0) = h.fits.first() {
+                    let info = fit_status_info(f0);
+                    self.limited_fit_status = info.status;
+                    self.limited_fit_status_note = info.note;
+                    self.limited_fit_warnings = info.warnings;
+                } else {
+                    self.limited_fit_status = "success".into();
+                    self.limited_fit_status_note = String::new();
+                    self.limited_fit_warnings = Vec::new();
+                }
+                for r in rows.iter_mut() {
+                    if r.1.contains("NaN") || r.1.contains("inf") {
+                        r.1 = "unavailable: non-finite result".into();
+                    }
                 }
                 self.limited_result = rows_text(&rows);
                 self.note("Hierarchical fit complete.");
+                self.mark_computed();
                 rows
             }
             Err(e) => {
@@ -2605,15 +3916,64 @@ impl Work {
     }
 
     pub fn compute_mcmc(&mut self) -> Vec<(String, String)> {
-        let (times, failed) = parse_life(&self.mcmc_times);
+        let (times, failed) = match valid_parse_life(&self.mcmc_times, "McmcUi.times") {
+            Ok(v) => v,
+            Err(e) => {
+                self.set_validation_error(e);
+                return rows_of(&self.mcmc_result);
+            }
+        };
+        let draws = match valid_usize(&self.mcmc_draws, "McmcUi.draws") {
+            Ok(v) => v,
+            Err(e) => {
+                self.set_validation_error(e);
+                return rows_of(&self.mcmc_result);
+            }
+        };
+        let warmup = match valid_usize(&self.mcmc_warmup, "McmcUi.warmup") {
+            Ok(v) => v,
+            Err(e) => {
+                self.set_validation_error(e);
+                return rows_of(&self.mcmc_result);
+            }
+        };
+        let chains = match valid_usize(&self.mcmc_chains, "McmcUi.chains") {
+            Ok(v) => v,
+            Err(e) => {
+                self.set_validation_error(e);
+                return rows_of(&self.mcmc_result);
+            }
+        };
+        let seed_i = match valid_int(&self.mcmc_seed, "McmcUi.seed") {
+            Ok(v) => v,
+            Err(e) => {
+                self.set_validation_error(e);
+                return rows_of(&self.mcmc_result);
+            }
+        };
+        if seed_i < 0 {
+            self.set_validation_error(ValidationError::new(
+                "McmcUi.seed",
+                &self.mcmc_seed.clone(),
+                "negative value is not allowed",
+            ));
+            return rows_of(&self.mcmc_result);
+        }
+        let _t_check = match valid_f64_nonneg(&self.mcmc_t, "McmcUi.t") {
+            Ok(v) => v,
+            Err(e) => {
+                self.set_validation_error(e);
+                return rows_of(&self.mcmc_result);
+            }
+        };
         let res = mcmc::fit_bayes(
             &self.mcmc_dist,
             &times,
             Some(&failed),
-            inum(&self.mcmc_draws, 300),
-            inum(&self.mcmc_warmup, 300),
-            inum(&self.mcmc_chains, 2),
-            self.mcmc_seed.trim().parse::<u64>().unwrap_or(42),
+            draws,
+            warmup,
+            chains,
+            seed_i as u64,
         );
         match res {
             Ok(r) => {
@@ -2621,7 +3981,10 @@ impl Work {
                 for (name, ps) in r.summary() {
                     rows.push((
                         format!("{} posterior", name),
-                        format!("mean {:.3}, sd {:.3}, q05 {:.3}, median {:.3}, q95 {:.3}", ps.mean, ps.sd, ps.q05, ps.q50, ps.q95),
+                        format!(
+                            "mean {:.3}, sd {:.3}, q05 {:.3}, median {:.3}, q95 {:.3}",
+                            ps.mean, ps.sd, ps.q05, ps.q50, ps.q95
+                        ),
                     ));
                 }
                 // R-hat and ESS are plain numbers, one labeled row per
@@ -2636,13 +3999,23 @@ impl Work {
                         rows.push((format!("{} ESS", name), format!("{:.0}", v)));
                     }
                 }
-                let t = fnum(&self.mcmc_t, 1000.0);
+                let t = _t_check;
                 let ci = r.reliability_credible(t, 0.90, 0);
-                rows.push((format!("R({:.0}) credible", t), format!("mean {:.3}, 90% CI {:.3} to {:.3}", ci.mean, ci.lower, ci.upper)));
-                rows.push(("Posterior predictive p-value".into(), format!("{:.3}", r.posterior_predictive_pvalue(7))));
+                rows.push((
+                    format!("R({:.0}) credible", t),
+                    format!(
+                        "mean {:.3}, 90% CI {:.3} to {:.3}",
+                        ci.mean, ci.lower, ci.upper
+                    ),
+                ));
+                rows.push((
+                    "Posterior predictive p-value".into(),
+                    format!("{:.3}", r.posterior_predictive_pvalue(7)),
+                ));
                 self.mcmc_result = rows_text(&rows);
                 self.headline = format!("R({:.0}) mean {:.3}", t, ci.mean);
                 self.note("MCMC run complete.");
+                self.mark_computed();
                 rows
             }
             Err(e) => {
@@ -2661,13 +4034,70 @@ impl Work {
         }
         units
     }
+    pub fn deg_parse_units_valid(&self) -> VResult<Vec<(Vec<f64>, Vec<f64>)>> {
+        if self.deg_units.trim().is_empty() {
+            return Err(ValidationError::new(
+                "DegUi.units",
+                "",
+                "empty required field",
+            ));
+        }
+        let mut units = Vec::new();
+        for line in self.deg_units.lines() {
+            if line.trim().is_empty() {
+                continue;
+            }
+            match line.split_once('|') {
+                Some((a, b)) => {
+                    let tv = valid_parse_numbers_nonneg(a, "DegUi.units")?;
+                    let yv = valid_parse_numbers(b, "DegUi.units")?;
+                    if tv.len() != yv.len() {
+                        return Err(ValidationError::new(
+                            "DegUi.units",
+                            line,
+                            "times and values counts differ",
+                        ));
+                    }
+                    units.push((tv, yv));
+                }
+                None => {
+                    return Err(ValidationError::new(
+                        "DegUi.units",
+                        line,
+                        "expected times | values",
+                    ))
+                }
+            }
+        }
+        if units.is_empty() {
+            return Err(ValidationError::new(
+                "DegUi.units",
+                "",
+                "empty required field",
+            ));
+        }
+        Ok(units)
+    }
 
     pub fn compute_degradation(&mut self) -> Vec<(String, String)> {
-        let units = self.deg_parse_units();
+        let units = match self.deg_parse_units_valid() {
+            Ok(v) => v,
+            Err(e) => {
+                self.set_validation_error(e);
+                return rows_of(&self.deg_result);
+            }
+        };
+        let thr = match valid_f64(&self.deg_threshold, "DegUi.threshold") {
+            Ok(v) => v,
+            Err(e) => {
+                self.set_validation_error(e);
+                return rows_of(&self.deg_result);
+            }
+        };
         self.deg_parsed = units.clone();
         match degradation::degradation_analysis(
             &units,
-            fnum(&self.deg_threshold, 70.0),
+            thr,
             &self.deg_model,
             &self.deg_dist,
             self.deg_increasing,
@@ -2677,15 +4107,37 @@ impl Work {
                 for (i, pt) in r.pseudo_times.iter().enumerate() {
                     rows.push((
                         format!("Unit {} pseudo-failure time", i + 1),
-                        if pt.is_finite() { format!("{:.1} ({})", pt, if r.failed[i] { "failed" } else { "censored" }) } else { "never crosses".into() },
+                        if pt.is_finite() {
+                            format!(
+                                "{:.1} ({})",
+                                pt,
+                                if r.failed[i] { "failed" } else { "censored" }
+                            )
+                        } else {
+                            "never crosses".into()
+                        },
                     ));
                 }
                 if let Some(f) = &r.fit {
+                    let info = fit_status_info(f);
+                    self.deg_fit_status = info.status;
+                    self.deg_fit_status_note = info.note;
+                    self.deg_fit_warnings = info.warnings;
                     rows.push(("Life fit".into(), f.summary().replace('\n', " | ")));
+                } else {
+                    self.deg_fit_status = "success".into();
+                    self.deg_fit_status_note = String::new();
+                    self.deg_fit_warnings = Vec::new();
+                }
+                for r2 in rows.iter_mut() {
+                    if r2.1.contains("NaN") || r2.1.contains("inf") {
+                        r2.1 = "unavailable: non-finite result".into();
+                    }
                 }
                 self.deg_result = rows_text(&rows);
                 self.deg_data = Some(r);
                 self.note("Degradation analysis complete.");
+                self.mark_computed();
                 rows
             }
             Err(e) => {
@@ -2699,39 +4151,120 @@ impl Work {
         let mut stress: Vec<Vec<f64>> = Vec::new();
         let mut times: Vec<f64> = Vec::new();
         let mut failed: Vec<bool> = Vec::new();
+        if self.alt_data.trim().is_empty() {
+            self.set_validation_error(ValidationError::new(
+                "AltUi.data",
+                "",
+                "empty required field",
+            ));
+            return rows_of(&self.alt_result);
+        }
         for line in self.alt_data.lines() {
-            let vals = parse_numbers(line);
+            if line.trim().is_empty() {
+                continue;
+            }
+            let cells: Vec<&str> = line.split(',').map(|c| c.trim()).collect();
+            if cells.iter().any(|c| c.is_empty()) {
+                self.set_validation_error(ValidationError::new(
+                    "AltUi.data",
+                    line,
+                    "missing cell in ALT data row",
+                ));
+                return rows_of(&self.alt_result);
+            }
+            let mut vals: Vec<f64> = Vec::new();
+            for c in &cells {
+                match valid_f64(c, "AltUi.data") {
+                    Ok(v) => vals.push(v),
+                    Err(mut e) => {
+                        e.token = line.to_string();
+                        self.set_validation_error(e);
+                        return rows_of(&self.alt_result);
+                    }
+                }
+            }
+            if vals.len() < 2 {
+                self.set_validation_error(ValidationError::new(
+                    "AltUi.data",
+                    line,
+                    "ALT data row needs at least stress and time",
+                ));
+                return rows_of(&self.alt_result);
+            }
+            if vals[1] < 0.0 {
+                self.set_validation_error(ValidationError::new(
+                    "AltUi.data",
+                    line,
+                    "negative time is not allowed",
+                ));
+                return rows_of(&self.alt_result);
+            }
             if vals.len() >= 2 {
                 if self.alt_model == "eyring" && vals.len() >= 3 {
                     stress.push(vec![vals[0], vals[1]]);
                     times.push(vals[2]);
-                    failed.push(if vals.len() >= 4 { vals[3] != 0.0 } else { true });
+                    failed.push(if vals.len() >= 4 {
+                        vals[3] != 0.0
+                    } else {
+                        true
+                    });
                 } else {
                     stress.push(vec![vals[0]]);
                     times.push(vals[1]);
-                    failed.push(if vals.len() >= 3 { vals[2] != 0.0 } else { true });
+                    failed.push(if vals.len() >= 3 {
+                        vals[2] != 0.0
+                    } else {
+                        true
+                    });
                 }
             }
         }
-        let use_s = parse_numbers(&self.alt_use_stress);
-        let t = fnum(&self.alt_t, 1000.0);
+        let use_s = match valid_parse_numbers(&self.alt_use_stress, "AltUi.use-stress") {
+            Ok(v) => v,
+            Err(e) => {
+                self.set_validation_error(e);
+                return rows_of(&self.alt_result);
+            }
+        };
+        let t = match valid_f64_nonneg(&self.alt_t, "AltUi.t") {
+            Ok(v) => v,
+            Err(e) => {
+                self.set_validation_error(e);
+                return rows_of(&self.alt_result);
+            }
+        };
         let mut rows: Vec<(String, String)> = Vec::new();
         self.alt_series = Vec::new();
         match alt_mod::fit_alt(&self.alt_model, &stress, &times) {
             Ok(f) => {
-                rows.push(("Least squares coefficients".into(), f.coef.iter().map(|(k, v)| format!("{}={:.4}", k, v)).collect::<Vec<String>>().join(", ")));
+                rows.push((
+                    "Least squares coefficients".into(),
+                    f.coef
+                        .iter()
+                        .map(|(k, v)| format!("{}={:.4}", k, v))
+                        .collect::<Vec<String>>()
+                        .join(", "),
+                ));
                 rows.push(("Least squares sigma".into(), format!("{:.3}", f.sigma)));
-                rows.push(("Median life at use stress".into(), format!("{:.1}", f.median_life(&use_s))));
-                rows.push((format!("Least squares R({:.0})", t), format!("{:.4}", f.reliability(t, &use_s))));
+                rows.push((
+                    "Median life at use stress".into(),
+                    format!("{:.1}", f.median_life(&use_s)),
+                ));
+                rows.push((
+                    format!("Least squares R({:.0})", t),
+                    format!("{:.4}", f.reliability(t, &use_s)),
+                ));
                 if let Some(ea) = f.activation_energy_ev() {
                     rows.push(("Activation energy".into(), format!("{:.3} eV", ea)));
                 }
                 let med = f.median_life(&use_s);
                 if med.is_finite() && med > 0.0 {
-                    self.alt_series = (0..=60).map(|k| {
-                        let tt = med * 2.5 * k as f64 / 60.0;
-                        (tt, f.reliability(tt, &use_s))
-                    }).collect();
+                    self.alt_series = (0..=60)
+                        .map(|k| {
+                            let tt = med * 2.5 * k as f64 / 60.0;
+                            (tt, f.reliability(tt, &use_s))
+                        })
+                        .collect();
                 }
             }
             Err(e) => rows.push(("Least squares error".into(), e)),
@@ -2739,64 +4272,140 @@ impl Work {
         match alt_mod::fit_alt_mle(&self.alt_model, &stress, &times, Some(&failed)) {
             Ok(f) => {
                 let (lo, hi) = f.reliability_bounds(t, &use_s, 0.05);
-                rows.push(("MLE coefficients".into(), f.coef.iter().map(|(k, v)| format!("{}={:.4}", k, v)).collect::<Vec<String>>().join(", ")));
+                rows.push((
+                    "MLE coefficients".into(),
+                    f.coef
+                        .iter()
+                        .map(|(k, v)| format!("{}={:.4}", k, v))
+                        .collect::<Vec<String>>()
+                        .join(", "),
+                ));
                 rows.push(("MLE sigma".into(), format!("{:.3}", f.sigma)));
                 rows.push(("MLE loglik".into(), format!("{:.2}", f.loglik)));
-                rows.push((format!("MLE R({:.0}) at use stress", t), format!("{:.4} (bounds {:.4} to {:.4})", f.reliability(t, &use_s), lo, hi)));
+                rows.push((
+                    format!("MLE R({:.0}) at use stress", t),
+                    format!(
+                        "{:.4} (bounds {:.4} to {:.4})",
+                        f.reliability(t, &use_s),
+                        lo,
+                        hi
+                    ),
+                ));
                 if let Some(ea) = f.activation_energy_ev() {
                     rows.push(("MLE activation energy".into(), format!("{:.3} eV", ea)));
                 }
             }
             Err(e) => rows.push(("MLE error".into(), e)),
         }
+        // ALT status: success if either fit produced rows without error
+        if rows.iter().any(|(l, _)| l.contains("error")) && rows.len() <= 2 {
+            self.alt_fit_status = "failed".into();
+            self.alt_fit_status_note = rows.first().map(|(_, v)| v.clone()).unwrap_or_default();
+        } else {
+            self.alt_fit_status = "success".into();
+            self.alt_fit_status_note = String::new();
+        }
+        self.alt_fit_warnings = Vec::new();
+        for r in rows.iter_mut() {
+            if r.1.contains("NaN") || r.1 == "inf" || r.1.contains(": inf") {
+                r.1 = "unavailable: non-finite result".into();
+            }
+        }
         self.alt_result = rows_text(&rows);
         self.note("ALT fit complete.");
+        self.mark_computed();
         rows
     }
 
     pub fn compute_growth(&mut self) -> Vec<(String, String)> {
-        let times = parse_numbers(&self.growth_times);
+        let times = match valid_parse_numbers_nonneg(&self.growth_times, "GrowthUi.times") {
+            Ok(v) => v,
+            Err(e) => {
+                self.set_validation_error(e);
+                return rows_of(&self.growth_result);
+            }
+        };
         let ca = growth::fit_crow_amsaa(&times, None);
         let mut rows: Vec<(String, String)> = vec![
             ("Crow-AMSAA beta".into(), format!("{:.3}", ca.beta)),
             ("Crow-AMSAA lambda".into(), format!("{:.5}", ca.lam)),
             ("Failures n".into(), format!("{}", ca.n_fail)),
-            (format!("Instantaneous MTBF at T={:.0}", ca.t_end), format!("{:.1}", ca.instantaneous_mtbf(ca.t_end))),
-            ("Cumulative MTBF".into(), format!("{:.1}", ca.cumulative_mtbf(ca.t_end))),
+            (
+                format!("Instantaneous MTBF at T={:.0}", ca.t_end),
+                format!("{:.1}", ca.instantaneous_mtbf(ca.t_end)),
+            ),
+            (
+                "Cumulative MTBF".into(),
+                format!("{:.1}", ca.cumulative_mtbf(ca.t_end)),
+            ),
         ];
         match growth::fit_duane(&times) {
             Ok(du) => {
                 rows.push(("Duane alpha".into(), format!("{:.3}", du.alpha)));
-                rows.push(("Duane instantaneous MTBF at T".into(), format!("{:.1}", du.instantaneous_mtbf_at(ca.t_end))));
+                rows.push((
+                    "Duane instantaneous MTBF at T".into(),
+                    format!("{:.1}", du.instantaneous_mtbf_at(ca.t_end)),
+                ));
             }
             Err(e) => rows.push(("Duane error".into(), e)),
         }
         self.growth_result = rows_text(&rows);
         self.growth_fit = Some(ca);
         self.note("Growth fit complete.");
+        self.mark_computed();
         rows
     }
 
     pub fn compute_competing(&mut self) -> Vec<(String, String)> {
         let mut times: Vec<f64> = Vec::new();
         let mut mode_strings: Vec<Option<String>> = Vec::new();
+        if self.comp_data.trim().is_empty() {
+            self.set_validation_error(ValidationError::new(
+                "CompUi.data",
+                "",
+                "empty required field",
+            ));
+            return rows_of(&self.comp_result);
+        }
         for line in self.comp_data.lines() {
             let line = line.trim();
             if line.is_empty() {
                 continue;
             }
-            if let Some((a, b)) = line.split_once(',') {
-                if let Ok(t) = a.trim().parse::<f64>() {
-                    times.push(t);
-                    let m = b.trim().to_string();
-                    mode_strings.push(if m.is_empty() { None } else { Some(m) });
+            match line.split_once(',') {
+                Some((a, b)) => match valid_f64_nonneg(a.trim(), "CompUi.data") {
+                    Ok(t) => {
+                        times.push(t);
+                        let m = b.trim().to_string();
+                        mode_strings.push(if m.is_empty() { None } else { Some(m) });
+                    }
+                    Err(mut e) => {
+                        e.token = a.trim().to_string();
+                        self.set_validation_error(e);
+                        return rows_of(&self.comp_result);
+                    }
+                },
+                None => {
+                    self.set_validation_error(ValidationError::new(
+                        "CompUi.data",
+                        line,
+                        "expected time,cause",
+                    ));
+                    return rows_of(&self.comp_result);
                 }
             }
         }
+        let comp_t_val = match valid_f64_nonneg(&self.comp_t, "CompUi.t") {
+            Ok(v) => v,
+            Err(e) => {
+                self.set_validation_error(e);
+                return rows_of(&self.comp_result);
+            }
+        };
         let events: Vec<Option<&str>> = mode_strings.iter().map(|o| o.as_deref()).collect();
         match competing::fit_competing_risks(&times, &events, &self.comp_dist) {
             Ok(cr) => {
-                let t = fnum(&self.comp_t, 1000.0);
+                let t = comp_t_val;
                 let mut modes: Vec<String> = Vec::new();
                 for m in mode_strings.iter().flatten() {
                     if !modes.contains(m) {
@@ -2806,17 +4415,45 @@ impl Work {
                 modes.sort();
                 let mut rows: Vec<(String, String)> = Vec::new();
                 for (name, fit) in &cr.modes {
-                    rows.push((format!("Mode {} fit", name), fit.summary().replace('\n', " | ")));
+                    rows.push((
+                        format!("Mode {} fit", name),
+                        fit.summary().replace('\n', " | "),
+                    ));
                 }
-                rows.push((format!("Overall reliability at {:.0}", t), format!("{:.4}", competing::overall_reliability(&cr, t))));
+                rows.push((
+                    format!("Overall reliability at {:.0}", t),
+                    format!("{:.4}", competing::overall_reliability(&cr, t)),
+                ));
                 for m in &modes {
-                    rows.push((format!("CIF {} at {:.0}", m, t), format!("{:.4}", competing::cumulative_incidence(&cr, m, t))));
+                    rows.push((
+                        format!("CIF {} at {:.0}", m, t),
+                        format!("{:.4}", competing::cumulative_incidence(&cr, m, t)),
+                    ));
                 }
                 for (name, p) in competing::failure_probabilities(&cr, t) {
-                    rows.push((format!("Failure probability {} at {:.0}", name, t), format!("{:.4}", p)));
+                    rows.push((
+                        format!("Failure probability {} at {:.0}", name, t),
+                        format!("{:.4}", p),
+                    ));
+                }
+                if let Some((_, f0)) = cr.modes.first() {
+                    let info = fit_status_info(f0);
+                    self.comp_fit_status = info.status;
+                    self.comp_fit_status_note = info.note;
+                    self.comp_fit_warnings = info.warnings;
+                } else {
+                    self.comp_fit_status = "success".into();
+                    self.comp_fit_status_note = String::new();
+                    self.comp_fit_warnings = Vec::new();
+                }
+                for r in rows.iter_mut() {
+                    if r.1.contains("NaN") || r.1.contains("inf") {
+                        r.1 = "unavailable: non-finite result".into();
+                    }
                 }
                 self.comp_result = rows_text(&rows);
                 self.note("Competing risks fit complete.");
+                self.mark_computed();
                 rows
             }
             Err(e) => {
@@ -2829,26 +4466,69 @@ impl Work {
 
 impl Work {
     pub fn compute_rbd_availability(&mut self) -> Vec<(String, String)> {
-        let horizon = fnum(&self.rbd_horizon, 20000.0);
-        let res = system::simulate_availability(&self.rbd_spec, horizon, 40, 3, 20);
+        let horizon = match valid_f64_nonneg(&self.rbd_horizon, "RbdUi.horizon") {
+            Ok(v) => v,
+            Err(e) => {
+                self.set_validation_error(e);
+                return rows_of(&self.rbd_avail);
+            }
+        };
+        let _ = match valid_f64_nonneg(&self.rbd_t, "RbdUi.t") {
+            Ok(v) => v,
+            Err(e) => {
+                self.set_validation_error(e);
+                return rows_of(&self.rbd_avail);
+            }
+        };
+        let n_sim = match valid_usize(&self.rbd_sims, "RbdUi.sims") {
+            Ok(v) => v,
+            Err(e) => {
+                self.set_validation_error(e);
+                return rows_of(&self.rbd_avail);
+            }
+        };
+        let res = system::simulate_availability(&self.rbd_spec, horizon, n_sim, 3, 20);
         let rows: Vec<(String, String)> = vec![
-            ("Mean availability".into(), format!("{:.4}", res.mean_availability)),
-            ("Expected downtime".into(), format!("{:.1}", res.expected_downtime)),
+            (
+                "Mean availability".into(),
+                format!("{:.4}", res.mean_availability),
+            ),
+            (
+                "Expected downtime".into(),
+                format!("{:.1}", res.expected_downtime),
+            ),
             ("Mean failures".into(), format!("{:.2}", res.mean_failures)),
             ("Mean repairs".into(), format!("{:.2}", res.mean_repairs)),
+            ("Simulations".into(), format!("{}", n_sim)),
+            (
+                "Monte Carlo standard error".into(),
+                format!("{:.4}", res.std_error),
+            ),
         ];
         self.rbd_avail = rows_text(&rows);
         self.note("Availability simulation complete.");
+        self.mark_computed();
         rows
     }
 
     pub fn compute_rbd_importance(&mut self) {
-        let t = fnum(&self.rbd_t, 1000.0);
+        let t = match valid_f64_nonneg(&self.rbd_t, "RbdUi.t") {
+            Ok(v) => v,
+            Err(e) => {
+                self.set_validation_error(e);
+                return;
+            }
+        };
         match importance::importance_measures(&self.rbd_spec, t) {
             Ok(v) => {
                 self.rbd_importance = v;
-                self.rbd_importance_note = format!("Importance at t={:.0} for {} blocks.", t, self.rbd_importance.len());
+                self.rbd_importance_note = format!(
+                    "Importance at t={:.0} for {} blocks.",
+                    t,
+                    self.rbd_importance.len()
+                );
                 self.note("Importance measures computed.");
+                self.mark_computed();
             }
             Err(e) => {
                 self.rbd_importance.clear();
@@ -2860,9 +4540,16 @@ impl Work {
     pub fn compute_fault_tree(&mut self) -> Vec<(String, String)> {
         match serde_json::from_str::<FtNode>(&self.ft_json) {
             Ok(node) => {
-                let cuts = faulttree::minimal_cut_sets(&node);
+                let eval = match faulttree::evaluate(&node) {
+                    Ok(v) => v,
+                    Err(msg) => {
+                        self.set_validation_error(ValidationError::new("FtUi.json", "", &msg));
+                        return rows_of(&self.ft_result);
+                    }
+                };
+                let (top_prob, cuts) = (eval.top_probability, eval.cut_sets);
                 let mut rows: Vec<(String, String)> = vec![
-                    ("Top probability".into(), format!("{:.6}", faulttree::top_probability(&node))),
+                    ("Top probability".into(), format!("{:.6}", top_prob)),
                     ("Minimal cut sets".into(), format!("{}", cuts.len())),
                 ];
                 for (i, c) in cuts.iter().enumerate() {
@@ -2872,6 +4559,7 @@ impl Work {
                 }
                 self.ft_result = rows_text(&rows);
                 self.note("Fault tree evaluated.");
+                self.mark_computed();
                 rows
             }
             Err(e) => {
@@ -2898,7 +4586,12 @@ impl Work {
             self.fm_occ.trim().parse::<u32>().unwrap_or(1),
             self.fm_det.trim().parse::<u32>().unwrap_or(1),
         ));
-        self.fmea_crit.push([self.fm_alpha.clone(), self.fm_beta.clone(), self.fm_lambda.clone(), self.fm_hours.clone()]);
+        self.fmea_crit.push([
+            self.fm_alpha.clone(),
+            self.fm_beta.clone(),
+            self.fm_lambda.clone(),
+            self.fm_hours.clone(),
+        ]);
         self.fmea_status = "Row added.".into();
         self.note(self.fmea_status.clone());
     }
@@ -2935,7 +4628,10 @@ impl Work {
             Ok(ws) => {
                 self.fmea_type = ws.fmea_type.as_str().to_string();
                 self.fmea_rows = ws.rows;
-                self.fmea_crit = vec![[String::new(), String::new(), String::new(), String::new()]; self.fmea_rows.len()];
+                self.fmea_crit = vec![
+                    [String::new(), String::new(), String::new(), String::new()];
+                    self.fmea_rows.len()
+                ];
                 self.fmea_status = "CSV imported.".into();
                 self.note(self.fmea_status.clone());
             }
@@ -2953,7 +4649,9 @@ impl Work {
     pub fn fmea_export_control_plan(&mut self) {
         let csv = fmea::control_plan_csv(&self.fmea_rows);
         match std::fs::write(&self.fmea_export_path, csv) {
-            Ok(()) => self.fmea_status = format!("Control plan written to {}", self.fmea_export_path),
+            Ok(()) => {
+                self.fmea_status = format!("Control plan written to {}", self.fmea_export_path)
+            }
             Err(e) => self.fmea_status = format!("Export error: {}", e),
         }
         self.note(self.fmea_status.clone());
@@ -2981,45 +4679,194 @@ impl Work {
     }
 
     pub fn compute_warranty(&mut self) -> Vec<(String, String)> {
-        let sales: Vec<u32> = parse_numbers(&self.war_sales).iter().map(|v| *v as u32).collect();
-        let mut records: Vec<WarrantyRecord> = Vec::new();
-        for line in self.war_returns.lines() {
-            let vals = parse_numbers(line);
-            if vals.len() >= 2 {
-                records.push(WarrantyRecord { sale_period: vals[0] as usize, return_period: vals[1] as usize });
+        // Validate sales as integer counts
+        if self.war_sales.trim().is_empty() {
+            self.set_validation_error(ValidationError::new(
+                "WarUi.sales",
+                "",
+                "empty required field",
+            ));
+            return rows_of(&self.war_result);
+        }
+        let mut sales: Vec<u32> = Vec::new();
+        for tok in self
+            .war_sales
+            .split(|c: char| c == ',' || c == ';' || c.is_whitespace())
+            .filter(|s| !s.trim().is_empty())
+        {
+            match valid_usize(tok.trim(), "WarUi.sales") {
+                Ok(v) => {
+                    if v > u32::MAX as usize {
+                        self.set_validation_error(ValidationError::new(
+                            "WarUi.sales",
+                            tok,
+                            "count too large",
+                        ));
+                        return rows_of(&self.war_result);
+                    }
+                    sales.push(v as u32);
+                }
+                Err(e) => {
+                    self.set_validation_error(e);
+                    return rows_of(&self.war_result);
+                }
             }
         }
-        let max_age = records.iter().filter(|r| r.return_period >= r.sale_period).map(|r| r.return_period - r.sale_period).max().unwrap_or(0);
+        let mut records_all: Vec<WarrantyRecord> = Vec::new();
+        for line in self.war_returns.lines() {
+            if line.trim().is_empty() {
+                continue;
+            }
+            let toks: Vec<&str> = line
+                .split(|c: char| c == ',' || c == ';' || c.is_whitespace())
+                .filter(|s| !s.trim().is_empty())
+                .collect();
+            if toks.len() != 2 {
+                self.set_validation_error(ValidationError::new(
+                    "WarUi.returns",
+                    line,
+                    "expected sale period, return period",
+                ));
+                return rows_of(&self.war_result);
+            }
+            let sp = match valid_usize(toks[0], "WarUi.returns") {
+                Ok(v) => v,
+                Err(e) => {
+                    self.set_validation_error(e);
+                    return rows_of(&self.war_result);
+                }
+            };
+            let rp = match valid_usize(toks[1], "WarUi.returns") {
+                Ok(v) => v,
+                Err(e) => {
+                    self.set_validation_error(e);
+                    return rows_of(&self.war_result);
+                }
+            };
+            records_all.push(WarrantyRecord {
+                sale_period: sp,
+                return_period: rp,
+            });
+        }
+        let current = match valid_usize(&self.war_current, "WarUi.current") {
+            Ok(v) => v,
+            Err(e) => {
+                self.set_validation_error(e);
+                return rows_of(&self.war_result);
+            }
+        };
+        let horizon = match valid_usize(&self.war_horizon, "WarUi.horizon") {
+            Ok(v) => v,
+            Err(e) => {
+                self.set_validation_error(e);
+                return rows_of(&self.war_result);
+            }
+        };
+        let excluded = records_all
+            .iter()
+            .filter(|r| r.return_period > current)
+            .count();
+        let records: Vec<WarrantyRecord> = records_all
+            .iter()
+            .cloned()
+            .filter(|r| r.return_period <= current)
+            .collect();
+        self.war_excluded_future = excluded;
+        self.war_notes = if excluded > 0 {
+            vec![format!(
+                "Excluded {} future return(s) with return period after current period {}",
+                excluded, current
+            )]
+        } else {
+            Vec::new()
+        };
+        let max_age = records
+            .iter()
+            .filter(|r| r.return_period >= r.sale_period)
+            .map(|r| r.return_period - r.sale_period)
+            .max()
+            .unwrap_or(0);
         let table = warranty::nevada_table(sales.len(), &records, max_age);
-        self.war_sale_labels = (0..sales.len()).map(|i| format!("Sale period {}", i)).collect();
+        self.war_sale_labels = (0..sales.len())
+            .map(|i| format!("Sale period {}", i))
+            .collect();
         self.war_table = table.clone();
         let mut rows: Vec<(String, String)> = vec![
-            ("Returns by age".into(), warranty::returns_by_age(&table).iter().map(|v| v.to_string()).collect::<Vec<String>>().join(", ")),
-            ("Total returns".into(), format!("{}", warranty::total_returns(&table))),
+            (
+                "Returns by age".into(),
+                warranty::returns_by_age(&table)
+                    .iter()
+                    .map(|v| v.to_string())
+                    .collect::<Vec<String>>()
+                    .join(", "),
+            ),
+            (
+                "Total returns".into(),
+                format!("{}", warranty::total_returns(&table)),
+            ),
+            ("Excluded future returns".into(), format!("{}", excluded)),
         ];
-        match warranty::forecast_returns(&sales, &records, inum(&self.war_current, 0), inum(&self.war_horizon, 6)) {
+        for n in &self.war_notes.clone() {
+            rows.push(("Note".into(), n.clone()));
+        }
+        match warranty::forecast_returns(&sales, &records_all, current, horizon) {
             Ok(f) => {
+                self.war_excluded_future = f.excluded_future_returns;
+                self.war_notes = f.notes.clone();
+                for n in &f.notes {
+                    rows.push(("Forecast note".into(), n.clone()));
+                }
                 rows.push(("Forecast Weibull beta".into(), format!("{:.3}", f.beta)));
                 rows.push(("Forecast Weibull eta".into(), format!("{:.2}", f.eta)));
-                rows.push(("Expected returns over horizon".into(), format!("{:.2}", f.expected_returns)));
-                rows.push(("Units in service".into(), format!("{:.0}", f.units_in_service)));
+                rows.push((
+                    "Expected returns over horizon".into(),
+                    format!("{:.2}", f.expected_returns),
+                ));
+                rows.push((
+                    "Units in service".into(),
+                    format!("{:.0}", f.units_in_service),
+                ));
             }
             Err(e) => rows.push(("Forecast error".into(), e)),
         }
         self.war_result = rows_text(&rows);
         self.note("Warranty analysis complete.");
+        self.mark_computed();
         rows
     }
 }
 
 impl Work {
     pub fn compute_pred_life(&mut self) -> Vec<(String, String)> {
-        let params = parse_params_text(&self.pred_life_params);
-        let t = fnum(&self.pred_life_t, 1000.0);
+        let params = match valid_parse_params(&self.pred_life_params, "PredUi.life-params") {
+            Ok(v) => v,
+            Err(e) => {
+                self.set_validation_error(e);
+                return rows_of(&self.pred_life_result);
+            }
+        };
+        // also support whitespace separated pairs via fallback if empty and text non-empty handled by valid parser (comma/semicolon split covers)
+        let t = match valid_f64_nonneg(&self.pred_life_t, "PredUi.life-t") {
+            Ok(v) => v,
+            Err(e) => {
+                self.set_validation_error(e);
+                return rows_of(&self.pred_life_result);
+            }
+        };
         let r = dist_mod::reliability(&self.pred_life_dist, &params, t);
-        self.pred_life_result = format!("Life model {}: R({:.0}) = {:.4}", dist_mod::dist_label(&self.pred_life_dist), t, r);
+        self.pred_life_result = format!(
+            "Life model {}: R({:.0}) = {}",
+            dist_mod::dist_label(&self.pred_life_dist),
+            t,
+            if r.is_finite() {
+                format!("{:.4}", r)
+            } else {
+                "unavailable: non-finite result".into()
+            }
+        );
         self.headline = self.pred_life_result.clone();
         self.note("Life model reliability computed.");
+        self.mark_computed();
         rows_of(&self.pred_life_result)
     }
 
@@ -3029,7 +4876,8 @@ impl Work {
             let cells: Vec<&str> = line.split(',').map(|c| c.trim()).collect();
             if cells.len() >= 3 {
                 if let Ok(rate) = cells[1].parse::<f64>() {
-                    let mut p = PartEntry::new(cells[0], rate, cells[2].parse::<u32>().unwrap_or(1));
+                    let mut p =
+                        PartEntry::new(cells[0], rate, cells[2].parse::<u32>().unwrap_or(1));
                     if cells.len() >= 4 {
                         p.stress_factor = cells[3].parse::<f64>().unwrap_or(1.0);
                     }
@@ -3045,14 +4893,33 @@ impl Work {
 
     pub fn compute_pred_parts(&mut self) -> Vec<(String, String)> {
         let parts = self.pred_parse_parts(&self.pred_parts.clone());
-        let t = fnum(&self.pred_t, 1000.0);
+        let t = match valid_f64_nonneg(&self.pred_t, "PredUi.t") {
+            Ok(v) => v,
+            Err(e) => {
+                self.set_validation_error(e);
+                return rows_of(&self.pred_result);
+            }
+        };
         let rows: Vec<(String, String)> = vec![
-            ("System failure rate per million hours".into(), format!("{:.3}", prediction::system_failure_rate_per_million_hours(&parts))),
-            ("System MTBF (hours)".into(), format!("{:.0}", prediction::system_mtbf_hours(&parts))),
-            (format!("Reliability at {:.0} h", t), format!("{:.4}", prediction::system_reliability(&parts, t))),
+            (
+                "System failure rate per million hours".into(),
+                format!(
+                    "{:.3}",
+                    prediction::system_failure_rate_per_million_hours(&parts)
+                ),
+            ),
+            (
+                "System MTBF (hours)".into(),
+                format!("{:.0}", prediction::system_mtbf_hours(&parts)),
+            ),
+            (
+                format!("Reliability at {:.0} h", t),
+                format!("{:.4}", prediction::system_reliability(&parts, t)),
+            ),
         ];
         self.pred_result = rows_text(&rows);
         self.note("Prediction complete.");
+        self.mark_computed();
         rows
     }
 
@@ -3060,7 +4927,8 @@ impl Work {
         match std::fs::read_to_string(&self.pred_lib_path) {
             Ok(text) => match prediction::library_from_csv(&text) {
                 Ok(parts) => {
-                    self.pred_lib_note = format!("Loaded {} parts from {}", parts.len(), self.pred_lib_path);
+                    self.pred_lib_note =
+                        format!("Loaded {} parts from {}", parts.len(), self.pred_lib_path);
                     self.pred_lib_parts = parts;
                 }
                 Err(e) => self.pred_lib_note = format!("Library error: {}", e),
@@ -3073,9 +4941,24 @@ impl Work {
     pub fn pred_lib_rows(&self) -> Vec<(String, String)> {
         let t = fnum(&self.pred_t, 1000.0);
         vec![
-            ("System failure rate per million hours".into(), format!("{:.3}", prediction::system_failure_rate_per_million_hours(&self.pred_lib_parts))),
-            ("System MTBF (hours)".into(), format!("{:.0}", prediction::system_mtbf_hours(&self.pred_lib_parts))),
-            (format!("Reliability at {:.0} h", t), format!("{:.4}", prediction::system_reliability(&self.pred_lib_parts, t))),
+            (
+                "System failure rate per million hours".into(),
+                format!(
+                    "{:.3}",
+                    prediction::system_failure_rate_per_million_hours(&self.pred_lib_parts)
+                ),
+            ),
+            (
+                "System MTBF (hours)".into(),
+                format!("{:.0}", prediction::system_mtbf_hours(&self.pred_lib_parts)),
+            ),
+            (
+                format!("Reliability at {:.0} h", t),
+                format!(
+                    "{:.4}",
+                    prediction::system_reliability(&self.pred_lib_parts, t)
+                ),
+            ),
         ]
     }
 
@@ -3086,7 +4969,10 @@ impl Work {
                 Ok(v) => {
                     self.pred217_json = Some(v);
                     self.pred217_result = String::new();
-                    self.note(format!("Loaded MIL-HDBK-217F category {}", self.pred217_file));
+                    self.note(format!(
+                        "Loaded MIL-HDBK-217F category {}",
+                        self.pred217_file
+                    ));
                 }
                 Err(e) => self.pred217_result = format!("Category JSON error: {}", e),
             },
@@ -3095,10 +4981,12 @@ impl Work {
     }
 
     pub fn pred217_is_misc(&self) -> bool {
-        self.pred217_json.as_ref()
+        self.pred217_json
+            .as_ref()
             .and_then(|cat| cat.get("lambda_b"))
             .and_then(|lb| lb.get("kind"))
-            .and_then(|v| v.as_str()) == Some("fixed_rates")
+            .and_then(|v| v.as_str())
+            == Some("fixed_rates")
     }
 
     pub fn pred217_is_pth(&self) -> bool {
@@ -3114,14 +5002,24 @@ impl Work {
                 if !m.is_empty() {
                     let mut opts: Vec<String> = m.keys().cloned().collect();
                     opts.sort();
-                    fields.push((true, key.to_string(), format!("{} ({})", key, map_name), opts));
+                    fields.push((
+                        true,
+                        key.to_string(),
+                        format!("{} ({})", key, map_name),
+                        opts,
+                    ));
                 }
             }
         }
         if let Some(axes) = lb.get("axes").and_then(|v| v.as_array()) {
             for a in axes {
                 if let Some(name) = a.get("name").and_then(|v| v.as_str()) {
-                    fields.push((false, name.to_string(), format!("lambda_b variable {}", name), Vec::new()));
+                    fields.push((
+                        false,
+                        name.to_string(),
+                        format!("lambda_b variable {}", name),
+                        Vec::new(),
+                    ));
                 }
             }
         }
@@ -3141,16 +5039,31 @@ impl Work {
                             .unwrap_or_default();
                         opts.sort();
                         if !input.is_empty() && !opts.is_empty() {
-                            fields.push((true, input.to_string(), format!("{} input {}", fname, input), opts));
+                            fields.push((
+                                true,
+                                input.to_string(),
+                                format!("{} input {}", fname, input),
+                                opts,
+                            ));
                         }
                     }
                     "series" | "columns" | "bands" => {
                         if !input.is_empty() {
-                            fields.push((false, input.to_string(), format!("{} input {}", fname, input), Vec::new()));
+                            fields.push((
+                                false,
+                                input.to_string(),
+                                format!("{} input {}", fname, input),
+                                Vec::new(),
+                            ));
                         }
                     }
                     _ => {
-                        fields.push((false, fname.clone(), format!("{} value (formula factor)", fname), Vec::new()));
+                        fields.push((
+                            false,
+                            fname.clone(),
+                            format!("{} value (formula factor)", fname),
+                            Vec::new(),
+                        ));
                     }
                 }
             }
@@ -3169,7 +5082,9 @@ impl Work {
     }
 
     pub fn pred217_part_options(&self) -> Vec<String> {
-        let mut names: Vec<String> = self.pred217_json.as_ref()
+        let mut names: Vec<String> = self
+            .pred217_json
+            .as_ref()
             .and_then(|cat| cat.get("lambda_b"))
             .and_then(|lb| lb.get("rates"))
             .and_then(|v| v.as_object())
@@ -3191,10 +5106,22 @@ impl Work {
             }
         };
         if self.pred217_is_misc() {
-            let rates = cat.get("lambda_b").and_then(|lb| lb.get("rates")).and_then(|v| v.as_object()).cloned().unwrap_or_default();
+            let rates = cat
+                .get("lambda_b")
+                .and_then(|lb| lb.get("rates"))
+                .and_then(|v| v.as_object())
+                .cloned()
+                .unwrap_or_default();
             let part = self.pred217_named.get("part").cloned().unwrap_or_default();
-            let env = self.pred217_named.get("environment").cloned().unwrap_or_else(|| "GB".into());
-            let base = rates.get(part.as_str()).and_then(|v| v.as_f64()).unwrap_or(f64::NAN);
+            let env = self
+                .pred217_named
+                .get("environment")
+                .cloned()
+                .unwrap_or_else(|| "GB".into());
+            let base = rates
+                .get(part.as_str())
+                .and_then(|v| v.as_f64())
+                .unwrap_or(f64::NAN);
             let pi_e = standards217::pi_table_value(&cat, "pi_E", &env).unwrap_or(f64::NAN);
             self.pred217_result = format!(
                 "Base rate per million hours: {:.4}\npi_E ({}): {:.4}\nFailure rate per million hours: {:.4}",
@@ -3205,12 +5132,42 @@ impl Work {
         if self.pred217_is_pth() {
             let rate = standards217::pth_failure_rate(
                 &cat,
-                &self.pred217_named.get("pth_technology").cloned().unwrap_or_default(),
-                fnum(self.pred217_num.get("pth_n1").map(|s| s.as_str()).unwrap_or(""), 0.0),
-                fnum(self.pred217_num.get("pth_n2").map(|s| s.as_str()).unwrap_or(""), 0.0),
-                fnum(self.pred217_num.get("pth_planes").map(|s| s.as_str()).unwrap_or(""), 0.0),
-                &self.pred217_named.get("pth_quality").cloned().unwrap_or_default(),
-                &self.pred217_named.get("pth_environment").cloned().unwrap_or_default(),
+                &self
+                    .pred217_named
+                    .get("pth_technology")
+                    .cloned()
+                    .unwrap_or_default(),
+                fnum(
+                    self.pred217_num
+                        .get("pth_n1")
+                        .map(|s| s.as_str())
+                        .unwrap_or(""),
+                    0.0,
+                ),
+                fnum(
+                    self.pred217_num
+                        .get("pth_n2")
+                        .map(|s| s.as_str())
+                        .unwrap_or(""),
+                    0.0,
+                ),
+                fnum(
+                    self.pred217_num
+                        .get("pth_planes")
+                        .map(|s| s.as_str())
+                        .unwrap_or(""),
+                    0.0,
+                ),
+                &self
+                    .pred217_named
+                    .get("pth_quality")
+                    .cloned()
+                    .unwrap_or_default(),
+                &self
+                    .pred217_named
+                    .get("pth_environment")
+                    .cloned()
+                    .unwrap_or_default(),
             );
             self.pred217_result = format!("PTH failure rate per million hours: {:.5}", rate);
             return;
@@ -3239,38 +5196,116 @@ impl Work {
     }
 
     pub fn compute_alloc(&mut self) -> Vec<(String, String)> {
-        let target = fnum(&self.alloc_target, 0.99);
-        let eq = prediction::allocate_equal(target, inum(&self.alloc_n, 3));
-        let w = parse_numbers(&self.alloc_weights);
+        let target = match valid_f64(&self.alloc_target, "PredUi.alloc-target") {
+            Ok(v) => v,
+            Err(e) => {
+                self.set_validation_error(e);
+                return rows_of(&self.alloc_result);
+            }
+        };
+        let n_alloc = match valid_usize(&self.alloc_n, "PredUi.alloc-n") {
+            Ok(v) => v,
+            Err(e) => {
+                self.set_validation_error(e);
+                return rows_of(&self.alloc_result);
+            }
+        };
+        let eq = prediction::allocate_equal(target, n_alloc);
+        let w = match valid_parse_numbers(&self.alloc_weights, "PredUi.alloc-weights") {
+            Ok(v) => v,
+            Err(e) => {
+                self.set_validation_error(e);
+                return rows_of(&self.alloc_result);
+            }
+        };
         let wt = prediction::allocate_weighted(target, &w);
         let rows: Vec<(String, String)> = vec![
-            ("Equal allocation".into(), eq.iter().map(|v| format!("{:.4}", v)).collect::<Vec<String>>().join(", ")),
-            ("Weighted allocation".into(), wt.iter().map(|v| format!("{:.4}", v)).collect::<Vec<String>>().join(", ")),
+            (
+                "Equal allocation".into(),
+                eq.iter()
+                    .map(|v| format!("{:.4}", v))
+                    .collect::<Vec<String>>()
+                    .join(", "),
+            ),
+            (
+                "Weighted allocation".into(),
+                wt.iter()
+                    .map(|v| format!("{:.4}", v))
+                    .collect::<Vec<String>>()
+                    .join(", "),
+            ),
         ];
         self.alloc_result = rows_text(&rows);
+        self.mark_computed();
         rows
     }
 
     pub fn compute_derating(&mut self) -> Vec<(String, String)> {
-        let r = prediction::derating_check(
-            &self.der_name.clone(),
-            fnum(&self.der_operating, 0.0),
-            fnum(&self.der_rated, 1.0),
-            fnum(&self.der_max, 1.0),
-        );
+        let op = match valid_f64(&self.der_operating, "PredUi.der-operating") {
+            Ok(v) => v,
+            Err(e) => {
+                self.set_validation_error(e);
+                return rows_of(&self.der_result);
+            }
+        };
+        let rated = match valid_f64(&self.der_rated, "PredUi.der-rated") {
+            Ok(v) => v,
+            Err(e) => {
+                self.set_validation_error(e);
+                return rows_of(&self.der_result);
+            }
+        };
+        let mx = match valid_f64(&self.der_max, "PredUi.der-max") {
+            Ok(v) => v,
+            Err(e) => {
+                self.set_validation_error(e);
+                return rows_of(&self.der_result);
+            }
+        };
+        let r = prediction::derating_check(&self.der_name.clone(), op, rated, mx);
         let rows: Vec<(String, String)> = vec![
             ("Part".into(), r.name.clone()),
             ("Derating ratio".into(), format!("{:.3}", r.ratio)),
-            ("Result".into(), if r.pass { "pass".into() } else { "fail".into() }),
+            (
+                "Result".into(),
+                if r.pass { "pass".into() } else { "fail".into() },
+            ),
         ];
         self.der_result = rows_text(&rows);
+        self.mark_computed();
         rows
     }
 
     pub fn compute_clean_room(&mut self) -> Vec<(String, String)> {
+        for (val, fld) in [
+            (self.sr_ea.clone(), "PredUi.sr-ea"),
+            (self.sr_temp.clone(), "PredUi.sr-temp"),
+            (self.sr_ref_temp.clone(), "PredUi.sr-ref-temp"),
+            (self.sr_generic.clone(), "PredUi.sr-generic"),
+            (self.sr_ci_exposure.clone(), "PredUi.sr-ci-exposure"),
+            (self.sr_ci_conf.clone(), "PredUi.sr-ci-conf"),
+        ] {
+            if let Err(e) = valid_f64(&val, fld) {
+                self.set_validation_error(e);
+                return rows_of(&self.pred_clean_result);
+            }
+        }
+        if let Err(e) = valid_usize(&self.sr_ci_failures, "PredUi.sr-ci-failures") {
+            self.set_validation_error(e);
+            return rows_of(&self.pred_clean_result);
+        }
         let ea = fnum(&self.sr_ea, prediction::SR332_DEFAULT_ACTIVATION_ENERGY_EV);
-        let pi_t = prediction::sr332_temperature_factor(ea, fnum(&self.sr_temp, 25.0), fnum(&self.sr_ref_temp, 25.0));
-        let device = prediction::sr332_method1(fnum(&self.sr_generic, 0.0), fnum(&self.sr_pi_q, 1.0), fnum(&self.sr_pi_s, 1.0), pi_t);
+        let pi_t = prediction::sr332_temperature_factor(
+            ea,
+            fnum(&self.sr_temp, 25.0),
+            fnum(&self.sr_ref_temp, 25.0),
+        );
+        let device = prediction::sr332_method1(
+            fnum(&self.sr_generic, 0.0),
+            fnum(&self.sr_pi_q, 1.0),
+            fnum(&self.sr_pi_s, 1.0),
+            pi_t,
+        );
         let mut parts: Vec<(u32, f64)> = Vec::new();
         for line in self.sr_qty_rate.lines() {
             let vals = parse_numbers(line);
@@ -3300,17 +5335,35 @@ impl Work {
         let rows: Vec<(String, String)> = vec![
             ("pi_t (temperature factor)".into(), format!("{:.4}", pi_t)),
             ("Method I device rate".into(), format!("{:.5}", device)),
-            ("Equipment rate (pi_e applied once)".into(), format!("{:.5}", equip)),
+            (
+                "Equipment rate (pi_e applied once)".into(),
+                format!("{:.5}", equip),
+            ),
             ("Method II extrapolated rate".into(), format!("{:.5}", m2)),
-            ("Failure rate CI per hour".into(), format!("{:.3e} to {:.3e}", lo, hi)),
+            (
+                "Failure rate CI per hour".into(),
+                format!("{:.3e} to {:.3e}", lo, hi),
+            ),
             ("Method III combined rate".into(), format!("{:.5}", m3)),
         ];
         self.pred_clean_result = rows_text(&rows);
         self.note("Clean-room calculations complete.");
+        self.mark_computed();
         rows
     }
 
     pub fn compute_mission(&mut self) -> Vec<(String, String)> {
+        for (val, fld) in [
+            (self.mp_base.clone(), "PredUi.mp-base"),
+            (self.mp_ea.clone(), "PredUi.mp-ea"),
+            (self.mp_ref.clone(), "PredUi.mp-ref"),
+            (self.mp_cyc_factor.clone(), "PredUi.mp-cyc"),
+        ] {
+            if let Err(e) = valid_f64(&val, fld) {
+                self.set_validation_error(e);
+                return rows_of(&self.pred_clean_result);
+            }
+        }
         let mut phases: Vec<MissionPhase> = Vec::new();
         for line in self.mp_phases.lines() {
             let cells: Vec<&str> = line.split(',').map(|c| c.trim()).collect();
@@ -3337,25 +5390,48 @@ impl Work {
             fnum(&self.mp_ref, 25.0),
             fnum(&self.mp_cyc_factor, 0.0),
         );
-        let rows: Vec<(String, String)> = vec![
-            ("62380-style mission profile rate".into(), format!("{:.5}", rate)),
-        ];
+        let rows: Vec<(String, String)> = vec![(
+            "62380-style mission profile rate".into(),
+            format!("{:.5}", rate),
+        )];
         self.pred_clean_result = rows_text(&rows);
         self.note("Mission profile rate computed.");
         rows
     }
 
     pub fn compute_doe(&mut self) -> Vec<(String, String)> {
-        let k = inum(&self.doe_k, 3);
-        let y = parse_numbers(&self.doe_y);
+        let k = match valid_usize(&self.doe_k, "DoeUi.k") {
+            Ok(v) => v,
+            Err(e) => {
+                self.set_validation_error(e);
+                return rows_of(&self.doe_result);
+            }
+        };
+        let y = match valid_parse_numbers(&self.doe_y, "DoeUi.y") {
+            Ok(v) => v,
+            Err(e) => {
+                self.set_validation_error(e);
+                return rows_of(&self.doe_result);
+            }
+        };
         match doe::analyze_factorial(k, &y) {
             Ok(effects) => {
-                let mut rows: Vec<(String, String)> = vec![("Design runs".into(), format!("{}", doe::factorial_design(k).len()))];
+                let mut rows: Vec<(String, String)> = vec![(
+                    "Design runs".into(),
+                    format!("{}", doe::factorial_design(k).len()),
+                )];
                 for e in &effects {
-                    rows.push((format!("Term {}", e.name), format!("effect {:.3}, sum of squares {:.3}", e.effect, e.sum_squares)));
+                    rows.push((
+                        format!("Term {}", e.name),
+                        format!(
+                            "effect {:.3}, sum of squares {:.3}",
+                            e.effect, e.sum_squares
+                        ),
+                    ));
                 }
                 self.doe_result = rows_text(&rows);
                 self.note("DOE analysis complete.");
+                self.mark_computed();
                 rows
             }
             Err(e) => {
@@ -3366,11 +5442,26 @@ impl Work {
     }
 
     pub fn compute_flowchart(&mut self) -> Vec<(String, String)> {
+        if let Err(e) = valid_usize(&self.flow_sims, "FlowUi.sims") {
+            self.set_validation_error(e);
+            return rows_of(&self.flow_result);
+        }
+        if let Err(e) = valid_int(&self.flow_seed, "FlowUi.seed") {
+            self.set_validation_error(e);
+            return rows_of(&self.flow_result);
+        }
         match serde_json::from_str::<Value>(&self.flow_json) {
-            Ok(spec) => match flowchart::simulate_flow(&spec, inum(&self.flow_sims, 5000), self.flow_seed.trim().parse::<u64>().unwrap_or(1)) {
+            Ok(spec) => match flowchart::simulate_flow(
+                &spec,
+                inum(&self.flow_sims, 5000),
+                self.flow_seed.trim().parse::<u64>().unwrap_or(1),
+            ) {
                 Ok(r) => {
                     let rows: Vec<(String, String)> = vec![
-                        ("Mean time".into(), format!("{:.3} (sd {:.3})", r.mean_time, r.sd_time)),
+                        (
+                            "Mean time".into(),
+                            format!("{:.3} (sd {:.3})", r.mean_time, r.sd_time),
+                        ),
                         ("P10".into(), format!("{:.3}", r.p10)),
                         ("P50".into(), format!("{:.3}", r.p50)),
                         ("P90".into(), format!("{:.3}", r.p90)),
@@ -3381,6 +5472,7 @@ impl Work {
                     ];
                     self.flow_result = rows_text(&rows);
                     self.note("Flowchart simulation complete.");
+                    self.mark_computed();
                     rows
                 }
                 Err(e) => {
@@ -3408,6 +5500,17 @@ impl Work {
     }
 
     pub fn compute_markov(&mut self) -> Vec<(String, String)> {
+        if let Err(e) = valid_f64_nonneg(&self.mk_time, "MarkovUi.time") {
+            self.set_validation_error(e);
+            return rows_of(&self.mk_result);
+        }
+        for tr in &self.mk_transitions {
+            if let Err(mut e) = valid_f64(tr[2].trim(), "MarkovUi.tr-rate") {
+                e.token = tr[2].clone();
+                self.set_validation_error(e);
+                return rows_of(&self.mk_result);
+            }
+        }
         let names = self.mk_states.clone();
         let idx = |n: &str| names.iter().position(|s| s == n);
         let mut trs: Vec<(usize, usize, f64)> = Vec::new();
@@ -3439,13 +5542,19 @@ impl Work {
                 let absorbing: Vec<bool> = names.iter().map(|n| *n == self.mk_absorbing).collect();
                 if let Some(start) = idx(&self.mk_start) {
                     match model.mean_time_to_absorption(&absorbing, start) {
-                        Ok(v) => rows.push((format!("MTTF from {} to {}", self.mk_start, self.mk_absorbing), format!("{:.2} hours", v))),
+                        Ok(v) => rows.push((
+                            format!("MTTF from {} to {}", self.mk_start, self.mk_absorbing),
+                            format!("{:.2} hours", v),
+                        )),
                         Err(e) => rows.push(("MTTF error".into(), e)),
                     }
                     match model.expected_time_in_state(&absorbing, start) {
                         Ok(v) => {
                             for (n, x) in names.iter().zip(&v) {
-                                rows.push((format!("Expected time in {}", n), format!("{:.2} hours", x)));
+                                rows.push((
+                                    format!("Expected time in {}", n),
+                                    format!("{:.2} hours", x),
+                                ));
                             }
                         }
                         Err(e) => rows.push(("Expected time error".into(), e)),
@@ -3457,7 +5566,10 @@ impl Work {
                         Ok(rows_t) => {
                             if let Some(row) = rows_t.first() {
                                 for (n, p) in names.iter().zip(row) {
-                                    rows.push((format!("P({}) at t={:.0}", n, t), format!("{:.5}", p)));
+                                    rows.push((
+                                        format!("P({}) at t={:.0}", n, t),
+                                        format!("{:.5}", p),
+                                    ));
                                 }
                             }
                         }
@@ -3467,13 +5579,24 @@ impl Work {
                     // requested transient time.
                     let grid: Vec<f64> = (0..=40).map(|k| t * k as f64 / 40.0).collect();
                     if let Ok(all) = model.transient(&p0, &grid) {
-                        self.mk_series = names.iter().enumerate().map(|(j, n)| {
-                            (n.clone(), grid.iter().zip(&all).map(|(tt, row)| (*tt, row[j])).collect::<Vec<(f64, f64)>>())
-                        }).collect();
+                        self.mk_series = names
+                            .iter()
+                            .enumerate()
+                            .map(|(j, n)| {
+                                (
+                                    n.clone(),
+                                    grid.iter()
+                                        .zip(&all)
+                                        .map(|(tt, row)| (*tt, row[j]))
+                                        .collect::<Vec<(f64, f64)>>(),
+                                )
+                            })
+                            .collect();
                     }
                 }
                 self.mk_result = rows_text(&rows);
                 self.note("Markov computation complete.");
+                self.mark_computed();
                 rows
             }
             Err(e) => {
@@ -3485,26 +5608,56 @@ impl Work {
 
     pub fn compute_qcp(&mut self) -> Vec<(String, String)> {
         let mut params = dist_mod::Params::new();
-        for (k, v) in &self.qcp_params {
-            if let Some(x) = opt_num(v) {
-                params.insert(k.clone(), x);
+        for (k, v) in &self.qcp_params.clone() {
+            match valid_f64(v, "QcpUi.params") {
+                Ok(x) => {
+                    params.insert(k.clone(), x);
+                }
+                Err(mut e) => {
+                    e.token = format!("{}={}", k, v);
+                    e.field = "QcpUi.params".into();
+                    self.set_validation_error(e);
+                    return rows_of(&self.qcp_result);
+                }
             }
         }
-        let t = fnum(&self.qcp_t, 1000.0);
-        let bx = fnum(&self.qcp_bx, 0.10);
+        let t = match valid_f64_nonneg(&self.qcp_t, "QcpUi.t") {
+            Ok(v) => v,
+            Err(e) => {
+                self.set_validation_error(e);
+                return rows_of(&self.qcp_result);
+            }
+        };
+        let bx = match valid_f64(&self.qcp_bx, "QcpUi.bx") {
+            Ok(v) => v,
+            Err(e) => {
+                self.set_validation_error(e);
+                return rows_of(&self.qcp_result);
+            }
+        };
         match quickcalc::quick_calc(&self.qcp_dist, &params, t, bx) {
             Ok(r) => {
                 let rows: Vec<(String, String)> = vec![
-                    (format!("Reliability R({:.0})", t), format!("{:.5}", r.reliability)),
-                    (format!("Unreliability F({:.0})", t), format!("{:.5}", r.unreliability)),
+                    (
+                        format!("Reliability R({:.0})", t),
+                        format!("{:.5}", r.reliability),
+                    ),
+                    (
+                        format!("Unreliability F({:.0})", t),
+                        format!("{:.5}", r.unreliability),
+                    ),
                     (format!("Hazard at {:.0}", t), format!("{:.6}", r.hazard)),
                     (format!("Pdf at {:.0}", t), format!("{:.6}", r.pdf)),
                     ("Mean life".into(), format!("{:.2}", r.mean_life)),
-                    (format!("B{:.0} life", bx * 100.0), format!("{:.2}", r.bx_life)),
+                    (
+                        format!("B{:.0} life", bx * 100.0),
+                        format!("{:.2}", r.bx_life),
+                    ),
                 ];
                 self.qcp_result = rows_text(&rows);
                 self.headline = format!("QCP R({:.0}) = {:.5}", t, r.reliability);
                 self.note("QCP calculation complete.");
+                self.mark_computed();
                 rows
             }
             Err(e) => {
@@ -3517,7 +5670,10 @@ impl Work {
     pub fn fracas_summary_rows(&self) -> Vec<(String, String)> {
         let by_status = fracas::count_by_status(&self.fracas_rows);
         let by_mode = fracas::count_by_mode(&self.fracas_rows);
-        let mut rows: Vec<(String, String)> = by_status.iter().map(|(s, c)| (format!("Status {}", s), format!("{}", c))).collect();
+        let mut rows: Vec<(String, String)> = by_status
+            .iter()
+            .map(|(s, c)| (format!("Status {}", s), format!("{}", c)))
+            .collect();
         for (m, c) in &by_mode {
             rows.push((format!("Mode {}", m), format!("{}", c)));
         }
@@ -3534,7 +5690,10 @@ impl Work {
         let n = self
             .fracas_rows
             .iter()
-            .filter_map(|r| r.id.strip_prefix("FR-").and_then(|s| s.parse::<usize>().ok()))
+            .filter_map(|r| {
+                r.id.strip_prefix("FR-")
+                    .and_then(|s| s.parse::<usize>().ok())
+            })
             .max()
             .unwrap_or(0)
             + 1;
@@ -3551,8 +5710,17 @@ impl Work {
     }
 
     pub fn fracas_export_csv(&mut self) {
-        match std::fs::write(&self.fracas_path, fracas::incidents_to_csv(&self.fracas_rows)) {
-            Ok(()) => self.fracas_status = format!("Exported {} incidents to {}", self.fracas_rows.len(), self.fracas_path),
+        match std::fs::write(
+            &self.fracas_path,
+            fracas::incidents_to_csv(&self.fracas_rows),
+        ) {
+            Ok(()) => {
+                self.fracas_status = format!(
+                    "Exported {} incidents to {}",
+                    self.fracas_rows.len(),
+                    self.fracas_path
+                )
+            }
             Err(e) => self.fracas_status = format!("Export error: {}", e),
         }
         self.note(self.fracas_status.clone());

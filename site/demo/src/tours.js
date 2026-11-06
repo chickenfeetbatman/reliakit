@@ -42,7 +42,7 @@ export const TOURS = {
       { target: '[data-act="life-fit"]', title: "Run the fit", body: "Run fit estimates the distribution parameters by maximum likelihood and computes reliability at the mission time.", action: dispatchAction("life-fit") },
       { target: ".headline-card", title: "Headline result", body: "The headline card shows reliability at the mission time, R(1000) for this item. The same value appears in the status bar at the bottom." },
       { target: ".result-card", title: "Fit details", body: "The result cards list the fitted parameters, confidence bounds, B10 life, and mean life from the fit." },
-      { target: '[data-act="flow-rbd"]', title: "Send the fit on", body: "After a fit, these buttons send it to an RBD block, to QCP, or to Prediction. Pick a target RBD item and block first, then use Assign fit to RBD block." },
+      { target: '[data-act="flow-rbd"]', title: "Send the fit on", body: "After a fit, these buttons send it to an RBD block, to QCP, or to Prediction. The label above each button names the source and destination. Pick a target RBD item and block first, then use Assign fit to RBD block. A send copies a snapshot; it does not create a live link." },
     ],
   },
   limited: {
@@ -115,7 +115,7 @@ export const TOURS = {
       { target: "#rbd-canvas", title: "The diagram", body: "The canvas holds the Example 3 system: blocks in series, a standby pump group, and parallel controllers. Drag a block to move it; positions are saved with the project." },
       { target: "[data-rbd-block]", title: "Select a block", body: "Click any block to select it. Its distribution, parameters, MTBF, and MTTR open in the Block inspector on the right, where Apply properties saves edits." },
       { target: '[data-field="rbd.t"]', title: "Mission time and topology", body: "Mission time is where reliability is read. Topology and k set how the blocks combine, and Apply topology rebuilds the layout from the current blocks." },
-      { target: '[data-act="rbd-avail"]', title: "Run availability", body: "Run availability simulates the repairable system over the horizon and reports availability and downtime.", action: dispatchAction("rbd-avail") },
+      { target: '[data-act="rbd-avail"]', title: "Run availability", body: "Run availability simulates the repairable system over the horizon and reports availability and downtime. The Simulations field beside the horizon sets how many Monte Carlo runs it makes, and the results include the Monte Carlo standard error.", action: dispatchAction("rbd-avail") },
       { target: ".result-card", title: "Availability results", body: "The cards under the button report simulated availability. The headline card above them shows reliability at the mission time." },
       { target: '[data-act="rbd-importance"]', title: "Importance and next steps", body: "Compute importance measures ranks the blocks by Birnbaum and Fussell-Vesely importance, so you can see which block drives system reliability. Save the project to keep the diagram and its positions." },
     ],

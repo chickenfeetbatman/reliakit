@@ -141,7 +141,8 @@ fn eyring_interaction_lsq_recovers_coefficients() {
     );
     // Mean log life at a cell should be near the generated value.
     let t_k = 60.0 + 273.15;
-    let mu_true = 30.0 + 8000.0 / t_k - 1.5 * (10.0f64).ln() + 3000.0 * (1.0 / t_k) * (-(10.0f64).ln());
+    let mu_true =
+        30.0 + 8000.0 / t_k - 1.5 * (10.0f64).ln() + 3000.0 * (1.0 / t_k) * (-(10.0f64).ln());
     assert!((fit.mean_log_life(&[60.0, 10.0]) - mu_true).abs() < 0.2);
 }
 

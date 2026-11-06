@@ -120,7 +120,7 @@ fn logistic_cdf_std(z: f64) -> f64 {
 /// x > 0. Series for x < 1 (Numerical Recipes), continued fraction
 /// for x >= 1. Used for the Gompertz mean life.
 fn expint_e1(x: f64) -> f64 {
-    const EULER_GAMMA: f64 = 0.5772156649015329;
+    const EULER_GAMMA: f64 = std::f64::consts::EULER_GAMMA;
     if x <= 0.0 {
         return f64::INFINITY;
     }
@@ -181,7 +181,11 @@ pub fn pdf(dist: &str, p: &Params, t: f64) -> f64 {
     match dist {
         "weibull2" | "weibull3" => {
             let (beta, eta) = (get(p, "beta"), get(p, "eta"));
-            let x = if dist == "weibull3" { t - get(p, "gamma") } else { t };
+            let x = if dist == "weibull3" {
+                t - get(p, "gamma")
+            } else {
+                t
+            };
             if x <= 0.0 || beta <= 0.0 || eta <= 0.0 {
                 return 0.0;
             }
@@ -229,9 +233,8 @@ pub fn pdf(dist: &str, p: &Params, t: f64) -> f64 {
             // log f = ln beta - ln alpha + (beta - 1)(ln t - ln alpha)
             //         - 2 ln(1 + exp(beta (ln t - ln alpha)))
             let y = beta * (t.ln() - alpha.ln());
-            (beta.ln() - alpha.ln() + (beta - 1.0) * (t.ln() - alpha.ln())
-                - 2.0 * log1pexp(y))
-            .exp()
+            (beta.ln() - alpha.ln() + (beta - 1.0) * (t.ln() - alpha.ln()) - 2.0 * log1pexp(y))
+                .exp()
         }
         "logistic" => {
             let (mu, s) = (get(p, "mu"), get(p, "s"));
@@ -293,7 +296,11 @@ pub fn cdf(dist: &str, p: &Params, t: f64) -> f64 {
     match dist {
         "weibull2" | "weibull3" => {
             let (beta, eta) = (get(p, "beta"), get(p, "eta"));
-            let x = if dist == "weibull3" { t - get(p, "gamma") } else { t };
+            let x = if dist == "weibull3" {
+                t - get(p, "gamma")
+            } else {
+                t
+            };
             if x <= 0.0 {
                 0.0
             } else {
@@ -394,7 +401,11 @@ pub fn quantile(dist: &str, p: &Params, prob: f64) -> f64 {
     match dist {
         "weibull2" | "weibull3" => {
             let (beta, eta) = (get(p, "beta"), get(p, "eta"));
-            let loc = if dist == "weibull3" { get(p, "gamma") } else { 0.0 };
+            let loc = if dist == "weibull3" {
+                get(p, "gamma")
+            } else {
+                0.0
+            };
             loc + eta * (-(1.0 - prob).ln()).powf(1.0 / beta)
         }
         "lognormal" => (get(p, "mu") + get(p, "sigma") * specfunc::norm_ppf(prob)).exp(),
@@ -461,7 +472,11 @@ pub fn quantile(dist: &str, p: &Params, prob: f64) -> f64 {
 pub fn mean_life(dist: &str, p: &Params) -> f64 {
     match dist {
         "weibull2" | "weibull3" => {
-            let loc = if dist == "weibull3" { get(p, "gamma") } else { 0.0 };
+            let loc = if dist == "weibull3" {
+                get(p, "gamma")
+            } else {
+                0.0
+            };
             loc + get(p, "eta") * specfunc::ln_gamma(1.0 + 1.0 / get(p, "beta")).exp()
         }
         "lognormal" => (get(p, "mu") + 0.5 * get(p, "sigma").powi(2)).exp(),
@@ -469,7 +484,7 @@ pub fn mean_life(dist: &str, p: &Params) -> f64 {
         "exponential" => get(p, "theta"),
         "gamma" => get(p, "alpha") * get(p, "beta"),
         // scipy gumbel_r mean is mu + beta * EulerGamma
-        "gumbel" => get(p, "mu") + get(p, "beta") * 0.5772156649015329,
+        "gumbel" => get(p, "mu") + get(p, "beta") * std::f64::consts::EULER_GAMMA,
         "loglogistic" => {
             let (alpha, beta) = (get(p, "alpha"), get(p, "beta"));
             if beta > 1.0 {
@@ -492,16 +507,12 @@ pub fn mean_life(dist: &str, p: &Params) -> f64 {
             // E[T] = a Gamma((d + 1) / p) / Gamma(d / p).
             a * (specfunc::ln_gamma((d + 1.0) / pp) - specfunc::ln_gamma(d / pp)).exp()
         }
-        "weibull1" => {
-            get(p, "eta") * specfunc::ln_gamma(1.0 + 1.0 / get(p, "beta")).exp()
-        }
+        "weibull1" => get(p, "eta") * specfunc::ln_gamma(1.0 + 1.0 / get(p, "beta")).exp(),
         "exponential2" => get(p, "gamma") + get(p, "theta"),
         "mixed_weibull" => {
             let w = get(p, "w");
-            let m1 = get(p, "eta1")
-                * specfunc::ln_gamma(1.0 + 1.0 / get(p, "beta1")).exp();
-            let m2 = get(p, "eta2")
-                * specfunc::ln_gamma(1.0 + 1.0 / get(p, "beta2")).exp();
+            let m1 = get(p, "eta1") * specfunc::ln_gamma(1.0 + 1.0 / get(p, "beta1")).exp();
+            let m2 = get(p, "eta2") * specfunc::ln_gamma(1.0 + 1.0 / get(p, "beta2")).exp();
             w * m1 + (1.0 - w) * m2
         }
         _ => f64::NAN,
@@ -520,14 +531,33 @@ pub fn loglik(dist: &str, values: &[f64], times: &[f64], failed: &[bool]) -> f64
     let p = pack(dist, values);
     if dist == "weibull3" {
         let g = get(&p, "gamma");
-        if times.iter().cloned().fold(f64::INFINITY, f64::min) <= g {
+        // The support bound applies to failure times only. A
+        // suspension at or below gamma contributes a factor of 1,
+        // because surviving past gamma implies surviving past any
+        // earlier censoring time. Bounding gamma by the smallest
+        // observed time of any kind would wrongly rule out gamma
+        // values between the smallest suspension and the smallest
+        // failure.
+        let min_failure = times
+            .iter()
+            .zip(failed)
+            .filter(|(_, f)| **f)
+            .map(|(t, _)| *t)
+            .fold(f64::INFINITY, f64::min);
+        if min_failure <= g {
             return f64::NEG_INFINITY;
         }
     }
     if matches!(
         dist,
-        "weibull2" | "weibull1" | "lognormal" | "exponential" | "gamma" | "loglogistic"
-            | "gengamma" | "mixed_weibull"
+        "weibull2"
+            | "weibull1"
+            | "lognormal"
+            | "exponential"
+            | "gamma"
+            | "loglogistic"
+            | "gengamma"
+            | "mixed_weibull"
     ) && times.iter().cloned().fold(f64::INFINITY, f64::min) <= 0.0
     {
         return f64::NEG_INFINITY;
@@ -608,9 +638,27 @@ pub fn loglik(dist: &str, values: &[f64], times: &[f64], failed: &[bool]) -> f64
     }
 }
 
-fn to_unconstrained(dist: &str, values: &[f64], times: &[f64]) -> Vec<f64> {
+/// Upper bound for a location parameter: the smallest failure time.
+/// Suspensions do not bound the location, because a unit suspended
+/// before the support starts still contributes a factor of 1. When
+/// there are no failures the smallest observed time is used.
+fn loc_bound(times: &[f64], failed: &[bool]) -> f64 {
+    let min_failure = times
+        .iter()
+        .zip(failed)
+        .filter(|(_, f)| **f)
+        .map(|(t, _)| *t)
+        .fold(f64::INFINITY, f64::min);
+    if min_failure.is_finite() {
+        min_failure
+    } else {
+        times.iter().cloned().fold(f64::INFINITY, f64::min)
+    }
+}
+
+fn to_unconstrained(dist: &str, values: &[f64], times: &[f64], failed: &[bool]) -> Vec<f64> {
     let spec = dist_spec(dist).unwrap();
-    let tmin = times.iter().cloned().fold(f64::INFINITY, f64::min);
+    let tmin = loc_bound(times, failed);
     spec.iter()
         .zip(values)
         .map(|((_, kind), v)| match *kind {
@@ -625,9 +673,9 @@ fn to_unconstrained(dist: &str, values: &[f64], times: &[f64]) -> Vec<f64> {
         .collect()
 }
 
-fn from_unconstrained(dist: &str, u: &[f64], times: &[f64]) -> Vec<f64> {
+fn from_unconstrained(dist: &str, u: &[f64], times: &[f64], failed: &[bool]) -> Vec<f64> {
     let spec = dist_spec(dist).unwrap();
-    let tmin = times.iter().cloned().fold(f64::INFINITY, f64::min);
+    let tmin = loc_bound(times, failed);
     spec.iter()
         .zip(u)
         .map(|((_, kind), v)| match *kind {
@@ -763,14 +811,26 @@ fn numeric_hessian<F: Fn(&[f64]) -> f64>(f: F, x: &[f64]) -> Vec<Vec<f64>> {
             h[i][j] = (f(&xpp) - f(&xpm) - f(&xmp) + f(&xmm)) / (4.0 * ei * ej);
         }
     }
-    for i in 0..n {
-        for j in 0..n {
-            let v = 0.5 * (h[i][j] + h[j][i]);
-            h[i][j] = v;
-            h[j][i] = v;
-        }
-    }
-    h
+    (0..n)
+        .map(|i| (0..n).map(|j| 0.5 * (h[i][j] + h[j][i])).collect())
+        .collect()
+}
+
+/// Classification of a fit outcome. Success means a clean interior
+/// fit with finite parameters and a finite log-likelihood.
+/// SuccessWithWarnings means the point estimates are usable but
+/// something the caller should know about happened, for example
+/// standard errors are unavailable or a parameter sits on a support
+/// boundary by construction. BoundaryOrDegenerate means the data do
+/// not identify a finite interior optimum. Failed means no usable
+/// fit was produced.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+pub enum FitStatus {
+    #[default]
+    Success,
+    SuccessWithWarnings,
+    BoundaryOrDegenerate,
+    Failed,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -786,6 +846,12 @@ pub struct FitResult {
     pub times: Vec<f64>,
     pub failed: Vec<bool>,
     pub success: bool,
+    #[serde(default)]
+    pub status: FitStatus,
+    #[serde(default)]
+    pub status_note: String,
+    #[serde(default)]
+    pub warnings: Vec<String>,
 }
 
 impl FitResult {
@@ -808,6 +874,15 @@ impl FitResult {
         mean_life(&self.dist, &self.params)
     }
 
+    pub fn status_str(&self) -> &'static str {
+        match self.status {
+            FitStatus::Success => "success",
+            FitStatus::SuccessWithWarnings => "success_with_warnings",
+            FitStatus::BoundaryOrDegenerate => "boundary_or_degenerate",
+            FitStatus::Failed => "failed",
+        }
+    }
+
     /// Two-sided (1 - alpha) Fisher (delta method) bounds on R(t).
     pub fn reliability_bounds(&self, t: f64, alpha: f64) -> (f64, f64) {
         let cov = match &self.cov {
@@ -817,7 +892,10 @@ impl FitResult {
         let spec = dist_spec(&self.dist).unwrap();
         let x0: Vec<f64> = spec.iter().map(|(nm, _)| self.params[*nm]).collect();
         let z = specfunc::norm_ppf(1.0 - alpha / 2.0);
-        let use_loglog = matches!(self.dist.as_str(), "weibull2" | "weibull3" | "exponential" | "gamma");
+        let use_loglog = matches!(
+            self.dist.as_str(),
+            "weibull2" | "weibull3" | "exponential" | "gamma"
+        );
         let gfun = |pr: &Params| -> f64 {
             let r = reliability(&self.dist, pr, t).clamp(1e-12, 1.0 - 1e-12);
             if use_loglog {
@@ -847,10 +925,7 @@ impl FitResult {
         let (lower, upper) = if use_loglog {
             ((-hi_g.exp()).exp(), (-lo_g.exp()).exp())
         } else {
-            (
-                1.0 / (1.0 + (-lo_g).exp()),
-                1.0 / (1.0 + (-hi_g).exp()),
-            )
+            (1.0 / (1.0 + (-lo_g).exp()), 1.0 / (1.0 + (-hi_g).exp()))
         };
         (lower.clamp(0.0, 1.0), upper.clamp(0.0, 1.0))
     }
@@ -883,24 +958,312 @@ impl FitResult {
     }
 }
 
-fn cov_and_se(
-    dist: &str,
-    vals: &[f64],
-    times: &[f64],
-    failed: &[bool],
-) -> (Option<Vec<Vec<f64>>>, BTreeMap<String, f64>) {
+/// Covariance and standard errors with a reason when they cannot be
+/// produced. A non-finite covariance is dropped entirely, and a
+/// non-finite standard error is dropped individually, with the
+/// reason returned as a warning string instead of a NaN value.
+/// Covariance matrix, standard errors, and a warning when the
+/// covariance could not be produced, as returned by
+/// `cov_and_se_checked`.
+type CovAndSe = (Option<Vec<Vec<f64>>>, BTreeMap<String, f64>, Option<String>);
+
+fn cov_and_se_checked(dist: &str, vals: &[f64], times: &[f64], failed: &[bool]) -> CovAndSe {
     let neg = |v: &[f64]| -loglik(dist, v, times, failed);
     let h = numeric_hessian(neg, vals);
     match optim::matrix_inverse(&h) {
         Some(cov) => {
+            if cov.iter().flatten().any(|v| !v.is_finite()) {
+                return (
+                    None,
+                    BTreeMap::new(),
+                    Some(
+                        "standard errors unavailable: covariance matrix is non-finite".to_string(),
+                    ),
+                );
+            }
             let spec = dist_spec(dist).unwrap();
             let mut se = BTreeMap::new();
+            let mut dropped: Vec<String> = Vec::new();
             for (i, (nm, _)) in spec.iter().enumerate() {
-                se.insert(nm.to_string(), cov[i][i].max(0.0).sqrt());
+                let s = cov[i][i].max(0.0).sqrt();
+                if s.is_finite() {
+                    se.insert(nm.to_string(), s);
+                } else {
+                    dropped.push(nm.to_string());
+                }
             }
-            (Some(cov), se)
+            let warning = if dropped.is_empty() {
+                None
+            } else {
+                Some(format!(
+                    "standard errors unavailable for {}: computed standard error is non-finite",
+                    dropped.join(", ")
+                ))
+            };
+            (Some(cov), se, warning)
         }
-        None => (None, BTreeMap::new()),
+        None => (
+            None,
+            BTreeMap::new(),
+            Some("standard errors unavailable: Hessian is singular".to_string()),
+        ),
+    }
+}
+
+fn success_for(status: FitStatus) -> bool {
+    matches!(status, FitStatus::Success | FitStatus::SuccessWithWarnings)
+}
+
+fn requires_positive_times(dist: &str) -> bool {
+    matches!(
+        dist,
+        "weibull2"
+            | "lognormal"
+            | "gamma"
+            | "loglogistic"
+            | "gengamma"
+            | "mixed_weibull"
+            | "weibull1"
+    )
+}
+
+fn fallback_vals(dist: &str, times: &[f64], failed: &[bool]) -> Vec<f64> {
+    let spec = dist_spec(dist).unwrap();
+    let init = initial(dist, times, failed);
+    spec.iter()
+        .enumerate()
+        .map(|(i, (_, kind))| {
+            let v = init.get(i).copied().unwrap_or(f64::NAN);
+            match *kind {
+                "pos" => {
+                    if v.is_finite() && v > 0.0 {
+                        v
+                    } else {
+                        1.0
+                    }
+                }
+                "prob" => {
+                    if v.is_finite() && v > 0.0 && v < 1.0 {
+                        v
+                    } else {
+                        0.5
+                    }
+                }
+                _ => {
+                    if v.is_finite() {
+                        v
+                    } else {
+                        0.0
+                    }
+                }
+            }
+        })
+        .collect()
+}
+
+fn degenerate_result(
+    dist: &str,
+    times: &[f64],
+    failed: &[bool],
+    method: &str,
+    status: FitStatus,
+    note: String,
+) -> FitResult {
+    let vals = fallback_vals(dist, times, failed);
+    let ll = loglik(dist, &vals, times, failed);
+    FitResult {
+        dist: dist.into(),
+        params: pack(dist, &vals),
+        loglik: ll,
+        n: times.len(),
+        n_fail: failed.iter().filter(|f| **f).count(),
+        method: method.into(),
+        cov: None,
+        se: BTreeMap::new(),
+        times: times.to_vec(),
+        failed: failed.to_vec(),
+        success: false,
+        status,
+        status_note: note.clone(),
+        warnings: vec![note],
+    }
+}
+
+/// Hard input errors shared by the fit entry points. These are
+/// returned as Err because there is no meaningful fit to report.
+fn check_hard_errors(times: &[f64], failed: Option<&[bool]>) -> Result<(), String> {
+    if times.is_empty() {
+        return Err("empty data: need at least one observation to fit".into());
+    }
+    if let Some(f) = failed {
+        if f.len() != times.len() {
+            return Err(format!(
+                "times/failed length mismatch: times has {} entries but failed has {} entries",
+                times.len(),
+                f.len()
+            ));
+        }
+    }
+    for (i, &t) in times.iter().enumerate() {
+        if !t.is_finite() {
+            return Err(format!(
+                "non-finite time at index {}: time is NaN or infinite",
+                i
+            ));
+        }
+        if t < 0.0 {
+            return Err(format!("negative time at index {}", i));
+        }
+    }
+    Ok(())
+}
+
+/// Degenerate data patterns that produce a classified FitResult
+/// rather than an error or a clean success. Returns None when the
+/// data are not degenerate in any of these senses.
+/// n_estimated is the number of parameters actually estimated, so a
+/// one-parameter fit with a fixed shape is not flagged for identical
+/// times the way a two-parameter fit is.
+fn degenerate_check(
+    dist: &str,
+    times: &[f64],
+    failed: &[bool],
+    method: &str,
+    n_estimated: usize,
+) -> Option<FitResult> {
+    if times.iter().all(|&t| t == 0.0) {
+        return Some(degenerate_result(
+            dist,
+            times,
+            failed,
+            method,
+            FitStatus::Failed,
+            "all observed times are zero: there is no positive failure time to fit".to_string(),
+        ));
+    }
+    if requires_positive_times(dist) {
+        if let Some(i) = times.iter().position(|&t| t == 0.0) {
+            return Some(degenerate_result(
+                dist,
+                times,
+                failed,
+                method,
+                FitStatus::Failed,
+                format!("zero time at index {}: {} requires positive times", i, dist),
+            ));
+        }
+    }
+    if n_estimated >= 2 && times.iter().all(|&t| t == times[0]) {
+        return Some(degenerate_result(
+            dist,
+            times,
+            failed,
+            method,
+            FitStatus::BoundaryOrDegenerate,
+            format!(
+                "all observed times are identical ({}): the shape is not identifiable from identical observations; the likelihood increases without bound as the shape grows",
+                times[0]
+            ),
+        ));
+    }
+    None
+}
+
+/// Build a FitResult with post-fit validation. A result is a clean
+/// success only when every fitted parameter and the log-likelihood
+/// are finite and the positive and probability parameters respect
+/// their domains. When a covariance was expected but could not be
+/// produced, the fit is downgraded to SuccessWithWarnings with the
+/// reason in the warnings.
+#[allow(clippy::too_many_arguments)]
+fn build_fit(
+    dist: &str,
+    vals: &[f64],
+    times: &[f64],
+    failed: &[bool],
+    method: &str,
+    expect_cov: bool,
+    base_status: FitStatus,
+    base_note: String,
+    extra_warnings: Vec<String>,
+) -> FitResult {
+    let ll = loglik(dist, vals, times, failed);
+    let spec = dist_spec(dist).unwrap();
+    let mut status = base_status;
+    let mut note = base_note;
+    let mut warnings = extra_warnings;
+    if !warnings.is_empty() && status == FitStatus::Success {
+        status = FitStatus::SuccessWithWarnings;
+        if note.is_empty() {
+            note = warnings[0].clone();
+        }
+    }
+    let (cov, se) = if expect_cov {
+        let (cov, se, warning) = cov_and_se_checked(dist, vals, times, failed);
+        if let Some(w) = warning {
+            warnings.push(w.clone());
+            if status == FitStatus::Success {
+                status = FitStatus::SuccessWithWarnings;
+            }
+            if note.is_empty() {
+                note = w;
+            }
+        }
+        (cov, se)
+    } else {
+        (None, BTreeMap::new())
+    };
+    let mut failure_reason: Option<String> = None;
+    for (i, (nm, kind)) in spec.iter().enumerate() {
+        let v = vals.get(i).copied().unwrap_or(f64::NAN);
+        if !v.is_finite() {
+            failure_reason = Some(format!("fit failed: fitted parameter {} is non-finite", nm));
+            break;
+        }
+        if *kind == "pos" && v <= 0.0 {
+            failure_reason = Some(format!(
+                "fit failed: fitted parameter {} must be positive but is {}",
+                nm, v
+            ));
+            break;
+        }
+        if *kind == "prob" && !(v > 0.0 && v < 1.0) {
+            failure_reason = Some(format!(
+                "fit failed: fitted parameter {} must be in (0, 1) but is {}",
+                nm, v
+            ));
+            break;
+        }
+    }
+    if failure_reason.is_none() && (!ll.is_finite() || ll <= -1e99) {
+        failure_reason = Some("fit failed: log-likelihood is non-finite".to_string());
+    }
+    let (cov, se) = match failure_reason {
+        Some(reason) => {
+            status = FitStatus::Failed;
+            if !warnings.contains(&reason) {
+                warnings.push(reason.clone());
+            }
+            note = reason;
+            (None, BTreeMap::new())
+        }
+        None => (cov, se),
+    };
+    FitResult {
+        dist: dist.into(),
+        params: pack(dist, vals),
+        loglik: ll,
+        n: times.len(),
+        n_fail: failed.iter().filter(|f| **f).count(),
+        method: method.into(),
+        cov,
+        se,
+        times: times.to_vec(),
+        failed: failed.to_vec(),
+        success: success_for(status),
+        status,
+        status_note: note,
+        warnings,
     }
 }
 
@@ -912,33 +1275,99 @@ fn fit_weibull2_profile(times: &[f64], failed: &[bool]) -> FitResult {
         .filter(|(_, f)| **f)
         .map(|(t, _)| t.ln())
         .sum();
+    // The profile is evaluated in the log domain. The direct form
+    // sum of t^beta overflows for large shapes on large time scales
+    // (for example the clustered sample scaled by 3600), which would
+    // break the scale invariance of the fit.
+    let log_times: Vec<f64> = times.iter().map(|t| t.ln()).collect();
+    let log_t_max = log_times.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
+    let eta_for_beta = |beta: f64| -> f64 {
+        let s: f64 = log_times
+            .iter()
+            .map(|lt| (beta * (lt - log_t_max)).exp())
+            .sum();
+        ((beta * log_t_max + s.ln() - r.ln()) / beta).exp()
+    };
     let profile = |logbeta: f64| -> f64 {
         let beta = logbeta.exp();
-        let eta = (times.iter().map(|t| t.powf(beta)).sum::<f64>() / r).powf(1.0 / beta);
-        let ll = r * (beta.ln() - beta * eta.ln()) + (beta - 1.0) * sum_log_tf
-            - times.iter().map(|t| (t / eta).powf(beta)).sum::<f64>();
+        let eta = eta_for_beta(beta);
+        let log_eta = eta.ln();
+        let cum: f64 = log_times
+            .iter()
+            .map(|lt| (beta * (lt - log_eta)).exp())
+            .sum();
+        let ll = r * (beta.ln() - beta * log_eta) + (beta - 1.0) * sum_log_tf - cum;
         -ll
     };
-    let mut pf = profile;
-    let (lb, _) = optim::minimize_scalar(&mut pf, -2.5, 3.0, 1e-10);
-    let beta = lb.exp();
-    let eta = (times.iter().map(|t| t.powf(beta)).sum::<f64>() / r).powf(1.0 / beta);
-    let vals = vec![beta, eta];
-    let ll = loglik("weibull2", &vals, times, failed);
-    let (cov, se) = cov_and_se("weibull2", &vals, times, failed);
-    FitResult {
-        dist: "weibull2".into(),
-        params: pack("weibull2", &vals),
-        loglik: ll,
-        n: times.len(),
-        n_fail: r as usize,
-        method: "MLE".into(),
-        cov,
-        se,
-        times: times.to_vec(),
-        failed: failed.to_vec(),
-        success: true,
+    // Adaptive bracketing in log beta. The search starts on the
+    // historical bracket [-2.5, 3.0] and expands geometrically,
+    // doubling the bracket width toward the bound the optimum sits
+    // on, up to a cap of |log beta| <= 12. An optimum that is still
+    // on a bound at the cap means the profile is still improving
+    // there, which is reported as a boundary case instead of a
+    // clean fit.
+    const LOG_BETA_CAP: f64 = 12.0;
+    let mut lo = -2.5f64;
+    let mut hi = 3.0f64;
+    let mut lb: f64;
+    let mut at_cap = false;
+    loop {
+        let mut pf = profile;
+        let (x, _, outcome) = optim::minimize_scalar_report(&mut pf, lo, hi, 1e-10);
+        lb = x;
+        match outcome {
+            optim::ScalarOutcome::Interior => {
+                break;
+            }
+            optim::ScalarOutcome::AtUpperBound => {
+                if hi >= LOG_BETA_CAP {
+                    at_cap = true;
+                    break;
+                }
+                let width = hi - lo;
+                hi = (lo + 2.0 * width).min(LOG_BETA_CAP);
+            }
+            optim::ScalarOutcome::AtLowerBound => {
+                if lo <= -LOG_BETA_CAP {
+                    at_cap = true;
+                    break;
+                }
+                let width = hi - lo;
+                lo = (hi - 2.0 * width).max(-LOG_BETA_CAP);
+            }
+            optim::ScalarOutcome::IterationCap => {
+                break;
+            }
+        }
     }
+    let beta = lb.exp();
+    let eta = eta_for_beta(beta);
+    let vals = vec![beta, eta];
+    if at_cap {
+        let note = "likelihood appears unbounded in shape for this data (observations too tightly clustered to identify a finite shape): profile log-likelihood still increasing at the log beta cap of 12 in absolute value".to_string();
+        return build_fit(
+            "weibull2",
+            &vals,
+            times,
+            failed,
+            "MLE",
+            false,
+            FitStatus::BoundaryOrDegenerate,
+            note.clone(),
+            vec![note],
+        );
+    }
+    build_fit(
+        "weibull2",
+        &vals,
+        times,
+        failed,
+        "MLE",
+        true,
+        FitStatus::Success,
+        String::new(),
+        Vec::new(),
+    )
 }
 
 /// One-parameter Weibull fit with the shape beta fixed by the user.
@@ -950,14 +1379,15 @@ pub fn fit_weibull1(
     failed: Option<&[bool]>,
     beta: f64,
 ) -> Result<FitResult, String> {
-    if !(beta > 0.0) || !beta.is_finite() {
+    if beta <= 0.0 || !beta.is_finite() {
         return Err("weibull1 requires a positive finite beta".into());
     }
-    if times.is_empty() {
-        return Err("need data to fit".into());
-    }
-    if times.iter().any(|t| !(t > &0.0)) {
-        return Err("weibull1 needs positive times".into());
+    check_hard_errors(times, failed)?;
+    if let Some(i) = times.iter().position(|&t| t == 0.0) {
+        return Err(format!(
+            "zero time at index {}: weibull1 needs positive times",
+            i
+        ));
     }
     let failed_v: Vec<bool> = match failed {
         Some(f) => f.to_vec(),
@@ -970,48 +1400,60 @@ pub fn fit_weibull1(
     let sum: f64 = times.iter().map(|t| t.powf(beta)).sum();
     let eta = (sum / r as f64).powf(1.0 / beta);
     let vals = vec![beta, eta];
-    let ll = loglik("weibull1", &vals, times, &failed_v);
     // Beta is fixed, not estimated, so no Fisher covariance is
-    // reported for the pair.
-    Ok(FitResult {
-        dist: "weibull1".into(),
-        params: pack("weibull1", &vals),
-        loglik: ll,
-        n: times.len(),
-        n_fail: r,
-        method: "MLE (beta fixed)".into(),
-        cov: None,
-        se: BTreeMap::new(),
-        times: times.to_vec(),
-        failed: failed_v,
-        success: true,
-    })
+    // reported for the pair. Identical times are not degenerate
+    // here, because only eta is estimated.
+    Ok(build_fit(
+        "weibull1",
+        &vals,
+        times,
+        &failed_v,
+        "MLE (beta fixed)",
+        false,
+        FitStatus::Success,
+        String::new(),
+        Vec::new(),
+    ))
 }
 
-/// Closed-form MLE for the two-parameter exponential: gamma_hat is
-/// the smallest observed time and theta_hat is the total time on test
-/// above gamma_hat divided by the number of failures.
+/// Closed-form MLE for the two-parameter exponential. The support
+/// start gamma is bounded by the smallest failure time, not by the
+/// smallest observed time of any kind: a suspension below gamma
+/// contributes a factor of 1 to the likelihood. The profile
+/// log-likelihood increases as gamma approaches the smallest
+/// failure time from below, so the MLE sits at that boundary point.
+/// With gamma at the smallest failure time, theta_hat is S / r,
+/// where S sums (t - gamma) over every observation with t above
+/// gamma and r is the number of failures.
 fn fit_exponential2(times: &[f64], failed: &[bool]) -> FitResult {
-    let gamma_hat = times.iter().cloned().fold(f64::INFINITY, f64::min);
+    let gamma_hat = times
+        .iter()
+        .zip(failed)
+        .filter(|(_, f)| **f)
+        .map(|(t, _)| *t)
+        .fold(f64::INFINITY, f64::min);
     let r = failed.iter().filter(|f| **f).count() as f64;
-    let theta_hat = times.iter().map(|t| t - gamma_hat).sum::<f64>() / r;
+    let s: f64 = times
+        .iter()
+        .filter(|t| **t > gamma_hat)
+        .map(|t| t - gamma_hat)
+        .sum();
+    let theta_hat = s / r;
     let vals = vec![theta_hat, gamma_hat];
-    let ll = loglik("exponential2", &vals, times, failed);
-    // The gamma estimator is a sample minimum, which is non-regular,
-    // so no Fisher covariance is reported.
-    FitResult {
-        dist: "exponential2".into(),
-        params: pack("exponential2", &vals),
-        loglik: ll,
-        n: times.len(),
-        n_fail: r as usize,
-        method: "MLE".into(),
-        cov: None,
-        se: BTreeMap::new(),
-        times: times.to_vec(),
-        failed: failed.to_vec(),
-        success: true,
-    }
+    // The gamma estimator is a boundary estimate, which is
+    // non-regular, so no Fisher covariance is reported.
+    let warning = "gamma is a boundary (support) estimate at the smallest failure time".to_string();
+    build_fit(
+        "exponential2",
+        &vals,
+        times,
+        failed,
+        "MLE",
+        false,
+        FitStatus::SuccessWithWarnings,
+        warning.clone(),
+        vec![warning],
+    )
 }
 
 /// Mixed Weibull fit by direct maximization of the exact censored
@@ -1052,9 +1494,9 @@ fn fit_mixed_weibull(times: &[f64], failed: &[bool]) -> FitResult {
     }
     let mut best: Option<(Vec<f64>, f64)> = None;
     for st in &starts {
-        let u0 = to_unconstrained("mixed_weibull", st, times);
+        let u0 = to_unconstrained("mixed_weibull", st, times, failed);
         let mut neg = |u: &[f64]| -> f64 {
-            let vals = from_unconstrained("mixed_weibull", u, times);
+            let vals = from_unconstrained("mixed_weibull", u, times, failed);
             -loglik("mixed_weibull", &vals, times, failed)
         };
         let step: Vec<f64> = u0.iter().map(|_| 0.3).collect();
@@ -1065,30 +1507,22 @@ fn fit_mixed_weibull(times: &[f64], failed: &[bool]) -> FitResult {
         }
     }
     let (bu, _) = best.unwrap();
-    let mut vals = from_unconstrained("mixed_weibull", &bu, times);
+    let mut vals = from_unconstrained("mixed_weibull", &bu, times, failed);
     // Order components by eta; swap the weight with them.
     if vals[2] > vals[4] {
         vals = vec![1.0 - vals[0], vals[3], vals[4], vals[1], vals[2]];
     }
-    let ll = loglik("mixed_weibull", &vals, times, failed);
-    let (cov, se) = cov_and_se("mixed_weibull", &vals, times, failed);
-    let cov_ok = cov
-        .as_ref()
-        .map(|c| c.iter().flatten().all(|v| v.is_finite()))
-        .unwrap_or(false);
-    FitResult {
-        dist: "mixed_weibull".into(),
-        params: pack("mixed_weibull", &vals),
-        loglik: ll,
-        n: times.len(),
-        n_fail: failed.iter().filter(|f| **f).count(),
-        method: "MLE".into(),
-        cov: if cov_ok { cov } else { None },
-        se: if cov_ok { se } else { BTreeMap::new() },
-        times: times.to_vec(),
-        failed: failed.to_vec(),
-        success: true,
-    }
+    build_fit(
+        "mixed_weibull",
+        &vals,
+        times,
+        failed,
+        "MLE",
+        true,
+        FitStatus::Success,
+        String::new(),
+        Vec::new(),
+    )
 }
 
 /// Maximum likelihood fit with right-censored data. `failed`: true =
@@ -1097,11 +1531,12 @@ pub fn fit_mle(dist: &str, times: &[f64], failed: Option<&[bool]>) -> Result<Fit
     if dist_spec(dist).is_none() {
         return Err(format!("unknown distribution {}", dist));
     }
+    check_hard_errors(times, failed)?;
     let failed_v: Vec<bool> = match failed {
         Some(f) => f.to_vec(),
         None => vec![true; times.len()],
     };
-    if times.is_empty() || !failed_v.iter().any(|f| *f) {
+    if !failed_v.iter().any(|f| *f) {
         return Err("need at least one failure to fit".into());
     }
     if dist == "weibull1" {
@@ -1111,17 +1546,38 @@ pub fn fit_mle(dist: &str, times: &[f64], failed: Option<&[bool]>) -> Result<Fit
                 .into(),
         );
     }
-    if dist == "weibull2" {
-        return Ok(fit_weibull2_profile(times, &failed_v));
-    }
     if dist == "exponential2" {
-        let gamma_hat = times.iter().cloned().fold(f64::INFINITY, f64::min);
+        // Guard with the corrected formula: gamma at the smallest
+        // failure time and theta from the time above gamma. A zero
+        // or non-finite theta means the failures and any later
+        // observations leave no time on test above gamma.
+        let gamma_hat = times
+            .iter()
+            .zip(&failed_v)
+            .filter(|(_, f)| **f)
+            .map(|(t, _)| *t)
+            .fold(f64::INFINITY, f64::min);
         let r = failed_v.iter().filter(|f| **f).count() as f64;
-        let theta_hat = times.iter().map(|t| t - gamma_hat).sum::<f64>() / r;
-        if !(theta_hat > 0.0) {
-            return Err("exponential2 fit is degenerate: all times equal the minimum".into());
+        let s: f64 = times
+            .iter()
+            .filter(|t| **t > gamma_hat)
+            .map(|t| t - gamma_hat)
+            .sum();
+        let theta_hat = s / r;
+        if theta_hat <= 0.0 || !theta_hat.is_finite() {
+            return Err(
+                "exponential2 fit is degenerate: no time on test above the smallest failure time"
+                    .into(),
+            );
         }
         return Ok(fit_exponential2(times, &failed_v));
+    }
+    let n_estimated = dist_spec(dist).unwrap().len();
+    if let Some(res) = degenerate_check(dist, times, &failed_v, "MLE", n_estimated) {
+        return Ok(res);
+    }
+    if dist == "weibull2" {
+        return Ok(fit_weibull2_profile(times, &failed_v));
     }
     if dist == "mixed_weibull" {
         return Ok(fit_mixed_weibull(times, &failed_v));
@@ -1170,44 +1626,45 @@ pub fn fit_mle(dist: &str, times: &[f64], failed: Option<&[bool]>) -> Result<Fit
             src.iter().sum::<f64>() / src.len() as f64
         };
         for (d0, p0) in [(2.0, 2.0), (3.0, 1.5), (1.5, 0.7)] {
-            let ratio =
-                (specfunc::ln_gamma((d0 + 1.0) / p0) - specfunc::ln_gamma(d0 / p0)).exp();
+            let ratio = (specfunc::ln_gamma((d0 + 1.0) / p0) - specfunc::ln_gamma(d0 / p0)).exp();
             starts.push(vec![(m / ratio).max(1e-9), d0, p0]);
         }
         let _ = base;
     }
     let mut best: Option<(Vec<f64>, f64)> = None;
+    let mut best_outcome = optim::NelderMeadOutcome::Converged;
     for st in &starts {
-        let u0 = to_unconstrained(dist, st, times);
+        let u0 = to_unconstrained(dist, st, times, &failed_v);
         let mut neg = |u: &[f64]| -> f64 {
-            let vals = from_unconstrained(dist, u, times);
+            let vals = from_unconstrained(dist, u, times, &failed_v);
             -loglik(dist, &vals, times, &failed_v)
         };
         let step: Vec<f64> = u0.iter().map(|_| 0.3).collect();
         let (x1, _) = optim::nelder_mead(&mut neg, &u0, &step, 5000, 1e-10);
-        let (x2, f2) = optim::nelder_mead(&mut neg, &x1, &step, 5000, 1e-12);
+        let (x2, f2, outcome) = optim::nelder_mead_report(&mut neg, &x1, &step, 5000, 1e-12);
         if best.is_none() || f2 < best.as_ref().unwrap().1 {
             best = Some((x2, f2));
+            best_outcome = outcome;
         }
     }
     let (bu, _) = best.unwrap();
-    let vals = from_unconstrained(dist, &bu, times);
-    let params = pack(dist, &vals);
-    let ll = loglik(dist, &vals, times, &failed_v);
-    let (cov, se) = cov_and_se(dist, &vals, times, &failed_v);
-    Ok(FitResult {
-        dist: dist.into(),
-        params,
-        loglik: ll,
-        n: times.len(),
-        n_fail: failed_v.iter().filter(|f| **f).count(),
-        method: "MLE".into(),
-        cov,
-        se,
-        times: times.to_vec(),
-        failed: failed_v,
-        success: true,
-    })
+    let vals = from_unconstrained(dist, &bu, times, &failed_v);
+    let extra_warnings = if best_outcome == optim::NelderMeadOutcome::IterationCap {
+        vec!["optimizer stopped at the iteration cap without converging".to_string()]
+    } else {
+        Vec::new()
+    };
+    Ok(build_fit(
+        dist,
+        &vals,
+        times,
+        &failed_v,
+        "MLE",
+        true,
+        FitStatus::Success,
+        String::new(),
+        extra_warnings,
+    ))
 }
 
 /// Benard median rank for the k-th failure out of n_total units.
@@ -1230,10 +1687,17 @@ pub fn fit_rank_regression(
             "rank regression implemented for weibull2, lognormal, normal, loglogistic".into(),
         );
     }
+    check_hard_errors(times, failed)?;
     let failed_v: Vec<bool> = match failed {
         Some(f) => f.to_vec(),
         None => vec![true; times.len()],
     };
+    if !failed_v.iter().any(|f| *f) {
+        return Err("need at least one failure to fit".into());
+    }
+    if let Some(res) = degenerate_check(dist, times, &failed_v, "Rank regression", 2) {
+        return Ok(res);
+    }
     let mut tf: Vec<f64> = times
         .iter()
         .zip(&failed_v)
@@ -1261,7 +1725,7 @@ pub fn fit_rank_regression(
             let design: Vec<Vec<f64>> = x.iter().map(|xx| vec![*xx, 1.0]).collect();
             let coef = optim::lstsq(&design, &y).ok_or("lstsq failed")?;
             let (slope, intercept) = (coef[0], coef[1]);
-            if !(slope > 0.0) {
+            if slope.partial_cmp(&0.0) != Some(std::cmp::Ordering::Greater) {
                 return Err("loglogistic rank regression gave a non-positive slope".into());
             }
             params_of(&[("alpha", intercept.exp()), ("beta", 1.0 / slope)])
@@ -1285,20 +1749,18 @@ pub fn fit_rank_regression(
     };
     let spec = dist_spec(dist).unwrap();
     let vals: Vec<f64> = spec.iter().map(|(nm, _)| params[*nm]).collect();
-    let ll = loglik(dist, &vals, times, &failed_v);
-    Ok(FitResult {
-        dist: dist.into(),
-        params,
-        loglik: ll,
-        n: times.len(),
-        n_fail: tf.len(),
-        method: "Rank regression".into(),
-        cov: None,
-        se: BTreeMap::new(),
-        times: times.to_vec(),
-        failed: failed_v,
-        success: true,
-    })
+    let _ = params;
+    Ok(build_fit(
+        dist,
+        &vals,
+        times,
+        &failed_v,
+        "Rank regression",
+        false,
+        FitStatus::Success,
+        String::new(),
+        Vec::new(),
+    ))
 }
 
 /// (times, empirical F, theoretical F) points for a probability plot.
@@ -1314,7 +1776,10 @@ pub fn probability_plot_data(fit: &FitResult) -> (Vec<f64>, Vec<f64>, Vec<f64>) 
     let f_emp: Vec<f64> = (1..=times.len())
         .map(|k| median_ranks(fit.n, k as f64))
         .collect();
-    let f_theo: Vec<f64> = times.iter().map(|t| cdf(&fit.dist, &fit.params, *t)).collect();
+    let f_theo: Vec<f64> = times
+        .iter()
+        .map(|t| cdf(&fit.dist, &fit.params, *t))
+        .collect();
     (times, f_emp, f_theo)
 }
 

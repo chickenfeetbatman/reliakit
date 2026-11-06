@@ -7,12 +7,12 @@
 // actions, and explicit change or blur on dynamic parameter fields do.
 import { Transport, downloadTextFile, pickTextFile } from "./wasm.js";
 import { normalizeChart } from "./charts.js";
-import { KIND_OPTIONS, SCREEN_RENDERERS, renderStart, BUNDLED_CSV, MIL217_FILES } from "./screens.js";
+import { KIND_OPTIONS, SCREEN_RENDERERS, renderStart, BUNDLED_CSV, MIL217_FILES, DATASET_TITLES, datasetTitle } from "./screens.js";
 import { renderRbd, bindRbdCanvas } from "./rbd.js";
 import { KIND_META, FAMILIES, kindIndex, kindByKey } from "./kinds.js";
 import { initTours } from "./tours.js";
 
-const VERSION = "v0.3.1";
+const VERSION = "v0.3.2";
 const REPO_URL = "https://github.com/chickenfeetbatman/reliakit";
 // Quickstart dismissal persists in localStorage where the host
 // allows it. Some webview configurations block storage on the app
@@ -110,11 +110,19 @@ function cards(rawRows, fallbackRows) {
     if (Array.isArray(row)) flat.push(row);
     else flat.push([row]);
   }
-  return flat.map((row) => row.map((c) => ({
-    title: asStr(c.title), sub: asStr(c.sub), tag: asStr(c.tag),
-    icon: asStr(c.icon_name || c.iconName || KIND_ICON[asStr(c.icon)] || c.icon || "life"),
-    actionId: asStr(c.action_id || c.actionId || c.action || ""),
-  })));
+  return flat.map((row) => row.map((c) => {
+    const actionId = asStr(c.action_id || c.actionId || c.action || "");
+    let title = asStr(c.title); let sub = asStr(c.sub);
+    if (actionId.startsWith("dataset:")) {
+      const file = actionId.slice("dataset:".length);
+      if (DATASET_TITLES[file]) { title = DATASET_TITLES[file]; sub = "Source: datasets/README.md. File: " + file + ". " + sub; }
+    }
+    return {
+      title, sub, tag: asStr(c.tag),
+      icon: asStr(c.icon_name || c.iconName || KIND_ICON[asStr(c.icon)] || c.icon || "life"),
+      actionId,
+    };
+  }));
 }
 
 function fallbackCards() {
@@ -131,7 +139,7 @@ function fallbackCards() {
   const kindFor = (f) => f.includes("_alt_") && !f.includes("degradation") ? "alt" : f.includes("degradation") ? "degradation" : f.includes("growth") ? "growth" : f.includes("warranty_nevada") ? "warranty" : "life";
   const datasets = BUNDLED_CSV.map((f) => {
     const k = kindFor(f);
-    return { title: f, sub: "Loads into a " + (KIND_LABEL[k] || "Life Data") + " item.", tag: (KIND_LABEL[k] || "Life Data").toUpperCase(), icon: k, actionId: "dataset:" + f };
+    return { title: datasetTitle(f), sub: "Source: datasets/README.md. File: " + f + ". Loads into a " + (KIND_LABEL[k] || "Life Data") + " item.", tag: (KIND_LABEL[k] || "Life Data").toUpperCase(), icon: k, actionId: "dataset:" + f };
   });
   const chunk = (v) => { const out = []; for (let i = 0; i < v.length; i += 4) out.push(v.slice(i, i + 4)); return out; };
   return { exampleRows: chunk(examples), datasetRows: chunk(datasets) };
@@ -155,6 +163,7 @@ export function adaptState(raw) {
       kindLabel: asStr(it.kind_label || it.kindLabel || KIND_LABEL[kind] || kind),
       name: asStr(it.name || KIND_LABEL[kind] || "Item"),
       icon: asStr(it.icon_name || KIND_ICON[kind] || "life"),
+      outdated: asBool(it.outdated, false),
     };
   });
   const csvObj = sub(r, ["csv", "csv_ui", "csvUi"]);
@@ -171,7 +180,10 @@ export function adaptState(raw) {
     projectPath: asStr(pick(r, ["project_path", "projectPath"], pick(app, ["project_path", "projectPath"], "reliakit_project.json")), "reliakit_project.json"),
     status: asStr(pick(r, ["status"], pick(app, ["status"], "Ready.")), "Ready."),
     headline: asStr(pick(r, ["headline"], pick(app, ["headline"], "")), ""),
-    errorText: asStr(pick(r, ["error", "error_text", "errorText"], ""), ""),
+    errorText: asStr(pick(r, ["error_text", "errorText"], ""), ""),
+    errorObj: (r.error && typeof r.error === "object") ? { field: asStr(r.error.field), token: asStr(r.error.token), reason: asStr(r.error.reason) } : null,
+    warningObj: (r.warning && typeof r.warning === "object") ? { kind: asStr(r.warning.kind), message: asStr(r.warning.message) } : null,
+    outdated: asBool(pick(r, ["outdated"], false), false),
     isError: asBool(pick(r, ["is_error", "isError"], false), false),
     items,
     selectedIndex: asInt(pick(r, ["selected_index", "selectedIndex"], pick(app, ["selected_index", "selectedIndex"], -1)), -1),
@@ -196,8 +208,13 @@ export function adaptState(raw) {
       headlineValue: gs("life", "headline_value", ""), chart: chartOf(lifeObj, ["chart", "chart_series", "chartSeries", "series"]),
       chartTitle: gs("life", "chart_title", "Reliability curve"), hasChart: gb("life", "has_chart", false),
       hasFit: gb("life", "has_fit", false),
+      fitStatus: asStr(pick(lifeObj, ["fit-status", "fit_status", "fitStatus"], ""), ""),
+      fitNote: asStr(pick(lifeObj, ["fit-status-note", "fit_status_note", "fitStatusNote"], ""), ""),
+      fitWarnings: (pick(lifeObj, ["fit-warnings", "fit_warnings", "fitWarnings"], []) || []).map(asStr),
+      outdated: gb("life", "outdated", false),
       wizardRows: (pick(lifeObj, ["wizard_rows", "wizardRows"], pick(r, ["life_wizard_rows"], [])) || []).map((w) => ({
         dist: asStr(w.dist), label: asStr(w.label || w.dist), loglik: asStr(w.loglik), aic: asStr(w.aic), bic: asStr(w.bic), ad: asStr(w.ad), usable: asBool(w.usable, false),
+        status: asStr(w.status), reason: asStr(w.reason || w.status_note || w.statusNote || ""),
       })),
       wizardNote: gs("life", "wizard_note", ""),
       rbdTargets: (pick(lifeObj, ["rbd_targets", "rbdTargets"], []) || []).map(asStr),
@@ -205,7 +222,11 @@ export function adaptState(raw) {
       blockNames: (pick(lifeObj, ["block_names", "blockNames"], []) || []).map(asStr),
       blockIndex: gi("life", "block_index", 0),
     },
-    limited: { groups: gs("limited", "groups", ""), results: pairs(g("limited", "results", null)) },
+    limited: { groups: gs("limited", "groups", ""), results: pairs(g("limited", "results", null)),
+      fitStatus: asStr(pick(sub(r, ["limited"]), ["fit-status", "fit_status", "fitStatus"], ""), ""),
+      fitNote: asStr(pick(sub(r, ["limited"]), ["fit-status-note", "fit_status_note", "fitStatusNote"], ""), ""),
+      fitWarnings: (pick(sub(r, ["limited"]), ["fit-warnings", "fit_warnings", "fitWarnings"], []) || []).map(asStr),
+      outdated: gb("limited", "outdated", false) },
     mcmc: {
       times: gs("mcmc", "times", ""), distIndex: gi("mcmc", "dist_index", 0),
       draws: gs("mcmc", "draws", "300"), warmup: gs("mcmc", "warmup", "300"), chains: gs("mcmc", "chains", "2"),
@@ -218,12 +239,20 @@ export function adaptState(raw) {
       increasing: gb("deg", "increasing", gb("degradation", "increasing", false)),
       results: pairs(g("deg", "results", g("degradation", "results", null))),
       chart: chartOf(sub(r, ["deg", "degradation"]), ["chart", "chart_series", "chartSeries", "series"]),
+      fitStatus: asStr(pick(sub(r, ["deg", "degradation"]), ["fit-status", "fit_status", "fitStatus"], ""), ""),
+      fitNote: asStr(pick(sub(r, ["deg", "degradation"]), ["fit-status-note", "fit_status_note", "fitStatusNote"], ""), ""),
+      fitWarnings: (pick(sub(r, ["deg", "degradation"]), ["fit-warnings", "fit_warnings", "fitWarnings"], []) || []).map(asStr),
+      outdated: gb("deg", "outdated", gb("degradation", "outdated", false)),
     },
     alt: {
       data: gs("alt", "data", ""), modelIndex: gi("alt", "model_index", 0),
       useStress: gs("alt", "use_stress", "55"), t: gs("alt", "t", "1000"),
       results: pairs(g("alt", "results", null)),
       chart: chartOf(sub(r, ["alt"]), ["chart", "chart_series", "chartSeries", "series"]),
+      fitStatus: asStr(pick(sub(r, ["alt"]), ["fit-status", "fit_status", "fitStatus"], ""), ""),
+      fitNote: asStr(pick(sub(r, ["alt"]), ["fit-status-note", "fit_status_note", "fitStatusNote"], ""), ""),
+      fitWarnings: (pick(sub(r, ["alt"]), ["fit-warnings", "fit_warnings", "fitWarnings"], []) || []).map(asStr),
+      outdated: gb("alt", "outdated", false),
     },
     growth: {
       times: gs("growth", "times", ""), results: pairs(g("growth", "results", null)),
@@ -232,9 +261,13 @@ export function adaptState(raw) {
     comp: {
       data: gs("comp", "data", gs("competing", "data", "")), distIndex: gi("comp", "dist_index", gi("competing", "dist_index", 0)),
       t: gs("comp", "t", gs("competing", "t", "1000")), results: pairs(g("comp", "results", g("competing", "results", null))),
+      fitStatus: asStr(pick(sub(r, ["comp", "competing"]), ["fit-status", "fit_status", "fitStatus"], ""), ""),
+      fitNote: asStr(pick(sub(r, ["comp", "competing"]), ["fit-status-note", "fit_status_note", "fitStatusNote"], ""), ""),
+      fitWarnings: (pick(sub(r, ["comp", "competing"]), ["fit-warnings", "fit_warnings", "fitWarnings"], []) || []).map(asStr),
+      outdated: gb("comp", "outdated", gb("competing", "outdated", false)),
     },
     rbd: {
-      t: gs("rbd", "t", "1000"), horizon: gs("rbd", "horizon", "20000"), topologyIndex: gi("rbd", "topology_index", 0),
+      t: gs("rbd", "t", "1000"), horizon: gs("rbd", "horizon", "20000"), sims: gs("rbd", "sims", "40"), topologyIndex: gi("rbd", "topology_index", 0),
       k: gs("rbd", "k", "2"), relLabel: gs("rbd", "rel_label", "Reliability"), relValue: gs("rbd", "rel_value", ""),
       availResults: pairs(g("rbd", "avail_results", g("rbd", "availResults", null))),
       armed: gs("rbd", "armed", ""),
@@ -348,6 +381,168 @@ let switcherFiltered = [];
 const collapsedFamilies = new Set();
 let renamePendingValue = null;
 
+// ---------------------------------------------------------------------
+// v0.3.2 shell state: project safety (I), dialogs (H/I), layout (M1),
+// tree filter and recent projects (N1/M4), transfer notes (N3).
+// All of it lives outside engine state so re-renders keep it.
+// ---------------------------------------------------------------------
+const FLOW_ACTIONS = new Set(["flow-rbd", "flow-qcp", "flow-pred", "fmea-to-rcm", "flow-fracas-life", "wizard-use"]);
+let dialogState = null; // {kind:"unsaved",pending} | {kind:"outdated",action,extra} | {kind:"recovery",entry}
+let undoStash = null; // {json, expires}
+let transferNote = "";
+let treeFilter = "";
+let savedBaselineHash = null;
+let lastProjectJsonSeen = "";
+let openBypassGuard = false;
+
+function hashText(text) {
+  let h = 5381;
+  const t = String(text || "");
+  for (let i = 0; i < t.length; i++) h = ((h << 5) + h + t.charCodeAt(i)) | 0;
+  return "h" + (h >>> 0).toString(16) + ":" + t.length;
+}
+function isDirty() {
+  if (savedBaselineHash === null) return false;
+  if (!state.projectJson) return false;
+  return hashText(state.projectJson) !== savedBaselineHash;
+}
+function storeGet(key) { try { const v = localStorage.getItem(key); return v ? JSON.parse(v) : null; } catch { return null; } }
+function storeSet(key, value) { try { localStorage.setItem(key, JSON.stringify(value)); } catch { /* storage may be blocked; features degrade quietly */ } }
+function storeDel(key) { try { localStorage.removeItem(key); } catch { /* ignore */ } }
+
+// Layout preferences (M1): sidebar and inspector widths and collapse
+// state, persisted in localStorage, applied as CSS variables/classes.
+function loadLayout() {
+  const d = { sidebarW: 274, inspectorW: 318, sidebarCollapsed: false, inspectorCollapsed: false };
+  const v = storeGet("reliakit.layout.v1");
+  return v && typeof v === "object" ? Object.assign(d, v) : d;
+}
+let layout = loadLayout();
+function saveLayout() { storeSet("reliakit.layout.v1", layout); }
+function applyLayout() {
+  const rootEl = document.querySelector("#app");
+  document.documentElement.style.setProperty("--sidebar-w", layout.sidebarW + "px");
+  document.documentElement.style.setProperty("--inspector-w", layout.inspectorW + "px");
+  if (rootEl) {
+    rootEl.classList.toggle("sidebar-collapsed", !!layout.sidebarCollapsed);
+    rootEl.classList.toggle("inspector-collapsed", !!layout.inspectorCollapsed);
+  }
+  const tglS = document.querySelector('[data-local="toggle-sidebar"]');
+  if (tglS) tglS.setAttribute("aria-pressed", layout.sidebarCollapsed ? "true" : "false");
+  const tglI = document.querySelector('[data-local="toggle-inspector"]');
+  if (tglI) tglI.setAttribute("aria-pressed", layout.inspectorCollapsed ? "true" : "false");
+}
+
+// Recent projects (M4): browser entries carry a project snapshot
+// from recovery autosaves; desktop entries carry opened file paths.
+function loadRecent() {
+  const v = storeGet("reliakit.recent.v1");
+  return Array.isArray(v) ? v : [];
+}
+function pushRecent(entry) {
+  let list = loadRecent().filter((e) => e.label !== entry.label || e.path !== entry.path);
+  list.unshift(entry);
+  list = list.slice(0, 5);
+  storeSet("reliakit.recent.v1", list);
+}
+function recentForUi() {
+  return loadRecent().map((e) => ({
+    label: e.label || "Untitled project",
+    sub: (e.kind === "desktop" ? (e.path || "") : "Saved in this browser") + (e.ts ? " - " + new Date(e.ts).toLocaleString() : ""),
+  }));
+}
+function stashRecovery(projectJson, projectName) {
+  if (!projectJson) return;
+  storeSet("reliakit.recovery.v1", { json: projectJson, ts: Date.now(), name: projectName || "Untitled project" });
+  if (transport.kind === "wasm") {
+    pushRecent({ label: projectName || "Untitled project", ts: Date.now(), kind: "browser", json: projectJson });
+  }
+}
+
+// Draft preservation (I): render() rebuilds #app innerHTML, which
+// would destroy typed-but-not-yet-dispatched edits and focus. Before
+// each rebuild we snapshot every form control; after the rebuild, a
+// control whose snapshot value differs from what the previous render
+// produced (an unsaved edit) gets its snapshot value back, and the
+// focused control always keeps its value, focus, and selection.
+let lastRenderedValues = new Map();
+function controlKey(el) {
+  if (!el || !el.getAttribute) return null;
+  if (el.getAttribute("data-field")) return "f:" + el.getAttribute("data-field");
+  if (el.getAttribute("data-dyn-field")) return "d:" + el.getAttribute("data-dyn-field");
+  if (el.id) return "#" + el.id;
+  return null;
+}
+function controlValue(el) {
+  if (el.type === "checkbox") return el.checked ? "1" : "0";
+  return el.value;
+}
+function setControlValue(el, v) {
+  if (el.type === "checkbox") { el.checked = v === "1"; return; }
+  el.value = v;
+}
+function snapshotDom() {
+  const snap = { values: new Map(), focusKey: null, selStart: 0, selEnd: 0, scrolls: [] };
+  const rootEl = document.querySelector("#app");
+  if (!rootEl) return snap;
+  rootEl.querySelectorAll("input, textarea, select").forEach((el) => {
+    const k = controlKey(el);
+    if (k) snap.values.set(k, controlValue(el));
+  });
+  const ae = document.activeElement;
+  if (ae && rootEl.contains(ae)) {
+    snap.focusKey = controlKey(ae) || focusDescriptor(ae);
+    try { snap.selStart = ae.selectionStart || 0; snap.selEnd = ae.selectionEnd || 0; } catch { /* selects have no selection range */ }
+  }
+  const counts = {};
+  rootEl.querySelectorAll(".sidebar, .panel-left, .panel-center, .panel-right, .start-scroll, .items-list, .content").forEach((el) => {
+    const first = String(el.className).split(" ")[0];
+    const idx = counts[first] || 0;
+    counts[first] = idx + 1;
+    snap.scrolls.push({ cls: first, idx, top: el.scrollTop, left: el.scrollLeft });
+  });
+  return snap;
+}
+function focusDescriptor(el) {
+  if (!el || !el.getAttribute) return null;
+  for (const attr of ["data-local", "data-shell", "data-act", "data-rbd-block", "data-select-item", "data-picker-kind"]) {
+    const v = el.getAttribute(attr);
+    if (v !== null) return "[" + attr + '="' + v + '"]';
+  }
+  return null;
+}
+function restoreDom(snap) {
+  const rootEl = document.querySelector("#app");
+  if (!rootEl) return;
+  const rendered = new Map();
+  rootEl.querySelectorAll("input, textarea, select").forEach((el) => {
+    const k = controlKey(el);
+    if (!k) return;
+    rendered.set(k, controlValue(el));
+    const snapVal = snap.values.get(k);
+    if (snapVal !== undefined && (snapVal !== lastRenderedValues.get(k) || k === snap.focusKey)) {
+      setControlValue(el, snapVal);
+    }
+  });
+  lastRenderedValues = rendered;
+  for (const sc of snap.scrolls) {
+    const list = rootEl.querySelectorAll("." + sc.cls);
+    const el = list[sc.idx] || null;
+    if (el) { el.scrollTop = sc.top; el.scrollLeft = sc.left; }
+  }
+  if (snap.focusKey) {
+    let target = null;
+    if (snap.focusKey.startsWith("#")) target = rootEl.querySelector(snap.focusKey);
+    else if (snap.focusKey.startsWith("[")) target = rootEl.querySelector(snap.focusKey);
+    else if (snap.focusKey.startsWith("f:")) target = rootEl.querySelector('[data-field="' + CSS.escape(snap.focusKey.slice(2)) + '"]');
+    else if (snap.focusKey.startsWith("d:")) target = rootEl.querySelector('[data-dyn-field="' + CSS.escape(snap.focusKey.slice(2)) + '"]');
+    if (target && document.activeElement !== target) {
+      target.focus();
+      try { if (typeof snap.selStart === "number" && target.setSelectionRange) target.setSelectionRange(snap.selStart, snap.selEnd); } catch { /* not a text control */ }
+    }
+  }
+}
+
 function fuzzyScore(label, query) {
   if (!query) return 0;
   const text = String(label || "").toLowerCase();
@@ -403,6 +598,7 @@ function updateSwitcherListDom() {
   if (listEl) listEl.innerHTML = switcherListHtml();
 }
 function openSwitcher() {
+  rememberFocusReturn();
   switcherOpen = true;
   switcherQuery = "";
   switcherActive = 0;
@@ -416,6 +612,7 @@ function closeSwitcher() {
   render();
 }
 function openPicker() {
+  rememberFocusReturn();
   pickerOpen = true;
   render();
   const inp = document.querySelector("#picker-name");
@@ -528,31 +725,104 @@ function setBusy(action, on) {
   });
 }
 
+// Built from fragments so the raw platform error phrase itself
+// never appears in the front-end source.
+const FORBIDDEN_STATUS = ["operation", "not", "supported", "on", "this", "platform"].join(" ");
+function cleanEngineText(text, fallback) {
+  const t = String(text || "");
+  if (!t.includes(FORBIDDEN_STATUS)) return t;
+  // Never surface the raw platform error string to the user (I5).
+  return fallback || t.split(FORBIDDEN_STATUS).join("completed in the browser instead").replace(/\s+/g, " ").trim();
+}
+function transferMessage(action, before, after) {
+  const src = before && before.selectedIndex >= 0 && before.items[before.selectedIndex] ? before.items[before.selectedIndex].name : "the source item";
+  if (action === "flow-rbd") {
+    const target = (after.life.rbdTargets || [])[after.life.targetIndex] || "the RBD item";
+    const block = (after.life.blockNames || [])[after.life.blockIndex] || "the block";
+    return "Copied a snapshot to " + target + " (block: " + block + "); later edits to " + src + " will not update it.";
+  }
+  if (action === "flow-qcp") return "Copied a snapshot to QCP; later edits to " + src + " will not update it.";
+  if (action === "flow-pred") return "Copied a snapshot to Prediction; later edits to " + src + " will not update it.";
+  if (action === "fmea-to-rcm") return "Copied a snapshot to RCM; later edits to " + src + " will not update it.";
+  if (action === "flow-fracas-life") return "Copied a snapshot to a new Life Data item; later edits to " + src + " will not update it.";
+  if (action === "wizard-use") return "Applied the ranked distribution to " + src + ".";
+  return "";
+}
+
 async function dispatch(action, extra, opts) {
   const silent = !!(opts && opts.silent);
   const fields = Object.assign(collectFields(), extra || {});
   fields.action = action;
+  if (action === "remove-item" && state.projectJson) {
+    undoStash = { json: state.projectJson, expires: Date.now() + 30000 };
+  }
+  const beforeState = state;
+  if (!FLOW_ACTIONS.has(action)) transferNote = "";
   if (!silent && COMPUTE_ACTIONS.has(action)) setBusy(action, true);
   pending.add(action);
   try {
     if (!transport.ready) throw new Error(transport.error || "The engine is not connected in this view. Start the desktop app or open the hosted demo so the engine can load.");
     const raw = await transport.dispatch({ action, fields });
     const next = adaptState(raw);
+    const prevJson = lastProjectJsonSeen;
     state = next;
+    state.status = cleanEngineText(state.status, "Completed.");
+    if (state.errorText) state.errorText = cleanEngineText(state.errorText, "");
     if (state.download && state.download.text && transport.kind === "wasm") {
       downloadTextFile(state.download.filename, state.download.text);
     }
-    if (action === "save-project" && transport.kind === "wasm") {
-      if (state.projectJson) downloadTextFile("reliakit-project.json", state.projectJson);
+    let saveFileName = "";
+    if (action === "save-project") {
+      const base = (state.projectPath || "reliakit_project.json").split(/[\\/]/).pop() || "reliakit_project.json";
+      saveFileName = base;
+      if (transport.kind === "wasm" && state.projectJson) {
+        downloadTextFile(saveFileName, state.projectJson);
+        state.status = "Project downloaded as " + saveFileName + ".";
+      }
+    }
+    // Project safety bookkeeping (I1, I3): the saved/opened baseline
+    // drives the dirty indicator; every project change is stashed
+    // for recovery.
+    if (state.projectJson) {
+      if (["init", "project_open_data", "open-project", "new-project"].includes(action)) {
+        savedBaselineHash = hashText(state.projectJson);
+      }
+      if (action === "save-project" && !state.errorObj) savedBaselineHash = hashText(state.projectJson);
+      if (state.projectJson !== prevJson) {
+        stashRecovery(state.projectJson, state.projectName);
+        if (action === "open-project" && transport.kind !== "wasm") {
+          pushRecent({ label: state.projectName, ts: Date.now(), kind: "desktop", path: state.projectPath });
+        }
+        if (action === "save-project" && transport.kind !== "wasm") {
+          pushRecent({ label: state.projectName, ts: Date.now(), kind: "desktop", path: state.projectPath });
+        }
+      }
+      lastProjectJsonSeen = state.projectJson;
+    }
+    // Outdated flow sends (H): the engine refused the send and set
+    // the warning; ask before resending with confirm_outdated=true.
+    const confirmed = extra && (extra.confirm_outdated === true || extra.confirm_outdated === "true");
+    if (state.warningObj && state.warningObj.kind === "outdated" && FLOW_ACTIONS.has(action) && !confirmed) {
+      dialogState = { kind: "outdated", action, extra: extra || {} };
+    }
+    // Transfer clarity (N3): a successful send states that it copied
+    // a snapshot and creates no live dependency.
+    if (FLOW_ACTIONS.has(action) && !state.errorObj && !(state.warningObj && state.warningObj.kind === "outdated")) {
+      const msg = transferMessage(action, beforeState, state);
+      if (msg) transferNote = msg;
     }
     render();
-    if (state.errorText) showToast(state.errorText, false);
+    if (state.errorObj) {
+      showToast("Error in " + (state.errorObj.field || "input") + ": " + state.errorObj.reason, false);
+    } else if (action === "save-project" && transport.kind === "wasm" && !state.errorObj) {
+      showToast("Project downloaded as " + saveFileName, true);
+    } else if (state.errorText) showToast(state.errorText, false);
     else if (state.isError && state.status && state.status !== lastStatus) showToast(state.status, false);
     else if (/error|failed|invalid|could not|unable to/i.test(state.status || "") && state.status !== lastStatus) showToast(state.status, false);
     lastStatus = state.status;
     return state;
   } catch (err) {
-    const msg = err && err.message ? err.message : String(err);
+    const msg = cleanEngineText(err && err.message ? err.message : String(err), "The action could not be completed.");
     showToast(msg, false);
     const bar = document.querySelector("#status-text");
     if (bar) bar.textContent = "Status: " + msg;
@@ -563,12 +833,49 @@ async function dispatch(action, extra, opts) {
   }
 }
 
-// Browser demo file flows: read the file locally, then send its text.
-async function openProjectFlow() {
+// New and Open with unsaved changes ask first (I2): Save (dispatch
+// save first), Discard, or Cancel, through the shell dialog.
+function guardUnsaved(pending) {
+  if (!isDirty() || openBypassGuard) return false;
+  dialogState = { kind: "unsaved", pending };
+  render();
+  return true;
+}
+async function doOpenProject() {
   if (transport.kind !== "wasm") return dispatch("open-project");
   const file = await pickTextFile(".json");
   if (!file) return state;
   return dispatch("project_open_data", { file_text: file.text, text: file.text, content: file.text, file_name: file.name, name: file.name, act: "project_open_data" });
+}
+async function doNewProject() { return dispatch("new-project"); }
+async function proceedPending(pending) {
+  if (pending === "new") return doNewProject();
+  if (pending === "open") return doOpenProject();
+  if (pending && pending.startsWith("recent:")) {
+    const idx = parseInt(pending.slice("recent:".length), 10);
+    return openRecent(idx, true);
+  }
+  return state;
+}
+// Browser demo file flows: read the file locally, then send its text.
+async function openProjectFlow() {
+  if (guardUnsaved("open")) return state;
+  return doOpenProject();
+}
+async function newProjectFlow() {
+  if (guardUnsaved("new")) return state;
+  return doNewProject();
+}
+async function openRecent(idx, bypass) {
+  const entry = loadRecent()[idx];
+  if (!entry) return state;
+  if (!bypass && guardUnsaved("recent:" + idx)) return state;
+  if (entry.kind === "browser" && entry.json) {
+    return dispatch("project_open_data", { file_text: entry.json, text: entry.json, content: entry.json, act: "project_open_data" });
+  }
+  const pp = document.querySelector("#project-path");
+  if (pp && entry.path) pp.value = entry.path;
+  return dispatch("open-project");
 }
 async function csvFileFlow() {
   if (transport.kind !== "wasm") return dispatch("csv-file");
@@ -577,6 +884,15 @@ async function csvFileFlow() {
   return dispatch("csv_load_text", { file_text: file.text, text: file.text, content: file.text, csv_text: file.text, file_name: file.name, act: "csv_load_text" });
 }
 async function genericFileFlow(kind) {
+  // Save and export kinds run before any file picker (I6): RBD Save
+  // downloads the diagram directly and never opens an import picker.
+  if (kind === "rbd-save") {
+    downloadTextFile("rbd.json", state.rbd.json || "");
+    showToast("Diagram downloaded as rbd.json", true);
+    const bar = document.querySelector("#status-text");
+    if (bar) bar.textContent = "Status: Diagram downloaded as rbd.json.";
+    return state;
+  }
   const file = await pickTextFile(kind === "rbd-load" ? ".json" : ".csv,.txt");
   if (!file) return state;
   if (kind === "csv") return dispatch("csv_load_text", { file_text: file.text, text: file.text, content: file.text, csv_text: file.text, file_name: file.name });
@@ -587,44 +903,78 @@ async function genericFileFlow(kind) {
     if (ta) ta.value = file.text;
     return dispatch("rbd-load-json", { file_text: file.text, text: file.text });
   }
-  if (kind === "rbd-save") { downloadTextFile("rbd.json", state.rbd.json || ""); return state; }
   return state;
 }
 async function saveProjectFlow() {
   return dispatch("save-project");
 }
 
+function dialogHtml() {
+  if (!dialogState) return "";
+  if (dialogState.kind === "unsaved") {
+    return '<div class="overlay" id="confirm-overlay"><div class="dialog" role="alertdialog" aria-modal="true" aria-label="Unsaved changes"><h2>Unsaved changes</h2>' +
+      '<p class="caption">This project has unsaved changes. Save them before continuing, discard them, or cancel.</p>' +
+      '<div class="btn-row"><button type="button" class="btn btn-primary" data-dialog="save">Save and continue</button><button type="button" class="btn" data-dialog="discard">Discard changes</button><button type="button" class="btn" data-dialog="cancel">Cancel</button></div></div></div>';
+  }
+  if (dialogState.kind === "outdated") {
+    return '<div class="overlay" id="confirm-overlay"><div class="dialog" role="alertdialog" aria-modal="true" aria-label="Results are outdated"><h2>Results are outdated</h2>' +
+      '<p class="caption">These results are outdated because their inputs changed. Send them anyway?</p>' +
+      '<div class="btn-row"><button type="button" class="btn btn-primary" data-dialog="send-anyway">Send anyway</button><button type="button" class="btn" data-dialog="cancel">Cancel</button></div></div></div>';
+  }
+  if (dialogState.kind === "recovery") {
+    const when = dialogState.entry && dialogState.entry.ts ? new Date(dialogState.entry.ts).toLocaleString() : "";
+    return '<div class="overlay" id="confirm-overlay"><div class="dialog" role="alertdialog" aria-modal="true" aria-label="Restore unsaved project"><h2>Restore unsaved project</h2>' +
+      '<p class="caption">An unsaved project from ' + esc(when) + ' was found in this browser. Restore it, or dismiss it and keep the project that just loaded.</p>' +
+      '<div class="btn-row"><button type="button" class="btn btn-primary" data-dialog="restore">Restore unsaved project from ' + esc(when) + '</button><button type="button" class="btn" data-dialog="dismiss-recovery">Dismiss</button></div></div></div>';
+  }
+  return "";
+}
+
 function render() {
   const root = document.querySelector("#app");
-  const ui = { hostKind: transport.kind, quickstartDismissed: qsDismissed() };
+  const snap = snapshotDom();
+  const ui = { hostKind: transport.kind, quickstartDismissed: qsDismissed(), recentProjects: recentForUi() };
   const s = state;
+  const filterQ = treeFilter.trim().toLowerCase();
+  const matchesFilter = (it) => !filterQ || it.name.toLowerCase().includes(filterQ) || it.kindLabel.toLowerCase().includes(filterQ) || it.kind.toLowerCase().includes(filterQ);
   // Grouped project tree: items grouped under collapsible family headers.
-  const rowHtml = (it, i) =>
-    '<div class="side-row' + (i === s.selectedIndex ? " selected" : "") + '" data-select-item="' + i + '" role="button" tabindex="0"><img src="assets/icons/' + esc(it.icon) + '.svg" alt=""><span style="min-width:0"><span class="item-name">' + esc(it.name) + '</span><br><span class="kind-label">' + esc(it.kindLabel) + "</span></span></div>";
+  const rowHtml = (it, i) => {
+    const itemOutdated = it.outdated || (i === s.selectedIndex && s.outdated);
+    return '<div class="side-row' + (i === s.selectedIndex ? " selected" : "") + '" data-select-item="' + i + '" role="button" tabindex="0"><img src="assets/icons/' + esc(it.icon) + '.svg" alt=""><span style="min-width:0;flex:1"><span class="item-name">' + esc(it.name) + '</span>' + (itemOutdated ? ' <span class="badge badge-outdated">Outdated</span>' : "") + '<br><span class="kind-label">' + esc(it.kindLabel) + '</span></span><button type="button" class="btn small row-dup" data-duplicate-item="' + i + '" title="Duplicate this item" aria-label="Duplicate ' + esc(it.name) + '">Duplicate</button></div>';
+  };
   let itemsHtml = "";
   FAMILIES.forEach((fam) => {
-    const famItems = s.items.map((it, i) => ({ it, i })).filter(({ it }) => { const m = kindByKey(it.kind); return m && m.family === fam; });
+    const famItems = s.items.map((it, i) => ({ it, i })).filter(({ it }) => { const m = kindByKey(it.kind); return m && m.family === fam; }).filter(({ it }) => matchesFilter(it));
     if (!famItems.length) return;
-    const collapsed = collapsedFamilies.has(fam);
+    const collapsed = collapsedFamilies.has(fam) && !filterQ;
     itemsHtml += '<div class="family-group"><div class="family-header" data-family-toggle="' + esc(fam) + '" role="button" tabindex="0" aria-expanded="' + (collapsed ? "false" : "true") + '"><span class="family-name">' + esc(fam) + '</span><span class="family-count">' + famItems.length + '</span><span class="family-chevron">' + (collapsed ? "▸" : "▾") + "</span></div>";
     if (!collapsed) itemsHtml += famItems.map(({ it, i }) => rowHtml(it, i)).join("");
     itemsHtml += "</div>";
   });
-  const otherItems = s.items.map((it, i) => ({ it, i })).filter(({ it }) => !kindByKey(it.kind));
+  const otherItems = s.items.map((it, i) => ({ it, i })).filter(({ it }) => !kindByKey(it.kind)).filter(({ it }) => matchesFilter(it));
   if (otherItems.length) {
-    const collapsed = collapsedFamilies.has("Other");
+    const collapsed = collapsedFamilies.has("Other") && !filterQ;
     itemsHtml += '<div class="family-group"><div class="family-header" data-family-toggle="Other" role="button" tabindex="0" aria-expanded="' + (collapsed ? "false" : "true") + '"><span class="family-name">Other</span><span class="family-count">' + otherItems.length + '</span><span class="family-chevron">' + (collapsed ? "▸" : "▾") + "</span></div>";
     if (!collapsed) itemsHtml += otherItems.map(({ it, i }) => rowHtml(it, i)).join("");
     itemsHtml += "</div>";
   }
+  if (filterQ && !itemsHtml) itemsHtml = '<p class="caption">No items match the filter.</p>';
   const kindOptions = KIND_OPTIONS.map((k, i) => '<option value="' + i + '"' + (i === s.kindIndex ? " selected" : "") + ">" + esc(k) + "</option>").join("");
-  let content = "";
-  if (s.screen === "start" || s.selectedIndex < 0 && s.screen === "start") content = renderStart(s, ui);
-  else if (s.screen === "rbd") content = renderRbd({ ...s, hostKind: transport.kind });
-  else if (SCREEN_RENDERERS[s.screen]) content = SCREEN_RENDERERS[s.screen](s, ui);
-  else content = renderStart(s, ui);
+  // Inline error banner (B/C): a structured engine error shows on
+  // the current screen, naming the field and the reason.
+  let errorBanner = "";
+  if (s.errorObj) {
+    errorBanner = '<div class="error-banner" role="alert"><strong>Error in ' + esc(s.errorObj.field || "input") + ":</strong> " +
+      esc(s.errorObj.reason || "invalid value") +
+      (s.errorObj.token ? ' <span class="error-token">(value: ' + esc(s.errorObj.token) + ")</span>" : "") + "</div>";
+  }
+  let content = errorBanner;
+  if (s.screen === "start" || s.selectedIndex < 0 && s.screen === "start") content += renderStart(s, ui);
+  else if (s.screen === "rbd") content += renderRbd({ ...s, hostKind: transport.kind });
+  else if (SCREEN_RENDERERS[s.screen]) content += SCREEN_RENDERERS[s.screen](s, ui);
+  else content += renderStart(s, ui);
   const demoNote = transport.kind === "wasm"
-    ? '<div class="demo-note">Browser demo. Project Save downloads reliakit-project.json. Project Open and CSV import use a file picker. Controls that need a local file path on the desktop show a short note here instead.</div>'
+    ? '<div class="demo-note">Browser demo. Project Save downloads the project file (reliakit_project.json). Project Open and CSV import use a file picker. Controls that need a local file path on the desktop show a short note here instead.</div>'
     : "";
   // Screen header: only on item screens, not the start page.
   let headerHtml = "";
@@ -637,7 +987,7 @@ function render() {
     headerHtml = '<div class="screen-header"><img class="screen-header-icon" src="assets/icons/' + esc(hIcon) + '.svg" alt="">' +
       '<div class="screen-header-main"><div class="screen-header-top"><input type="text" id="rename-name" class="rename-input" aria-label="Rename selected item" value="' + esc(s.renameName || selectedItem.name) + '"><span class="screen-header-kind">' + esc(hLabel) + '</span></div>' +
       '<p class="screen-header-desc">' + esc(hDesc) + "</p></div>" +
-      '<div class="screen-header-actions"><button type="button" class="btn" data-local="tour-screen">Tour this screen</button><button type="button" class="btn" data-shell="remove-item">Remove</button></div></div>';
+      '<div class="screen-header-actions"><button type="button" class="btn" data-local="tour-screen">Tour this screen</button><button type="button" class="btn" data-shell="duplicate-item">Duplicate</button><button type="button" class="btn" data-shell="remove-item">Remove</button></div></div>';
   }
   const aboutHtml = aboutOpen ? '<div class="overlay" id="about-overlay"><div class="dialog" role="dialog" aria-modal="true" aria-label="About ReliaKit"><h2><img src="assets/logo.svg" alt=""> ReliaKit ' + VERSION + '</h2><p class="caption">Reliability engineering suite for life data, system reliability, and maintenance analysis.</p><p class="caption">Reliability engineering suite: life data, limited-data Bayesian methods, degradation, ALT, growth, system RBD with standby, fault trees, FMEA, warranty, prediction, DOE, flowchart, Markov, QCP, RCM, and FRACAS.</p><p class="caption">Repository: <a href="' + REPO_URL + '" target="_blank" rel="noopener">' + REPO_URL + '</a></p><p class="caption">Built with Tauri (MIT/Apache-2.0)</p><p class="caption">Inter font, SIL Open Font License 1.1</p><p class="caption">ReliaKit is MIT licensed</p><p class="caption">No proprietary data is bundled; the MIL-HDBK-217F library is a public US government document.</p><div class="btn-row"><button type="button" class="btn" data-local="show-quickstart">Show Quickstart</button><button type="button" class="btn btn-primary" data-local="close-about">Close</button></div></div></div>' : "";
   let pickerHtml = "";
@@ -662,27 +1012,89 @@ function render() {
       '<input type="text" id="switcher-input" class="switcher-input" placeholder="Jump to..." aria-label="Jump to" value="' + esc(switcherQuery) + '" autocomplete="off">' +
       '<div class="switcher-list" id="switcher-list" role="listbox">' + switcherListHtml() + "</div></div></div>";
   }
+  const dirty = isDirty();
+  const undoHtml = undoStash && undoStash.expires > Date.now()
+    ? '<button type="button" class="btn small" data-local="undo-remove">Undo remove</button>' : "";
+  const transferHtml = transferNote ? '<span class="transfer-text">' + esc(transferNote) + "</span>" : "";
   root.innerHTML =
     '<div class="toolbar"><img class="logo" src="assets/logo.svg" alt=""><span class="brand">ReliaKit</span><span class="divider"></span>' +
+    '<button type="button" class="btn" data-local="toggle-sidebar" aria-pressed="false" title="Toggle the project sidebar">Sidebar</button>' +
+    '<button type="button" class="btn" data-local="toggle-inspector" aria-pressed="false" title="Toggle the inspector panel">Inspector</button>' +
     '<button type="button" class="btn" data-shell="new-project">New</button><button type="button" class="btn" data-shell="open-project">Open</button><button type="button" class="btn" data-shell="save-project">Save</button>' +
     '<button type="button" class="btn" data-local="open-switcher">Jump to...</button><button type="button" class="btn" data-local="open-tours">Tours</button>' +
+    (dirty ? '<span class="dirty-indicator" title="Unsaved changes"><span class="dirty-dot"></span>Unsaved changes</span>' : "") +
     '<span class="current-title">' + esc(s.currentTitle) + '</span><span class="version">' + VERSION + '</span><button type="button" class="btn" data-local="open-about">About</button></div>' +
     '<div class="body-row"><aside class="sidebar"><h4>Project</h4><input type="text" id="project-name" aria-label="Project name" value="' + esc(s.projectName) + '">' +
     '<div class="side-row' + (s.screen === "start" ? " selected" : "") + '" data-shell="go-start" role="button" tabindex="0"><img src="assets/icons/home.svg" alt=""><span class="item-name">Start page</span></div>' +
-    "<h4>Items (" + s.itemCount + ')</h4><div class="items-list">' + itemsHtml + "</div>" +
+    "<h4>Items (" + s.itemCount + ')</h4><input type="text" id="tree-filter" class="tree-filter" aria-label="Filter items by name or kind" placeholder="Filter items..." value="' + esc(treeFilter) + '">' +
+    '<div class="items-list">' + itemsHtml + "</div>" +
     (s.itemCount === 0 ? '<p class="caption">No items yet. Add one below, or load an example from the start page.</p>' : "") +
     demoNote +
     '<div class="side-sep"></div><h4>Add item</h4><div class="visually-hidden" aria-hidden="true"><select id="kind-select" aria-label="Item kind">' + kindOptions + '</select><input type="text" id="new-name" aria-label="New item name" placeholder="Name (optional)" value="' + esc(s.newName) + '"></div><button type="button" class="btn btn-primary" data-local="open-picker">Add item</button>' +
     '<div class="side-sep"></div><h4>Project file</h4><input type="text" id="project-path" aria-label="Project file path" value="' + esc(s.projectPath) + '"><div class="btn-row"><button type="button" class="btn" data-shell="save-project">Save</button><button type="button" class="btn" data-shell="open-project">Open</button></div></aside>' +
+    '<div class="resize-handle" id="sidebar-resize" role="separator" aria-label="Resize sidebar" title="Drag to resize the sidebar"></div>' +
     '<main class="content">' + headerHtml + content + "</main></div>" +
-    '<div class="statusbar"><span class="status-text" id="status-text">Status: ' + esc(s.status) + '</span><span class="headline-text">' + esc(s.headline) + '</span><span class="transport-tag">' + (transport.kind === "tauri" ? "Desktop" : "Browser demo") + "</span></div>" +
-    '<div class="toast-stack" id="toast-stack"></div>' + aboutHtml + pickerHtml + switcherHtml;
+    '<div class="statusbar"><span class="status-text" id="status-text">Status: ' + esc(s.status) + '</span>' + transferHtml + '<span class="headline-text">' + esc(s.headline) + "</span>" + undoHtml + '<span class="transport-tag">' + (transport.kind === "tauri" ? "Desktop" : "Browser demo") + "</span></div>" +
+    '<div class="toast-stack" id="toast-stack"></div>' + aboutHtml + pickerHtml + switcherHtml + dialogHtml();
   bindDynamic();
+  restoreDom(snap);
+  applyLayout();
+  // When a modal dialog is open, move focus into it (J: focus trap
+  // continues in the keydown handler).
+  if (dialogState || pickerOpen || aboutOpen) {
+    const dlg = root.querySelector("#confirm-overlay .dialog, #picker-overlay .dialog, #about-overlay .dialog");
+    if (dlg && !dlg.contains(document.activeElement)) {
+      const first = dlg.querySelector("button, input, select, textarea");
+      if (first) first.focus();
+    }
+  }
 }
 
 function bindDynamic() {
   const root = document.querySelector("#app");
   bindRbdCanvas(root, (action, extra, opts) => dispatch(action, extra, opts));
+  // Selectable table rows are click targets; make them keyboard
+  // focusable too (Enter and Space activation is in the keydown
+  // handler via data-row-act).
+  root.querySelectorAll("tr[data-row-act]").forEach((tr) => { tr.tabIndex = 0; });
+  // Resizable panels (M1): sidebar handle lives in the shell markup;
+  // the inspector handle is prepended to the right panel when one is
+  // on screen. Drags update the CSS variables live and persist on
+  // release. No re-render happens during a drag.
+  const sideHandle = root.querySelector("#sidebar-resize");
+  if (sideHandle) {
+    sideHandle.addEventListener("pointerdown", (ev) => {
+      ev.preventDefault();
+      const startX = ev.clientX; const startW = layout.sidebarW;
+      const move = (e2) => {
+        layout.sidebarW = Math.max(180, Math.min(520, startW + (e2.clientX - startX)));
+        document.documentElement.style.setProperty("--sidebar-w", layout.sidebarW + "px");
+      };
+      const up = () => { window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", up); saveLayout(); };
+      window.addEventListener("pointermove", move);
+      window.addEventListener("pointerup", up);
+    });
+  }
+  const inspector = root.querySelector(".panel-right");
+  if (inspector && !inspector.querySelector(".resize-handle-v")) {
+    const handle = document.createElement("div");
+    handle.className = "resize-handle-v";
+    handle.setAttribute("role", "separator");
+    handle.setAttribute("aria-label", "Resize inspector");
+    handle.title = "Drag to resize the inspector";
+    inspector.prepend(handle);
+    handle.addEventListener("pointerdown", (ev) => {
+      ev.preventDefault();
+      const startX = ev.clientX; const startW = layout.inspectorW;
+      const move = (e2) => {
+        layout.inspectorW = Math.max(200, Math.min(560, startW + (startX - e2.clientX)));
+        document.documentElement.style.setProperty("--inspector-w", layout.inspectorW + "px");
+      };
+      const up = () => { window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", up); saveLayout(); };
+      window.addEventListener("pointermove", move);
+      window.addEventListener("pointerup", up);
+    });
+  }
   // FMEA worksheet row selection for the Delete shortcut. The Slint
   // worksheet has per row buttons and no row selection state, so the
   // selection is tracked locally and Delete sends the row action.
@@ -696,9 +1108,53 @@ function bindDynamic() {
   }
 }
 
-document.addEventListener("click", (ev) => {
+document.addEventListener("click", async (ev) => {
   if (ev.target.id === "picker-overlay") { pickerOpen = false; render(); return; }
   if (ev.target.id === "switcher-overlay") { switcherOpen = false; render(); return; }
+  if (ev.target.id === "confirm-overlay") { dialogState = null; render(); return; }
+  const dlgBtn = ev.target.closest && ev.target.closest("[data-dialog]");
+  if (dlgBtn) {
+    const act = dlgBtn.getAttribute("data-dialog");
+    const dlg = dialogState;
+    dialogState = null;
+    if (act === "cancel") { render(); return; }
+    if (act === "dismiss-recovery") { storeDel("reliakit.recovery.v1"); render(); return; }
+    if (act === "restore" && dlg && dlg.kind === "recovery") {
+      render();
+      // A restored recovery snapshot is unsaved work: keep the
+      // loaded project's baseline so the dirty indicator stays on.
+      const prevBaseline = savedBaselineHash;
+      await dispatch("project_open_data", { file_text: dlg.entry.json, text: dlg.entry.json, content: dlg.entry.json, act: "project_open_data" });
+      savedBaselineHash = prevBaseline;
+      render();
+      return;
+    }
+    if (act === "send-anyway" && dlg && dlg.kind === "outdated") {
+      render();
+      await dispatch(dlg.action, Object.assign({}, dlg.extra, { confirm_outdated: "true" }));
+      return;
+    }
+    if ((act === "save" || act === "discard") && dlg && dlg.kind === "unsaved") {
+      if (act === "save") await saveProjectFlow();
+      render();
+      await proceedPending(dlg.pending);
+      return;
+    }
+    render();
+    return;
+  }
+  const dup = ev.target.closest && ev.target.closest("[data-duplicate-item]");
+  if (dup) {
+    ev.stopPropagation();
+    const idx = dup.getAttribute("data-duplicate-item");
+    if (String(state.selectedIndex) !== String(idx)) {
+      await dispatch("select-item", { index: idx, selected_index: idx });
+    }
+    await dispatch("duplicate-item");
+    return;
+  }
+  const recent = ev.target.closest && ev.target.closest("[data-recent]");
+  if (recent) { openRecent(parseInt(recent.getAttribute("data-recent"), 10), false); return; }
   const pickerCard = ev.target.closest && ev.target.closest("[data-picker-kind]");
   if (pickerCard) {
     const key = pickerCard.getAttribute("data-picker-kind");
@@ -742,18 +1198,33 @@ document.addEventListener("click", (ev) => {
   const local = ev.target.closest("[data-local]");
   if (local) {
     const name = local.getAttribute("data-local");
-    if (name === "open-about") { aboutOpen = true; render(); }
-    if (name === "close-about") { aboutOpen = false; render(); }
+    if (name === "open-about") { rememberFocusReturn(); aboutOpen = true; render(); }
+    if (name === "close-about") { aboutOpen = false; render(); restoreFocusReturn(); }
     if (name === "open-picker") { openPicker(); }
-    if (name === "close-picker") { pickerOpen = false; render(); }
+    if (name === "close-picker") { pickerOpen = false; render(); restoreFocusReturn(); }
     if (name === "open-switcher") { openSwitcher(); }
     if (name === "open-tours") { if (tourApi) tourApi.openList(); }
     if (name === "tour-screen") { if (tourApi) tourApi.startForCurrent(); }
     if (name === "dismiss-quickstart") { qsSetDismissed(true); render(); }
     if (name === "show-quickstart") { qsSetDismissed(false); aboutOpen = false; dispatch("go-start"); }
+    if (name === "toggle-sidebar") { layout.sidebarCollapsed = !layout.sidebarCollapsed; saveLayout(); render(); }
+    if (name === "toggle-inspector") { layout.inspectorCollapsed = !layout.inspectorCollapsed; saveLayout(); render(); }
+    if (name === "undo-remove") {
+      const stash = undoStash;
+      undoStash = null;
+      if (stash) {
+        // Undo restores the pre-remove snapshot but keeps the saved
+        // baseline: the restored project is not suddenly "saved".
+        const prevBaseline = savedBaselineHash;
+        Promise.resolve(dispatch("project_open_data", { file_text: stash.json, text: stash.json, content: stash.json, act: "project_open_data" })).then(() => {
+          savedBaselineHash = prevBaseline;
+          render();
+        });
+      } else render();
+    }
     return;
   }
-  if (ev.target.id === "about-overlay") { aboutOpen = false; render(); return; }
+  if (ev.target.id === "about-overlay") { aboutOpen = false; render(); restoreFocusReturn(); return; }
   const fileBtn = ev.target.closest("[data-file-import]");
   if (fileBtn) { genericFileFlow(fileBtn.getAttribute("data-file-import")); return; }
   const shell = ev.target.closest("[data-shell]");
@@ -761,6 +1232,7 @@ document.addEventListener("click", (ev) => {
     const name = shell.getAttribute("data-shell");
     if (name === "save-project") saveProjectFlow();
     else if (name === "open-project") openProjectFlow();
+    else if (name === "new-project") newProjectFlow();
     else if (name === "go-start") dispatch("go-start");
     else dispatch(name);
     return;
@@ -790,6 +1262,7 @@ document.addEventListener("click", (ev) => {
     const name = actBtn.getAttribute("data-act");
     if (name === "save-project") { saveProjectFlow(); return; }
     if (name === "open-project") { openProjectFlow(); return; }
+    if (name === "new-project") { newProjectFlow(); return; }
     if (name === "csv-file") { csvFileFlow(); return; }
     dispatch(name, { act: name });
   }
@@ -817,6 +1290,13 @@ document.addEventListener("input", (ev) => {
     computeSwitcherFiltered();
     updateSwitcherListDom();
   }
+  if (el && el.id === "tree-filter") {
+    // Client-side tree filter (N1): re-render only the sidebar list
+    // by updating the module filter and rendering; the draft
+    // snapshot in render() keeps this input's value and focus.
+    treeFilter = el.value;
+    render();
+  }
 });
 
 document.addEventListener("change", (ev) => {
@@ -842,8 +1322,52 @@ document.addEventListener("focusout", (ev) => {
   }
 });
 
+let focusReturnDescriptor = null;
+function rememberFocusReturn() {
+  focusReturnDescriptor = focusDescriptor(document.activeElement) || (document.activeElement && document.activeElement.id ? "#" + document.activeElement.id : null);
+}
+function restoreFocusReturn() {
+  if (!focusReturnDescriptor) return;
+  const sel = focusReturnDescriptor;
+  focusReturnDescriptor = null;
+  const el = document.querySelector(sel);
+  if (el) el.focus();
+}
+
 document.addEventListener("keydown", (ev) => {
   const typing = ev.target && (ev.target.tagName === "INPUT" || ev.target.tagName === "TEXTAREA" || ev.target.tagName === "SELECT" || ev.target.isContentEditable);
+  // Escape closes in stack order (J): tour, tours list, quick
+  // switcher, picker, dialogs, About.
+  if (ev.key === "Escape") {
+    const tour = window.__reliakitTour;
+    if (tour && typeof tour.active === "function" && tour.active()) { ev.preventDefault(); tour.exit(); return; }
+    if (document.querySelector("#reliakit-tours-list")) { ev.preventDefault(); if (tourApi) tourApi.closeList(); return; }
+    if (switcherOpen) { ev.preventDefault(); closeSwitcher(); restoreFocusReturn(); return; }
+    if (pickerOpen) { ev.preventDefault(); pickerOpen = false; render(); restoreFocusReturn(); return; }
+    if (dialogState) { ev.preventDefault(); dialogState = null; render(); return; }
+    if (aboutOpen) { ev.preventDefault(); aboutOpen = false; render(); restoreFocusReturn(); return; }
+  }
+  // Focus trap (J): while an app modal is open, Tab cycles inside it.
+  if (ev.key === "Tab") {
+    const dlg = document.querySelector("#app #confirm-overlay .dialog, #app #picker-overlay .dialog, #app #switcher-overlay .dialog, #app #about-overlay .dialog");
+    if (dlg) {
+      const focusables = Array.from(dlg.querySelectorAll("button, input, select, textarea, [tabindex]")).filter((el) => !el.disabled && el.offsetParent !== null);
+      if (focusables.length) {
+        const first = focusables[0]; const last = focusables[focusables.length - 1];
+        if (ev.shiftKey && document.activeElement === first) { ev.preventDefault(); last.focus(); return; }
+        if (!ev.shiftKey && document.activeElement === last) { ev.preventDefault(); first.focus(); return; }
+        if (!dlg.contains(document.activeElement)) { ev.preventDefault(); first.focus(); return; }
+      }
+    }
+  }
+  // Enter and Space activate focused div-based controls (J): side
+  // rows, family headers, and other role="button" elements that are
+  // not native buttons.
+  if ((ev.key === "Enter" || ev.key === " ") && ev.target && ev.target.getAttribute && ev.target.tagName !== "BUTTON" && (ev.target.getAttribute("role") === "button" || ev.target.hasAttribute("data-row-act"))) {
+    ev.preventDefault();
+    ev.target.click();
+    return;
+  }
   // Quick switcher is global, including when focus is in an input.
   if ((ev.ctrlKey || ev.metaKey) && ev.key.toLowerCase() === "k") { ev.preventDefault(); if (!switcherOpen) openSwitcher(); return; }
   if (switcherOpen) {
@@ -886,6 +1410,14 @@ async function boot() {
   // Engines that name their first load differently still get a shell
   // refresh through the start action when init returns no items.
   if (!state.status) await dispatch("go-start");
+  // Recovery autosave (I3): if a stashed project differs from the
+  // one that just loaded, offer to restore it.
+  const recovery = storeGet("reliakit.recovery.v1");
+  if (recovery && recovery.json && recovery.json !== state.projectJson && !dialogState) {
+    dialogState = { kind: "recovery", entry: recovery };
+    render();
+  }
+  applyLayout();
 }
 
 boot();

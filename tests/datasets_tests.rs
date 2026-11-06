@@ -17,8 +17,8 @@ use reliakit::distributions::fit_mle;
 
 /// Load a dataset CSV: skip `#` lines and the header, parse f64 columns.
 fn load(path: &str) -> Vec<Vec<f64>> {
-    let text = std::fs::read_to_string(path)
-        .unwrap_or_else(|e| panic!("cannot read {}: {}", path, e));
+    let text =
+        std::fs::read_to_string(path).unwrap_or_else(|e| panic!("cannot read {}: {}", path, e));
     let mut rows = Vec::new();
     for line in text.lines() {
         let l = line.trim();
@@ -77,7 +77,10 @@ fn check(rows: &[Vec<f64>], n_rows: usize, sums: &[(usize, f64, f64)], path: &st
 
 #[test]
 fn life_data_example_rows_and_sums() {
-    let p = concat!(env!("CARGO_MANIFEST_DIR"), "/datasets/reliasoft_life_data_example.csv");
+    let p = concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/datasets/reliasoft_life_data_example.csv"
+    );
     let rows = load(p);
     // 10 units: 6 failures (sum of failed = 6), times sum to 871 hours.
     check(&rows, 10, &[(0, 871.0, 1e-9), (1, 6.0, 1e-9)], p);
@@ -85,14 +88,20 @@ fn life_data_example_rows_and_sums() {
 
 #[test]
 fn unbiasing_complete_rows_and_sums() {
-    let p = concat!(env!("CARGO_MANIFEST_DIR"), "/datasets/reliasoft_unbiasing_complete.csv");
+    let p = concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/datasets/reliasoft_unbiasing_complete.csv"
+    );
     let rows = load(p);
     check(&rows, 10, &[(0, 920.0, 1e-9), (1, 10.0, 1e-9)], p);
 }
 
 #[test]
 fn unbiasing_suspended_rows_and_sums() {
-    let p = concat!(env!("CARGO_MANIFEST_DIR"), "/datasets/reliasoft_unbiasing_suspended.csv");
+    let p = concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/datasets/reliasoft_unbiasing_suspended.csv"
+    );
     let rows = load(p);
     // 7 failures and 3 suspensions at 120: times sum to 765.
     check(&rows, 10, &[(0, 765.0, 1e-9), (1, 7.0, 1e-9)], p);
@@ -100,7 +109,10 @@ fn unbiasing_suspended_rows_and_sums() {
 
 #[test]
 fn beta_shape_example_rows_and_sums() {
-    let p = concat!(env!("CARGO_MANIFEST_DIR"), "/datasets/reliasoft_beta_shape_example.csv");
+    let p = concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/datasets/reliasoft_beta_shape_example.csv"
+    );
     let rows = load(p);
     // 20 items, 9 failures, times sum to 645. Transcription only: the
     // printed fit is not reproduced (see the fit note in README.md).
@@ -113,7 +125,10 @@ fn beta_shape_example_rows_and_sums() {
 
 #[test]
 fn alt_tensile_rows_and_sums() {
-    let p = concat!(env!("CARGO_MANIFEST_DIR"), "/datasets/reliasoft_alt_tensile.csv");
+    let p = concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/datasets/reliasoft_alt_tensile.csv"
+    );
     let rows = load(p);
     check(
         &rows,
@@ -125,7 +140,10 @@ fn alt_tensile_rows_and_sums() {
 
 #[test]
 fn alt_circuit_boards_rows_and_sums() {
-    let p = concat!(env!("CARGO_MANIFEST_DIR"), "/datasets/reliasoft_alt_circuit_boards.csv");
+    let p = concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/datasets/reliasoft_alt_circuit_boards.csv"
+    );
     let rows = load(p);
     // Grouped counts on the page expand to 29 units (19 at 463 K,
     // 10 at 488 K) with 15 failures. The page text says 27 boards;
@@ -140,7 +158,10 @@ fn alt_circuit_boards_rows_and_sums() {
 
 #[test]
 fn alt_paper_clips_rows_and_sums() {
-    let p = concat!(env!("CARGO_MANIFEST_DIR"), "/datasets/reliasoft_alt_paper_clips.csv");
+    let p = concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/datasets/reliasoft_alt_paper_clips.csv"
+    );
     let rows = load(p);
     check(
         &rows,
@@ -152,7 +173,10 @@ fn alt_paper_clips_rows_and_sums() {
 
 #[test]
 fn alt_two_stress_rows_and_sums() {
-    let p = concat!(env!("CARGO_MANIFEST_DIR"), "/datasets/reliasoft_alt_two_stress.csv");
+    let p = concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/datasets/reliasoft_alt_two_stress.csv"
+    );
     let rows = load(p);
     // stress = temperature K (sum 4416), stress2 = voltage V (sum 44).
     check(
@@ -189,7 +213,10 @@ fn degradation_turbine_blades_rows_and_sums() {
 
 #[test]
 fn degradation_mosfet_rows_and_sums() {
-    let p = concat!(env!("CARGO_MANIFEST_DIR"), "/datasets/reliasoft_degradation_mosfet.csv");
+    let p = concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/datasets/reliasoft_degradation_mosfet.csv"
+    );
     let rows = load(p);
     // 5 units x 35 inspection times. Value sum 878.11 percent.
     check(
@@ -202,7 +229,10 @@ fn degradation_mosfet_rows_and_sums() {
 
 #[test]
 fn alt_degradation_led_rows_and_sums() {
-    let p = concat!(env!("CARGO_MANIFEST_DIR"), "/datasets/reliasoft_alt_degradation_led.csv");
+    let p = concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/datasets/reliasoft_alt_degradation_led.csv"
+    );
     let rows = load(p);
     // 10 units x 5 inspections. Value sum 3813.6 mcd, stress sum 1875 mA.
     check(
@@ -224,7 +254,10 @@ fn alt_degradation_led_rows_and_sums() {
 
 #[test]
 fn growth_crow_amsaa_rows_and_sums() {
-    let p = concat!(env!("CARGO_MANIFEST_DIR"), "/datasets/reliasoft_growth_crow_amsaa.csv");
+    let p = concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/datasets/reliasoft_growth_crow_amsaa.csv"
+    );
     let rows = load(p);
     // 27 failures in 300 hours. Times sum to 3006.9; the cumulative
     // count column runs 1..27 and sums to 378.
@@ -234,7 +267,10 @@ fn growth_crow_amsaa_rows_and_sums() {
 
 #[test]
 fn growth_test_fix_test_rows_and_sums() {
-    let p = concat!(env!("CARGO_MANIFEST_DIR"), "/datasets/reliasoft_growth_test_fix_test.csv");
+    let p = concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/datasets/reliasoft_growth_test_fix_test.csv"
+    );
     let rows = load(p);
     // 23 failures, time terminated at 500 hours. Times sum to 3147.6;
     // cumulative count column sums to 276.
@@ -248,7 +284,10 @@ fn growth_test_fix_test_rows_and_sums() {
 
 #[test]
 fn warranty_nevada_rows_and_sums() {
-    let p = concat!(env!("CARGO_MANIFEST_DIR"), "/datasets/reliasoft_warranty_nevada.csv");
+    let p = concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/datasets/reliasoft_warranty_nevada.csv"
+    );
     let rows = load(p);
     // 3 shipments x their observed return lags = 6 rows. Returns sum
     // to 21. The sales column repeats each shipment size, so its raw
@@ -318,10 +357,21 @@ fn fit_life_data_example_matches_printed_mle() {
     // Source: https://help.reliasoft.com/weibull22/content/life_data_analysis_example.htm
     // Printed (2P Weibull, MLE): beta = 1.5070, eta = 128.6414.
     // ReliaKit MLE on the shipped transcription: beta = 1.5069, eta = 128.6430.
-    let p = concat!(env!("CARGO_MANIFEST_DIR"), "/datasets/reliasoft_life_data_example.csv");
+    let p = concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/datasets/reliasoft_life_data_example.csv"
+    );
     let (beta, eta) = life_fit(p);
-    assert!((beta - 1.5070).abs() <= 0.002, "beta {} vs printed 1.5070", beta);
-    assert!((eta - 128.6414).abs() <= 0.005, "eta {} vs printed 128.6414", eta);
+    assert!(
+        (beta - 1.5070).abs() <= 0.002,
+        "beta {} vs printed 1.5070",
+        beta
+    );
+    assert!(
+        (eta - 128.6414).abs() <= 0.005,
+        "eta {} vs printed 128.6414",
+        eta
+    );
 }
 
 #[test]
@@ -329,10 +379,21 @@ fn fit_unbiasing_complete_matches_printed_mle() {
     // Source: https://help.reliasoft.com/articles/content/hotwire/issue109/relbasics109.htm
     // Printed (2P Weibull, MLE): beta = 1.7255, eta = 103.8609.
     // ReliaKit MLE on the shipped transcription: beta = 1.7255, eta = 103.8606.
-    let p = concat!(env!("CARGO_MANIFEST_DIR"), "/datasets/reliasoft_unbiasing_complete.csv");
+    let p = concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/datasets/reliasoft_unbiasing_complete.csv"
+    );
     let (beta, eta) = life_fit(p);
-    assert!((beta - 1.7255).abs() <= 0.002, "beta {} vs printed 1.7255", beta);
-    assert!((eta - 103.8609).abs() <= 0.005, "eta {} vs printed 103.8609", eta);
+    assert!(
+        (beta - 1.7255).abs() <= 0.002,
+        "beta {} vs printed 1.7255",
+        beta
+    );
+    assert!(
+        (eta - 103.8609).abs() <= 0.005,
+        "eta {} vs printed 103.8609",
+        eta
+    );
 }
 
 #[test]
@@ -340,8 +401,19 @@ fn fit_unbiasing_suspended_matches_printed_mle() {
     // Source: https://help.reliasoft.com/articles/content/hotwire/issue109/relbasics109.htm
     // Printed (2P Weibull, MLE): beta = 1.7670, eta = 100.2278.
     // ReliaKit MLE on the shipped transcription: beta = 1.7669, eta = 100.2279.
-    let p = concat!(env!("CARGO_MANIFEST_DIR"), "/datasets/reliasoft_unbiasing_suspended.csv");
+    let p = concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/datasets/reliasoft_unbiasing_suspended.csv"
+    );
     let (beta, eta) = life_fit(p);
-    assert!((beta - 1.7670).abs() <= 0.002, "beta {} vs printed 1.7670", beta);
-    assert!((eta - 100.2278).abs() <= 0.005, "eta {} vs printed 100.2278", eta);
+    assert!(
+        (beta - 1.7670).abs() <= 0.002,
+        "beta {} vs printed 1.7670",
+        beta
+    );
+    assert!(
+        (eta - 100.2278).abs() <= 0.005,
+        "eta {} vs printed 100.2278",
+        eta
+    );
 }

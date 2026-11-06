@@ -18,7 +18,9 @@ pub mod series;
 pub mod work;
 
 pub use handle::handle;
-pub use work::{project_from_value, project_to_value, ItemKind, ProjectItem, Work, BUNDLED_CSV, MIL217_FILES};
+pub use work::{
+    project_from_value, project_to_value, ItemKind, ProjectItem, Work, BUNDLED_CSV, MIL217_FILES,
+};
 
 /// Text of one bundled dataset, by file name (one of BUNDLED_CSV).
 ///
@@ -28,21 +30,49 @@ pub use work::{project_from_value, project_to_value, ItemKind, ProjectItem, Work
 /// for an unknown name.
 pub fn bundled_csv_text(name: &str) -> Option<&'static str> {
     let text = match name {
-        "reliasoft_alt_circuit_boards.csv" => include_str!("../../datasets/reliasoft_alt_circuit_boards.csv"),
-        "reliasoft_alt_degradation_led.csv" => include_str!("../../datasets/reliasoft_alt_degradation_led.csv"),
-        "reliasoft_alt_paper_clips.csv" => include_str!("../../datasets/reliasoft_alt_paper_clips.csv"),
+        "reliasoft_alt_circuit_boards.csv" => {
+            include_str!("../../datasets/reliasoft_alt_circuit_boards.csv")
+        }
+        "reliasoft_alt_degradation_led.csv" => {
+            include_str!("../../datasets/reliasoft_alt_degradation_led.csv")
+        }
+        "reliasoft_alt_paper_clips.csv" => {
+            include_str!("../../datasets/reliasoft_alt_paper_clips.csv")
+        }
         "reliasoft_alt_tensile.csv" => include_str!("../../datasets/reliasoft_alt_tensile.csv"),
-        "reliasoft_alt_two_stress.csv" => include_str!("../../datasets/reliasoft_alt_two_stress.csv"),
-        "reliasoft_beta_shape_example.csv" => include_str!("../../datasets/reliasoft_beta_shape_example.csv"),
-        "reliasoft_degradation_mosfet.csv" => include_str!("../../datasets/reliasoft_degradation_mosfet.csv"),
-        "reliasoft_degradation_turbine_blades.csv" => include_str!("../../datasets/reliasoft_degradation_turbine_blades.csv"),
-        "reliasoft_growth_crow_amsaa.csv" => include_str!("../../datasets/reliasoft_growth_crow_amsaa.csv"),
-        "reliasoft_growth_test_fix_test.csv" => include_str!("../../datasets/reliasoft_growth_test_fix_test.csv"),
-        "reliasoft_life_data_example.csv" => include_str!("../../datasets/reliasoft_life_data_example.csv"),
-        "reliasoft_unbiasing_complete.csv" => include_str!("../../datasets/reliasoft_unbiasing_complete.csv"),
-        "reliasoft_unbiasing_suspended.csv" => include_str!("../../datasets/reliasoft_unbiasing_suspended.csv"),
-        "reliasoft_warranty_nevada.csv" => include_str!("../../datasets/reliasoft_warranty_nevada.csv"),
-        "reliasoft_warranty_time_to_failure.csv" => include_str!("../../datasets/reliasoft_warranty_time_to_failure.csv"),
+        "reliasoft_alt_two_stress.csv" => {
+            include_str!("../../datasets/reliasoft_alt_two_stress.csv")
+        }
+        "reliasoft_beta_shape_example.csv" => {
+            include_str!("../../datasets/reliasoft_beta_shape_example.csv")
+        }
+        "reliasoft_degradation_mosfet.csv" => {
+            include_str!("../../datasets/reliasoft_degradation_mosfet.csv")
+        }
+        "reliasoft_degradation_turbine_blades.csv" => {
+            include_str!("../../datasets/reliasoft_degradation_turbine_blades.csv")
+        }
+        "reliasoft_growth_crow_amsaa.csv" => {
+            include_str!("../../datasets/reliasoft_growth_crow_amsaa.csv")
+        }
+        "reliasoft_growth_test_fix_test.csv" => {
+            include_str!("../../datasets/reliasoft_growth_test_fix_test.csv")
+        }
+        "reliasoft_life_data_example.csv" => {
+            include_str!("../../datasets/reliasoft_life_data_example.csv")
+        }
+        "reliasoft_unbiasing_complete.csv" => {
+            include_str!("../../datasets/reliasoft_unbiasing_complete.csv")
+        }
+        "reliasoft_unbiasing_suspended.csv" => {
+            include_str!("../../datasets/reliasoft_unbiasing_suspended.csv")
+        }
+        "reliasoft_warranty_nevada.csv" => {
+            include_str!("../../datasets/reliasoft_warranty_nevada.csv")
+        }
+        "reliasoft_warranty_time_to_failure.csv" => {
+            include_str!("../../datasets/reliasoft_warranty_time_to_failure.csv")
+        }
         "smrd_bearingcage.csv" => include_str!("../../datasets/smrd_bearingcage.csv"),
         _ => return None,
     };
@@ -60,17 +90,25 @@ pub fn mil217_text(name: &str) -> Option<&'static str> {
         "connections.json" => include_str!("../../libraries/mil217/connections.json"),
         "connector_sockets.json" => include_str!("../../libraries/mil217/connector_sockets.json"),
         "connectors.json" => include_str!("../../libraries/mil217/connectors.json"),
-        "elapsed_time_meters.json" => include_str!("../../libraries/mil217/elapsed_time_meters.json"),
+        "elapsed_time_meters.json" => {
+            include_str!("../../libraries/mil217/elapsed_time_meters.json")
+        }
         "electronic_filters.json" => include_str!("../../libraries/mil217/electronic_filters.json"),
         "fuses.json" => include_str!("../../libraries/mil217/fuses.json"),
-        "interconnection_assemblies_pth.json" => include_str!("../../libraries/mil217/interconnection_assemblies_pth.json"),
-        "miscellaneous_parts.json" => include_str!("../../libraries/mil217/miscellaneous_parts.json"),
+        "interconnection_assemblies_pth.json" => {
+            include_str!("../../libraries/mil217/interconnection_assemblies_pth.json")
+        }
+        "miscellaneous_parts.json" => {
+            include_str!("../../libraries/mil217/miscellaneous_parts.json")
+        }
         "quartz_crystals.json" => include_str!("../../libraries/mil217/quartz_crystals.json"),
         "relays_mechanical.json" => include_str!("../../libraries/mil217/relays_mechanical.json"),
         "relays_solid_state.json" => include_str!("../../libraries/mil217/relays_solid_state.json"),
         "resistors.json" => include_str!("../../libraries/mil217/resistors.json"),
         "switches.json" => include_str!("../../libraries/mil217/switches.json"),
-        "synchros_and_resolvers.json" => include_str!("../../libraries/mil217/synchros_and_resolvers.json"),
+        "synchros_and_resolvers.json" => {
+            include_str!("../../libraries/mil217/synchros_and_resolvers.json")
+        }
         "transformers.json" => include_str!("../../libraries/mil217/transformers.json"),
         _ => return None,
     };

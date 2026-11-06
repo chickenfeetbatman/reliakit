@@ -120,14 +120,14 @@ pub fn split_rhat(chains: &[Vec<Vec<f64>>]) -> Vec<f64> {
             .sum::<f64>()
             / split.len() as f64;
         let grand = means.iter().sum::<f64>() / means.len() as f64;
-        let b = m
-            * means
-                .iter()
-                .map(|mu| (mu - grand).powi(2))
-                .sum::<f64>()
-            / (means.len() - 1) as f64;
+        let b =
+            m * means.iter().map(|mu| (mu - grand).powi(2)).sum::<f64>() / (means.len() - 1) as f64;
         let var_plus = (1.0 - 1.0 / m) * w + b / m;
-        out.push(if w > 0.0 { (var_plus / w).sqrt() } else { f64::NAN });
+        out.push(if w > 0.0 {
+            (var_plus / w).sqrt()
+        } else {
+            f64::NAN
+        });
     }
     out
 }
@@ -215,9 +215,8 @@ impl McMcResult {
         for j in 0..d {
             let mut col: Vec<f64> = s.iter().map(|row| row[j]).collect();
             let mean = col.iter().sum::<f64>() / col.len() as f64;
-            let sd = (col.iter().map(|x| (x - mean).powi(2)).sum::<f64>()
-                / col.len() as f64)
-                .sqrt();
+            let sd =
+                (col.iter().map(|x| (x - mean).powi(2)).sum::<f64>() / col.len() as f64).sqrt();
             col.sort_by(|a, b| a.partial_cmp(b).unwrap());
             out.push((
                 self.param_names[j].clone(),
@@ -297,7 +296,11 @@ impl McMcResult {
             let mut count = 0usize;
             for _ in 0..n {
                 let sim = if self.model.starts_with("weibull2") {
-                    let eta = if self.model == "weibull2" { row[1] } else { row[2] };
+                    let eta = if self.model == "weibull2" {
+                        row[1]
+                    } else {
+                        row[2]
+                    };
                     rng.weibull(row[0], eta)
                 } else {
                     rng.lognormal(row[0], row[1])
@@ -422,16 +425,21 @@ pub fn fit_bayes_hierarchical_weibull(
     let logpost = |th: &[f64]| -> f64 {
         let (lb, mu, ltau) = (th[0], th[1], th[2]);
         let le = &th[3..];
-        if !(-5.0 < lb && lb < 5.0 && centre - 8.0 < mu && mu < centre + 8.0 && -6.0 < ltau && ltau < 3.0) {
+        if !(-5.0 < lb
+            && lb < 5.0
+            && centre - 8.0 < mu
+            && mu < centre + 8.0
+            && -6.0 < ltau
+            && ltau < 3.0)
+        {
             return f64::NEG_INFINITY;
         }
         if le.iter().any(|v| *v < centre - 10.0 || *v > centre + 10.0) {
             return f64::NEG_INFINITY;
         }
         let tau = ltau.exp();
-        let mut lp = -0.5 * (lb / 1.5).powi(2)
-            - 0.5 * ((mu - centre) / 2.0).powi(2)
-            - 0.5 * ltau.powi(2);
+        let mut lp =
+            -0.5 * (lb / 1.5).powi(2) - 0.5 * ((mu - centre) / 2.0).powi(2) - 0.5 * ltau.powi(2);
         for v in le {
             let z = (v - mu) / tau;
             lp += -0.5 * z * z - tau.ln() - 0.5 * (2.0 * std::f64::consts::PI).ln();

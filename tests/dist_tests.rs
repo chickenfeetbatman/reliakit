@@ -132,7 +132,11 @@ fn logistic_mle_recovery() {
         "logistic recovery: mu={} s={}",
         fit.params["mu"], fit.params["s"]
     );
-    assert!((fit.params["mu"] - mu_t).abs() < 60.0, "mu={}", fit.params["mu"]);
+    assert!(
+        (fit.params["mu"] - mu_t).abs() < 60.0,
+        "mu={}",
+        fit.params["mu"]
+    );
     assert!(
         (fit.params["s"] - s_t).abs() < 0.15 * s_t,
         "s={}",
@@ -259,7 +263,13 @@ fn gengamma_reduces_to_gamma_at_p1() {
             t
         );
         let (fg, fa) = (pdf("gengamma", &g, t), pdf("gamma", &gam, t));
-        assert!(close(fg, fa, 1e-10), "pdf mismatch at t={}: {} vs {}", t, fg, fa);
+        assert!(
+            close(fg, fa, 1e-10),
+            "pdf mismatch at t={}: {} vs {}",
+            t,
+            fg,
+            fa
+        );
     }
 }
 
@@ -274,7 +284,13 @@ fn gengamma_reduces_to_weibull_at_d_eq_p() {
             t
         );
         let (fg, fa) = (pdf("gengamma", &g, t), pdf("weibull2", &w, t));
-        assert!(close(fg, fa, 1e-10), "pdf mismatch at t={}: {} vs {}", t, fg, fa);
+        assert!(
+            close(fg, fa, 1e-10),
+            "pdf mismatch at t={}: {} vs {}",
+            t,
+            fg,
+            fa
+        );
     }
 }
 
@@ -318,7 +334,11 @@ fn gengamma_mle_recovery() {
 fn weibull1_closed_form() {
     let p = p_of(&[("beta", 1.7), ("eta", 800.0)]);
     // R(eta) = exp(-1).
-    assert!(close(reliability("weibull1", &p, 800.0), (-1.0f64).exp(), 1e-12));
+    assert!(close(
+        reliability("weibull1", &p, 800.0),
+        (-1.0f64).exp(),
+        1e-12
+    ));
     // B10 = eta (-ln 0.9)^(1 / beta).
     let b10 = 800.0 * (-(0.9f64).ln()).powf(1.0 / 1.7);
     assert!(close(quantile("weibull1", &p, 0.10), b10, 1e-9));
@@ -355,7 +375,11 @@ fn exponential2_closed_form() {
     let p = p_of(&[("theta", 250.0), ("gamma", 100.0)]);
     // R(gamma) = 1; R(gamma + theta) = exp(-1); F below gamma is 0.
     assert!(close(reliability("exponential2", &p, 100.0), 1.0, 1e-12));
-    assert!(close(reliability("exponential2", &p, 350.0), (-1.0f64).exp(), 1e-12));
+    assert!(close(
+        reliability("exponential2", &p, 350.0),
+        (-1.0f64).exp(),
+        1e-12
+    ));
     assert!(close(cdf("exponential2", &p, 50.0), 0.0, 0.0));
     assert!(close(pdf("exponential2", &p, 50.0), 0.0, 0.0));
     // Median = gamma + theta ln 2; mean = gamma + theta.
@@ -396,9 +420,13 @@ fn mixed_weibull_closed_form() {
     ]);
     let t = 600.0;
     // R(t) = w exp(-(t / eta1)^beta1) + (1 - w) exp(-(t / eta2)^beta2).
-    let r_expected = 0.3 * (-(t / 400.0f64).powf(1.5)).exp()
-        + 0.7 * (-(t / 2000.0f64).powf(2.0)).exp();
-    assert!(close(reliability("mixed_weibull", &p, t), r_expected, 1e-12));
+    let r_expected =
+        0.3 * (-(t / 400.0f64).powf(1.5)).exp() + 0.7 * (-(t / 2000.0f64).powf(2.0)).exp();
+    assert!(close(
+        reliability("mixed_weibull", &p, t),
+        r_expected,
+        1e-12
+    ));
     assert!(close(cdf("mixed_weibull", &p, t), 1.0 - r_expected, 1e-12));
     // Mean is the weighted sum of the component means.
     let m_expected = 0.3 * 400.0 * specfunc::ln_gamma(1.0 + 1.0 / 1.5).exp()

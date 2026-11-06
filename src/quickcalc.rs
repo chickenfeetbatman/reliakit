@@ -22,12 +22,7 @@ pub struct QcpResult {
 /// `bx` is a failure fraction in (0, 1), so for example bx = 0.10
 /// gives the B10 life, which is the 0.10 quantile of the life
 /// distribution.
-pub fn quick_calc(
-    dist: &str,
-    params: &Params,
-    t: f64,
-    bx: f64,
-) -> Result<QcpResult, String> {
+pub fn quick_calc(dist: &str, params: &Params, t: f64, bx: f64) -> Result<QcpResult, String> {
     if distributions::dist_spec(dist).is_none() {
         return Err(format!("unknown distribution {}", dist));
     }

@@ -101,8 +101,16 @@ fn markov_expected_time_in_state_sums_to_mttf() {
         .expected_time_in_state(&absorbing, 0)
         .expect("expected times");
     assert_eq!(times.len(), 3);
-    assert!((times[0] - 550.0).abs() < 1e-6, "time in both up {}", times[0]);
-    assert!((times[1] - 100.0).abs() < 1e-6, "time in one up {}", times[1]);
+    assert!(
+        (times[0] - 550.0).abs() < 1e-6,
+        "time in both up {}",
+        times[0]
+    );
+    assert!(
+        (times[1] - 100.0).abs() < 1e-6,
+        "time in one up {}",
+        times[1]
+    );
     assert_eq!(times[2], 0.0);
     let sum: f64 = times.iter().sum();
     assert!((sum - 650.0).abs() < 1e-6, "sum {}", sum);
@@ -433,7 +441,11 @@ fn fmea_worksheet_round_trip_keeps_type_and_rows() {
     let mut worksheet = fmea::FmeaWorksheet::new(fmea::FmeaType::Process);
     worksheet.rows = rows.clone();
     let csv = worksheet.to_csv();
-    assert!(csv.starts_with("# fmea_type: Process\n"), "csv head {:?}", &csv[..30]);
+    assert!(
+        csv.starts_with("# fmea_type: Process\n"),
+        "csv head {:?}",
+        &csv[..30]
+    );
 
     let parsed = fmea::FmeaWorksheet::from_csv(&csv).expect("worksheet should parse");
     assert_eq!(parsed.fmea_type, fmea::FmeaType::Process);
@@ -516,10 +528,20 @@ fn sr332_temperature_factor_equal_temps_and_arrhenius_value() {
     let t_use_k = 55.0 + 273.15;
     let t_ref_k = 40.0 + 273.15;
     let expected = ((ea / k) * (1.0 / t_ref_k - 1.0 / t_use_k)).exp();
-    assert!(expected > 1.0, "hotter use should raise the factor: {}", expected);
+    assert!(
+        expected > 1.0,
+        "hotter use should raise the factor: {}",
+        expected
+    );
     let actual = prediction::sr332_temperature_factor(ea, 55.0, 40.0);
     let rel = (actual - expected).abs() / expected;
-    assert!(rel < 1e-12, "pi_T {} expected {} rel {}", actual, expected, rel);
+    assert!(
+        rel < 1e-12,
+        "pi_T {} expected {} rel {}",
+        actual,
+        expected,
+        rel
+    );
 
     // The documented default constant is 0.35 eV.
     assert_eq!(prediction::SR332_DEFAULT_ACTIVATION_ENERGY_EV, 0.35);
@@ -568,7 +590,11 @@ fn sr332_method2_extrapolate_factor_ratios() {
 #[test]
 fn chi2_ppf_known_values() {
     let at_10 = prediction::chi2_ppf(0.95, 10.0);
-    assert!((at_10 - 18.307).abs() < 1e-3, "chi2 0.95 at 10 df: {}", at_10);
+    assert!(
+        (at_10 - 18.307).abs() < 1e-3,
+        "chi2 0.95 at 10 df: {}",
+        at_10
+    );
     let at_2 = prediction::chi2_ppf(0.95, 2.0);
     assert!((at_2 - 5.991).abs() < 1e-3, "chi2 0.95 at 2 df: {}", at_2);
 }
@@ -593,7 +619,12 @@ fn failure_rate_ci_zero_failures_uses_known_two_df_value() {
 
     // With failures, the point rate sits inside the interval.
     let (lo, hi) = prediction::failure_rate_ci(5, 10000.0, 0.95);
-    assert!(lo > 0.0 && lo < 5.0 / 10000.0 && 5.0 / 10000.0 < hi, "lo {} hi {}", lo, hi);
+    assert!(
+        lo > 0.0 && lo < 5.0 / 10000.0 && 5.0 / 10000.0 < hi,
+        "lo {} hi {}",
+        lo,
+        hi
+    );
 }
 
 #[test]
@@ -617,7 +648,10 @@ fn iec62380_style_single_phase_at_ref_temp_returns_base_rate() {
     let rate = prediction::iec62380_style_mission_profile_rate(10.0, &phases, 0.35, 40.0, 0.001);
     assert_eq!(rate, 10.0);
     // The unprefixed alias agrees.
-    assert_eq!(prediction::mission_profile_rate(10.0, &phases, 0.35, 40.0, 0.001), 10.0);
+    assert_eq!(
+        prediction::mission_profile_rate(10.0, &phases, 0.35, 40.0, 0.001),
+        10.0
+    );
 }
 
 #[test]

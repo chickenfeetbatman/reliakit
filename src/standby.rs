@@ -163,12 +163,7 @@ pub fn standby_reliability_quad(
 /// ```
 ///
 /// For two units this reduces to `exp(-lam * t) * (1 + sw * lam * t)`.
-pub fn standby_closed_form_exp(
-    t: f64,
-    lam: f64,
-    n_units: usize,
-    switch_reliability: f64,
-) -> f64 {
+pub fn standby_closed_form_exp(t: f64, lam: f64, n_units: usize, switch_reliability: f64) -> f64 {
     if n_units == 0 {
         return 0.0;
     }

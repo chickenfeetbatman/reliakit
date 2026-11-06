@@ -33,12 +33,20 @@ impl AltFit {
     pub fn mean_log_life(&self, stress: &[f64]) -> f64 {
         match self.model.as_str() {
             "arrhenius" => {
-                let t = if stress[0] < 400.0 { stress[0] + 273.15 } else { stress[0] };
+                let t = if stress[0] < 400.0 {
+                    stress[0] + 273.15
+                } else {
+                    stress[0]
+                };
                 self.coef["a"] + self.coef["b"] / t
             }
             "ipl" => self.coef["a"] - self.coef["n"] * stress[0].ln(),
             "eyring" => {
-                let t = if stress[0] < 400.0 { stress[0] + 273.15 } else { stress[0] };
+                let t = if stress[0] < 400.0 {
+                    stress[0] + 273.15
+                } else {
+                    stress[0]
+                };
                 self.coef["a"] + self.coef["b"] / t - self.coef["n"] * stress[1].ln()
             }
             "eyring_interaction" => {
@@ -46,7 +54,11 @@ impl AltFit {
                 //   + ab * (1 / T_k) * (-ln V)
                 // so the voltage term uses -ln V and the interaction
                 // column is (1 / T_k) * (-ln V).
-                let t = if stress[0] < 400.0 { stress[0] + 273.15 } else { stress[0] };
+                let t = if stress[0] < 400.0 {
+                    stress[0] + 273.15
+                } else {
+                    stress[0]
+                };
                 let inv_t = 1.0 / t;
                 let neg_ln_v = -stress[1].ln();
                 self.coef["a"]
@@ -182,16 +194,28 @@ fn mu_from_coef(
     let get = |k: &str| coef.get(k).copied().unwrap_or(f64::NAN);
     match model {
         "arrhenius" => {
-            let t = if stress[0] < 400.0 { stress[0] + 273.15 } else { stress[0] };
+            let t = if stress[0] < 400.0 {
+                stress[0] + 273.15
+            } else {
+                stress[0]
+            };
             get("a") + get("b") / t
         }
         "ipl" => get("a") - get("n") * stress[0].ln(),
         "eyring" => {
-            let t = if stress[0] < 400.0 { stress[0] + 273.15 } else { stress[0] };
+            let t = if stress[0] < 400.0 {
+                stress[0] + 273.15
+            } else {
+                stress[0]
+            };
             get("a") + get("b") / t - get("n") * stress[1].ln()
         }
         "eyring_interaction" => {
-            let t = if stress[0] < 400.0 { stress[0] + 273.15 } else { stress[0] };
+            let t = if stress[0] < 400.0 {
+                stress[0] + 273.15
+            } else {
+                stress[0]
+            };
             let inv_t = 1.0 / t;
             let neg_ln_v = -stress[1].ln();
             get("a") + get("b") * inv_t + get("n") * neg_ln_v + get("ab") * inv_t * neg_ln_v
@@ -351,7 +375,7 @@ fn alt_neg_loglik(theta: &[f64], x: &[Vec<f64>], y: &[f64], failed: &[bool]) -> 
             nll -= log_pdf;
         } else {
             let sf = specfunc::norm_sf(z);
-            if !(sf > 0.0) || !sf.is_finite() {
+            if sf <= 0.0 || !sf.is_finite() {
                 return 1e100;
             }
             nll -= sf.ln();
@@ -656,8 +680,7 @@ fn loglinear_neg_loglik(
             if failed[i] {
                 // log pdf = log beta + (beta - 1) log t
                 //           - beta log eta - (t/eta)^beta
-                let log_pdf =
-                    theta[4] + (beta - 1.0) * log_t - beta * log_eta - pow_term;
+                let log_pdf = theta[4] + (beta - 1.0) * log_t - beta * log_eta - pow_term;
                 nll -= log_pdf;
             } else {
                 // log R = -(t/eta)^beta
@@ -685,13 +708,11 @@ fn loglinear_neg_loglik(
                 return 1e100;
             }
             if failed[i] {
-                let log_pdf = -log_sigma
-                    - 0.5 * (2.0 * std::f64::consts::PI).ln()
-                    - 0.5 * z * z;
+                let log_pdf = -log_sigma - 0.5 * (2.0 * std::f64::consts::PI).ln() - 0.5 * z * z;
                 nll -= log_pdf;
             } else {
                 let sf = specfunc::norm_sf(z);
-                if !(sf > 0.0) || !sf.is_finite() {
+                if sf <= 0.0 || !sf.is_finite() {
                     return 1e100;
                 }
                 nll -= sf.ln();
@@ -901,13 +922,7 @@ pub fn step_stress_reliability(
 
 /// CDF at age `t` under the same step-stress model as
 /// `step_stress_reliability`.
-pub fn step_stress_cdf(
-    t: f64,
-    steps: &[(f64, f64)],
-    beta: f64,
-    k_ipl: f64,
-    n_ipl: f64,
-) -> f64 {
+pub fn step_stress_cdf(t: f64, steps: &[(f64, f64)], beta: f64, k_ipl: f64, n_ipl: f64) -> f64 {
     1.0 - step_stress_reliability(t, steps, beta, k_ipl, n_ipl)
 }
 

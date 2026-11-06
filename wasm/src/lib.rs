@@ -50,8 +50,15 @@ pub extern "C" fn rk_alloc(len: usize) -> *mut u8 {
 
 /// Release a buffer from rk_alloc. Pointers that did not come
 /// from rk_alloc (response buffers, stale pointers) are ignored.
+///
+/// # Safety
+/// The pointer must be one previously returned by rk_alloc in
+/// this module instance, or null. Passing any other pointer is a
+/// no-op only because allocations are looked up in the registry
+/// before anything is freed; a pointer value that was never
+/// registered is never dereferenced.
 #[no_mangle]
-pub extern "C" fn rk_free(ptr: *mut u8, _len: usize) {
+pub unsafe extern "C" fn rk_free(ptr: *mut u8, _len: usize) {
     if ptr.is_null() {
         return;
     }
@@ -90,8 +97,14 @@ pub extern "C" fn rk_init() -> *mut u8 {
 /// length-prefixed JSON buffer (see the module docs). With a
 /// nonzero len the request is len bytes of JSON at ptr; with
 /// len 0 the buffer at ptr is length-prefixed instead.
+///
+/// # Safety
+/// With a nonzero len, ptr must be readable for len bytes. With
+/// len 0, ptr must be readable for 4 length bytes plus the
+/// payload length those bytes declare. A null ptr is accepted
+/// and treated as an empty request.
 #[no_mangle]
-pub extern "C" fn rk_dispatch(ptr: *const u8, len: usize) -> *mut u8 {
+pub unsafe extern "C" fn rk_dispatch(ptr: *const u8, len: usize) -> *mut u8 {
     let req = if ptr.is_null() {
         "{}".to_string()
     } else if len == 0 {

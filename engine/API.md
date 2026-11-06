@@ -183,6 +183,61 @@ line plus observed failure points; ALT gives the reliability at
 use stress line; Markov gives one transient probability line per
 state.
 
+## v0.3.2 correctness additions
+
+- Precision: stored numeric text uses shortest round-trip
+  formatting (`fmt_num`, Rust f64 Display). Text that is stored
+  in an item field and parsed back later (life times, example
+  and dataset generator text, CSV imported text, FRACAS hours
+  sent to Life Data, degradation and ALT text) keeps fractional,
+  very small, and very large values exactly. Display-only result
+  rows keep their fixed-decimal formatting.
+- Structured validation: every response carries a top-level
+  `error` key. It is null on success, or an object
+  `{"field": string, "token": string, "reason": string}` naming
+  the offending field and token. The `status` text carries the
+  same human-readable message. On a validation error the action
+  does not run the calculation and does not overwrite prior
+  stored results. Invalid numeric tokens, invalid mission times,
+  missing CSV cells, malformed counts, invalid censoring flags,
+  negative times, fractional values in integer fields, the
+  tokens NaN and inf and infinity, overflow such as 1e999, and
+  empty required fields all produce this error.
+- Fit status: screens whose run produces a fit (Life Data,
+  Limited Data, Competing Risks, Degradation, ALT) carry
+  `fit-status` (one of success, success_with_warnings,
+  boundary_or_degenerate, failed), `fit-status-note` (string),
+  and `fit-warnings` (array of strings) in their state object.
+  Life Data wizard rows carry a `status` value per distribution;
+  failed fits rank last with their reason shown. A failed fit
+  has `has-fit` false. A boundary_or_degenerate fit with finite
+  parameters has `has-fit` true and its headline shows the
+  status note. Result rows never report NaN or inf as a value;
+  unavailable values read `unavailable: <reason>`.
+- Outdated results: each computing item stores a fingerprint of
+  its input fields at compute time. When the inputs change, the
+  screen state object and the top level carry `outdated`: true
+  (false again after a recompute). The top level also carries a
+  `warning` key, null normally or
+  `{"kind": "outdated", "message": string}`. Data-flow send
+  actions (flow-rbd, flow-qcp, flow-pred, fmea-to-rcm,
+  flow-fracas-life, wizard-use) refuse when the source result is
+  outdated: they do not perform the send and set the outdated
+  warning. They proceed when the request fields include
+  `confirm_outdated` with value true (or the string "true").
+- `duplicate_item` action: deep-copies the currently selected
+  project item (inputs, spec and diagram state, stored results,
+  and the result fingerprint), assigns a fresh item id, names it
+  "<original name> copy" (or " copy 2" and so on when that name
+  exists), selects the copy, and returns the full state.
+- Example naming: an example loaded with `card_action` is named
+  "Example: <example title>", for example
+  "Example: RBD with cold standby". Dataset card loads keep the
+  dataset file name in the item name.
+- Chart title: the Life Data probability mode chart title is
+  exactly "Empirical vs fitted probability". The reliability
+  mode title stays "Reliability curve".
+
 ## Actions
 
 Shell actions (the old Actions callbacks; hyphen and underscore
@@ -194,6 +249,7 @@ spellings both work):
 | `go_start` | Show the start page (deselect) | |
 | `select_item` | Select a project item | `index` |
 | `add_item` | Add an item from the panel fields | `kind-index` or `new_kind`, `new-name` |
+| `duplicate_item` | Duplicate the selected item (see v0.3.2 additions) | |
 | `remove_item` | Remove the selected item | |
 | `rename_item` | Rename the selected item | `rename-name` |
 | `new_project` | Start a new empty project | |

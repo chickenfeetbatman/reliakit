@@ -109,13 +109,10 @@ pub fn allocate_weighted(target_r: f64, weights: &[f64]) -> Vec<f64> {
         return Vec::new();
     }
     let sum: f64 = weights.iter().sum();
-    if !(sum > 0.0) {
+    if sum.partial_cmp(&0.0) != Some(std::cmp::Ordering::Greater) {
         return allocate_equal(target_r, weights.len());
     }
-    weights
-        .iter()
-        .map(|w| target_r.powf(w / sum))
-        .collect()
+    weights.iter().map(|w| target_r.powf(w / sum)).collect()
 }
 
 // ---------------- derating ----------------
@@ -139,12 +136,7 @@ pub struct DeratingResult {
 ///
 /// The check passes when the derating ratio is at or below
 /// `max_ratio`.
-pub fn derating_check(
-    name: &str,
-    operating: f64,
-    rated: f64,
-    max_ratio: f64,
-) -> DeratingResult {
+pub fn derating_check(name: &str, operating: f64, rated: f64, max_ratio: f64) -> DeratingResult {
     let ratio = derating_ratio(operating, rated);
     DeratingResult {
         name: name.to_string(),
@@ -286,15 +278,12 @@ pub fn library_from_csv(text: &str) -> Result<Vec<PartEntry>, String> {
                 record
             ));
         }
-        let base_rate = record[1]
-            .trim()
-            .parse::<f64>()
-            .map_err(|_| {
-                format!(
-                    "malformed numeric field for base_rate_per_million_hours: {:?}",
-                    record[1]
-                )
-            })?;
+        let base_rate = record[1].trim().parse::<f64>().map_err(|_| {
+            format!(
+                "malformed numeric field for base_rate_per_million_hours: {:?}",
+                record[1]
+            )
+        })?;
         let quantity = record[2]
             .trim()
             .parse::<u32>()
@@ -380,7 +369,10 @@ pub fn sr332_method1(generic_rate: f64, pi_q: f64, pi_s: f64, pi_t: f64) -> f64 
 /// Each entry in `parts` is a `(quantity, device_rate)` pair,
 /// with the device rate as computed by `sr332_method1`.
 pub fn sr332_equipment_rate(parts: &[(u32, f64)], pi_e: f64) -> f64 {
-    let sum: f64 = parts.iter().map(|(quantity, rate)| *quantity as f64 * rate).sum();
+    let sum: f64 = parts
+        .iter()
+        .map(|(quantity, rate)| *quantity as f64 * rate)
+        .sum();
     pi_e * sum
 }
 
@@ -396,11 +388,7 @@ pub fn sr332_equipment_rate(parts: &[(u32, f64)], pi_e: f64) -> f64 {
 /// Broadcom/Avago SR-332 data sheets; default cited in vendor
 /// application notes); see
 /// `SR332_DEFAULT_ACTIVATION_ENERGY_EV`.
-pub fn sr332_temperature_factor(
-    activation_energy_ev: f64,
-    temp_c: f64,
-    ref_temp_c: f64,
-) -> f64 {
+pub fn sr332_temperature_factor(activation_energy_ev: f64, temp_c: f64, ref_temp_c: f64) -> f64 {
     arrhenius_factor(activation_energy_ev, temp_c, ref_temp_c)
 }
 
@@ -462,11 +450,7 @@ pub fn chi2_ppf(p: f64, df: f64) -> f64 {
 ///
 /// The lower bound is 0 when r is 0. Rates are in failures per
 /// hour when the exposure is in hours.
-pub fn failure_rate_ci(
-    failures: u64,
-    exposure_hours: f64,
-    confidence: f64,
-) -> (f64, f64) {
+pub fn failure_rate_ci(failures: u64, exposure_hours: f64, confidence: f64) -> (f64, f64) {
     let r = failures as f64;
     let alpha = 1.0 - confidence;
     let lower = if failures == 0 {
@@ -516,7 +500,12 @@ pub fn method3_combine(
     observed_rate: f64,
     observed_weight: f64,
 ) -> f64 {
-    sr332_method3_combine(predicted_rate, predicted_weight, observed_rate, observed_weight)
+    sr332_method3_combine(
+        predicted_rate,
+        predicted_weight,
+        observed_rate,
+        observed_weight,
+    )
 }
 
 // ---------------- 62380-style mission profile ----------------

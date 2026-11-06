@@ -6,8 +6,8 @@
 //! MIL-HDBK-217F of 2 December 1991 via Quanterion).
 
 use reliakit::standards217::{
-    capacitor_pi_c, capacitor_pi_v, load_category, part_failure_rate, pth_failure_rate,
-    category_lambda_b_table, FactorInput, Inputs,
+    capacitor_pi_c, capacitor_pi_v, category_lambda_b_table, load_category, part_failure_rate,
+    pth_failure_rate, FactorInput, Inputs,
 };
 use serde_json::Value;
 use std::path::PathBuf;
@@ -160,11 +160,7 @@ fn capacitor_end_to_end_handbook_worked_example() {
         ("environment", FactorInput::named("GF")),
     ]);
     let v2 = part_failure_rate(&cat, &inp2);
-    assert!(
-        approx(v2, 0.049, 0.001),
-        "got {}",
-        v2
-    );
+    assert!(approx(v2, 0.049, 0.001), "got {}", v2);
 }
 
 // End to end with the Section 16.1 dedicated equation, handbook

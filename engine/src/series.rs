@@ -21,10 +21,18 @@ pub struct Series {
 }
 
 fn line(name: impl Into<String>, points: Vec<(f64, f64)>) -> Series {
-    Series { name: name.into(), kind: "line".to_string(), points }
+    Series {
+        name: name.into(),
+        kind: "line".to_string(),
+        points,
+    }
 }
 fn points(name: impl Into<String>, pts: Vec<(f64, f64)>) -> Series {
-    Series { name: name.into(), kind: "points".to_string(), points: pts }
+    Series {
+        name: name.into(),
+        kind: "points".to_string(),
+        points: pts,
+    }
 }
 
 /// Life Data chart: the fitted reliability curve, or the
@@ -63,7 +71,10 @@ pub fn degradation_series(
             tmax = tmax.max(*v);
         }
     }
-    let mut out = vec![line("Threshold", vec![(0.0, threshold), (tmax * 1.1, threshold)])];
+    let mut out = vec![line(
+        "Threshold",
+        vec![(0.0, threshold), (tmax * 1.1, threshold)],
+    )];
     for (i, (t, y)) in units.iter().enumerate() {
         let raw: Vec<(f64, f64)> = t.iter().zip(y).map(|(a, b)| (*a, *b)).collect();
         out.push(points(format!("Unit {} data", i + 1), raw));
@@ -86,7 +97,11 @@ pub fn degradation_series(
 pub fn growth_series(fit: &growth::CrowAmsaaFit, times: &[f64]) -> Vec<Series> {
     let mut sorted = times.to_vec();
     sorted.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
-    let obs: Vec<(f64, f64)> = sorted.iter().enumerate().map(|(i, t)| (*t, (i + 1) as f64)).collect();
+    let obs: Vec<(f64, f64)> = sorted
+        .iter()
+        .enumerate()
+        .map(|(i, t)| (*t, (i + 1) as f64))
+        .collect();
     let tmax = fit.t_end.max(1.0);
     let (lam, beta) = (fit.lam, fit.beta);
     let expected: Vec<(f64, f64)> = (0..=60)
@@ -95,7 +110,10 @@ pub fn growth_series(fit: &growth::CrowAmsaaFit, times: &[f64]) -> Vec<Series> {
             (t, lam * t.powf(beta))
         })
         .collect();
-    vec![line("Crow-AMSAA expected", expected), points("Observed failures", obs)]
+    vec![
+        line("Crow-AMSAA expected", expected),
+        points("Observed failures", obs),
+    ]
 }
 
 /// ALT chart data: reliability at use stress, as computed by the
@@ -110,7 +128,10 @@ pub fn alt_series(series: &[(f64, f64)]) -> Vec<Series> {
 /// Markov chart data: one transient probability curve per state,
 /// as computed by the work engine into `mk_series`.
 pub fn markov_series(series: &[(String, Vec<(f64, f64)>)]) -> Vec<Series> {
-    series.iter().map(|(name, pts)| line(name.clone(), pts.clone())).collect()
+    series
+        .iter()
+        .map(|(name, pts)| line(name.clone(), pts.clone()))
+        .collect()
 }
 
 /// The chart for the currently selected item, as a titled bundle.
@@ -121,7 +142,12 @@ pub fn current_chart(w: &Work) -> (String, Vec<Series>) {
     match kind {
         Some(ItemKind::LifeData) => match &w.life_fit {
             Some(fit) => (
-                if w.life_show_prob { "Probability plot" } else { "Reliability curve" }.to_string(),
+                if w.life_show_prob {
+                    "Empirical vs fitted probability"
+                } else {
+                    "Reliability curve"
+                }
+                .to_string(),
                 life_series(fit, w.life_show_prob),
             ),
             None => (String::new(), Vec::new()),
@@ -129,7 +155,12 @@ pub fn current_chart(w: &Work) -> (String, Vec<Series>) {
         Some(ItemKind::Degradation) => match &w.deg_data {
             Some(res) => (
                 "Degradation paths".to_string(),
-                degradation_series(&w.deg_parse_units(), res, &w.deg_model, fnum(&w.deg_threshold, 70.0)),
+                degradation_series(
+                    &w.deg_parse_units(),
+                    res,
+                    &w.deg_model,
+                    fnum(&w.deg_threshold, 70.0),
+                ),
             ),
             None => (String::new(), Vec::new()),
         },
@@ -137,7 +168,10 @@ pub fn current_chart(w: &Work) -> (String, Vec<Series>) {
             if w.alt_series.is_empty() {
                 (String::new(), Vec::new())
             } else {
-                ("Reliability at use stress".to_string(), alt_series(&w.alt_series))
+                (
+                    "Reliability at use stress".to_string(),
+                    alt_series(&w.alt_series),
+                )
             }
         }
         Some(ItemKind::Growth) => match &w.growth_fit {
@@ -151,7 +185,10 @@ pub fn current_chart(w: &Work) -> (String, Vec<Series>) {
             if w.mk_series.is_empty() {
                 (String::new(), Vec::new())
             } else {
-                ("Transient state probabilities".to_string(), markov_series(&w.mk_series))
+                (
+                    "Transient state probabilities".to_string(),
+                    markov_series(&w.mk_series),
+                )
             }
         }
         _ => (String::new(), Vec::new()),

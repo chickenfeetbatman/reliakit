@@ -44,13 +44,7 @@ pub fn path_value(a: f64, b: f64, t: f64, model: &str) -> f64 {
 /// Analytic crossing time of a fitted path with the failure threshold.
 /// Returns f64::INFINITY if the path never crosses in the failure
 /// direction.
-pub fn pseudo_failure_time(
-    a: f64,
-    b: f64,
-    threshold: f64,
-    model: &str,
-    increasing: bool,
-) -> f64 {
+pub fn pseudo_failure_time(a: f64, b: f64, threshold: f64, model: &str, increasing: bool) -> f64 {
     match model {
         "linear" => {
             if b == 0.0 {

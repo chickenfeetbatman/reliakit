@@ -61,15 +61,27 @@ jobs:
         with:
           files: dist/*
           body: |
-            ## ReliaKit v0.3.1
+            ## ReliaKit v0.3.2
 
-            What is new in v0.3.1:
+            v0.3.2 is a correctness and validation release. An external review of v0.3.0 found cases where the app could silently change input data or report success on results that were not valid. Those defects are fixed, and results now carry their status with them.
 
-            - Fixed: RBD blocks could not be dragged to new positions in v0.3.0. Now the whole block drags smoothly, and the new position is saved in the project file and restored when the project is reopened.
-            - Fixed (correctness): RBD diagrams now draw the topology that is actually evaluated. Parallel and k-out-of-n groups draw as branches between split and merge rails, standby groups show their standby unit, and nested groups are framed and labeled, so the picture matches the model. In v0.3.0 the bundled Example 3 drew its parallel controllers in series.
-            - New navigation: a visual picker for all 18 analysis kinds grouped by family, a grouped project tree, a Ctrl+K (Cmd+K on macOS) quick switcher, a consistent header on every item screen with the item name and a one-line description, and Start an analysis cards on the start page.
-            - New tutorial wizard: guided tours for all 18 kinds that work in a new item, a Tours list in the toolbar, a Tour this screen button on every item, and the "New here? Build your first project" wizard on the start page with three goal paths.
-            - The browser demo is updated with all of the above.
+            What was wrong and is now fixed:
+
+            - CSV import truncated fractional failure times (0.1 became 0). Imported values now keep full precision everywhere they are stored, and a fit through CSV import matches a fit on the same numbers entered directly.
+            - Invalid input was silently dropped or replaced (a bad token in a data list vanished; a bad mission time became 1000). The app now stops, names the field, the value, and the reason, and does not compute until the input is fixed.
+            - Fits could report success on degenerate data (all zeros, negative times, all times identical). Every fit now carries a status: success, success with warnings, boundary or degenerate (with an explanation), or failed (with the reason), shown as a badge on the results.
+            - The two-parameter Weibull shape search stopped near beta 20, so tightly clustered data (100, 101, 102, 103, 104) reported shape 20.09 instead of about 80.8. The search is now adaptive and matches the independently computed value; data whose likelihood keeps rising is reported as a boundary case instead of an ordinary fit.
+            - Fault trees treated a repeated event as independent, so A OR A returned 0.19 instead of 0.1. Repeated events now share one identity in the probability and the cut sets, and a probability outside 0 to 1 is rejected with the event named.
+            - Warranty forecasts counted returns recorded after the analysis period. Future returns are now excluded and the exclusion is counted in the results; returns above a cohort's sales are an error; one age convention now applies to failures and censored units alike.
+            - The shifted-exponential fit let an early suspension pull the start of the distribution down to that suspension. Its location is now set by the first failure. The same defect was found and fixed in the three-parameter Weibull.
+
+            Also in v0.3.2:
+
+            - Results show an Outdated badge when their inputs change, and sending an outdated result to another item asks for confirmation first. Transfers label their source and destination and state that a copy is a snapshot.
+            - A validation suite with independently computed expectations (published and hand-derived values, second computation paths) and a browser test suite now run in CI next to the unit tests, together with format and lint gates.
+            - Workspace improvements: resizable and collapsible panels, RBD fit-to-view with pan and zoom, a compact results grid, duplicate items, a project tree search, and the guided tours updated for the new layout.
+            - The availability simulation count is now an input (default 40) and the result reports its Monte Carlo standard error.
+            - The desktop app ships with a restrictive Content-Security-Policy and a --headless smoke mode that runs an engine self-check and exits.
 
             Downloads:
 

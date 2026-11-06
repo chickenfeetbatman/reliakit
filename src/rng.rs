@@ -24,7 +24,10 @@ impl Rng64 {
             splitmix64(&mut st),
             splitmix64(&mut st),
         ];
-        Rng64 { s, spare_normal: None }
+        Rng64 {
+            s,
+            spare_normal: None,
+        }
     }
 
     /// Derive an independent stream (used for MCMC chains).

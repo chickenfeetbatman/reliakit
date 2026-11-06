@@ -425,20 +425,23 @@ fn resolve_factor(
         "columns" => {
             // Column selection: by a named input (load type), or by
             // the column field of the selected style entry.
-            let column: Option<String> = if let Some(src) =
-                table.get("column_from_input").and_then(|k| k.as_str())
-            {
-                inputs.get(src).and_then(|i| i.as_named()).map(|s| s.to_string())
-            } else if let Some(field) =
-                table.get("column_from_style_field").and_then(|k| k.as_str())
-            {
-                style
-                    .and_then(|s| s.get(field))
-                    .and_then(|v| v.as_f64())
-                    .map(|v| format!("{}", v as i64))
-            } else {
-                None
-            };
+            let column: Option<String> =
+                if let Some(src) = table.get("column_from_input").and_then(|k| k.as_str()) {
+                    inputs
+                        .get(src)
+                        .and_then(|i| i.as_named())
+                        .map(|s| s.to_string())
+                } else if let Some(field) = table
+                    .get("column_from_style_field")
+                    .and_then(|k| k.as_str())
+                {
+                    style
+                        .and_then(|s| s.get(field))
+                        .and_then(|v| v.as_f64())
+                        .map(|v| format!("{}", v as i64))
+                } else {
+                    None
+                };
             let column = match column {
                 Some(c) => c,
                 None => return Resolved::NotProvided,
@@ -652,7 +655,11 @@ pub fn quartz_lambda_b(f_mhz: f64) -> f64 {
 /// with Ea = 0.19 for 85 C rated relays and Ea = 0.17 for 125 C
 /// rated relays, and T the ambient temperature in degrees C.
 pub fn relay_lambda_b_formula(rated_temperature_c: f64, t_c: f64) -> f64 {
-    let ea = if rated_temperature_c >= 125.0 { 0.17 } else { 0.19 };
+    let ea = if rated_temperature_c >= 125.0 {
+        0.17
+    } else {
+        0.19
+    };
     0.0059 * arrhenius_pi_t(ea, t_c)
 }
 

@@ -1,5 +1,81 @@
 # Changelog
 
+## v0.3.2
+
+A correctness and validation release. The project file format
+(reliakit-project-2) and all 18 item kinds are unchanged.
+
+Fixed defects, in plain terms:
+
+- Fractional times were truncated. A time such as 0.1 or 100.25
+  could be stored as a whole number after CSV import or an example
+  load. Stored values now keep their full precision everywhere,
+  and a save and reopen round trip leaves them unchanged.
+- Invalid input was silently dropped or replaced. A bad token in
+  a data field, an invalid mission time, or an overflowing number
+  could be ignored while a calculation ran on partial data. Bad
+  input now stops the run with an error that names the field, the
+  value, and the reason, and earlier results are kept and marked
+  outdated rather than overwritten.
+- Fits could report success on data that has no usable fit, such
+  as all zero times or all identical times. Fits now carry one of
+  four statuses (success, success with warnings, boundary or
+  degenerate, failed), shown as a badge with the reason, and a
+  failed fit has no headline result.
+- The Weibull shape had a hidden cap. Tightly clustered times
+  (100 to 104) hit an internal bracket and returned a shape near
+  20 instead of the correct value near 81. The bracket now expands
+  to fit the data, and data whose shape is truly unbounded is
+  reported as a boundary case instead of a clean fit.
+- Fault trees mishandled repeated events. A OR A returned 0.19
+  instead of 0.1, because the two copies of A were treated as
+  independent. Repeated basic events now share one identity in
+  every gate, probabilities outside 0 to 1 are errors that name
+  the event, and large trees with repeats error clearly instead
+  of approximating.
+- Warranty forecasts counted returns from the future. Returns
+  recorded after the current period entered the fit. They are now
+  excluded, the exclusion count and cutoff are stated in the
+  result notes, the age convention (a return in the sale period
+  is a failure at age 1) is applied consistently, and a cohort
+  with more returns than sales is an error naming the cohort.
+- The shifted exponential fit used the wrong starting point when
+  a suspension came before the first failure. The location now
+  sits at the smallest failure time, with the corrected scale.
+
+New validation:
+
+- A validation fixture record (validation/fixtures.md) and a new
+  test file (tests/validation_tests.rs) check distribution
+  identities by numerical integration, recover known parameters
+  from constructed samples, recompute Fisher standard errors by a
+  second path, check RBD and standby closed forms, and compare
+  Monte Carlo availability with the CTMC value within 3 standard
+  errors. A committed browser test suite (browser-tests/) covers
+  the import round trip, the outdated badge, fit to RBD sends,
+  save and reopen, a keyboard-only workflow, all 18 tours, and
+  the RBD viewport. CI now also checks formatting, clippy, and
+  the CLI selftest.
+
+Interface changes (items M and N, and K):
+
+- Panels resize and collapse; the RBD canvas gains a viewport
+  toolbar (Fit to view, zoom, pan) and fits new diagrams
+  automatically; results show as a compact grid with an
+  expandable Details table.
+- Items can be duplicated from the panel or the screen header;
+  the project tree has a Filter items search; send actions say
+  they copy a snapshot; the Life Data probability plot is titled
+  "Empirical vs fitted probability".
+- Results carry an Outdated badge in the panel, on the headline
+  card, and above the results whenever inputs change after a run,
+  and sending outdated results asks for confirmation first.
+- RBD availability takes a Simulations count and reports a Monte
+  Carlo standard error.
+- The desktop app sets a restrictive content security policy and
+  gains a working headless smoke check (reliakit-app --headless
+  fits Example 1 and verifies its headline).
+
 ## v0.3.1
 
 A fix and navigation update. The engine, the project file format

@@ -33,7 +33,11 @@ use std::path::PathBuf;
 use std::process::exit;
 
 #[derive(Parser)]
-#[command(name = "reliakit", version, about = "ReliaKit reliability engineering CLI")]
+#[command(
+    name = "reliakit",
+    version,
+    about = "ReliaKit reliability engineering CLI"
+)]
 struct Cli {
     #[command(subcommand)]
     cmd: Cmd,
@@ -169,9 +173,7 @@ enum Cmd {
     },
     /// FMEA worksheet: read the FmeaRow CSV format, print rows sorted
     /// by descending RPN as JSON.
-    Fmea {
-        file: String,
-    },
+    Fmea { file: String },
     /// Warranty analysis: Nevada table and returns forecast from a
     /// sales CSV and a returns CSV (sale_period,return_period).
     Warranty {
@@ -190,9 +192,7 @@ enum Cmd {
     },
     /// Fault tree: top probability and minimal cut sets from a JSON
     /// file in the FtNode serde format.
-    Faulttree {
-        file: String,
-    },
+    Faulttree { file: String },
     /// Parts-count prediction from a JSON array of part entries.
     /// Keys: name, base_rate_per_million_hours (or base_rate),
     /// quantity, stress_factor, quality_factor.
@@ -490,7 +490,9 @@ enum Sr332Method {
 /// JSON number value: non-finite floats (NaN, infinities from
 /// failed fits or blank handbook entries) become null.
 fn jnum(x: f64) -> Value {
-    serde_json::Number::from_f64(x).map(Value::Number).unwrap_or(Value::Null)
+    serde_json::Number::from_f64(x)
+        .map(Value::Number)
+        .unwrap_or(Value::Null)
 }
 
 /// Resolve a file argument given as a positional value or as --csv:
@@ -600,7 +602,11 @@ fn read_csv_rows(path: &str) -> Result<(Vec<String>, Vec<Vec<String>>), String> 
     let cols: Vec<String> = header.split(',').map(|s| s.trim().to_lowercase()).collect();
     let mut rows = Vec::new();
     for line in lines {
-        rows.push(line.split(',').map(|s| s.trim().to_string()).collect::<Vec<String>>());
+        rows.push(
+            line.split(',')
+                .map(|s| s.trim().to_string())
+                .collect::<Vec<String>>(),
+        );
     }
     Ok((cols, rows))
 }
@@ -610,14 +616,20 @@ fn col_index(cols: &[String], names: &[&str]) -> Option<usize> {
 }
 
 fn parse_failed_cell(v: &str) -> bool {
-    matches!(v.trim().to_lowercase().as_str(), "1" | "true" | "t" | "yes" | "f" | "failed")
+    matches!(
+        v.trim().to_lowercase().as_str(),
+        "1" | "true" | "t" | "yes" | "f" | "failed"
+    )
 }
 
 fn parse_params(pairs: &[String]) -> Result<dist_mod::Params, String> {
     let mut p = BTreeMap::new();
     for pair in pairs {
         let (k, v) = pair.split_once('=').ok_or("params must be key=value")?;
-        p.insert(k.to_string(), v.parse::<f64>().map_err(|_| "bad param value")?);
+        p.insert(
+            k.to_string(),
+            v.parse::<f64>().map_err(|_| "bad param value")?,
+        );
     }
     Ok(p)
 }
@@ -659,7 +671,11 @@ fn parse_params_flexible(dist: &str, tokens: &[String]) -> Result<dist_mod::Para
 
 fn parse_comma_f64s(s: &str) -> Result<Vec<f64>, String> {
     s.split(',')
-        .map(|x| x.trim().parse::<f64>().map_err(|_| format!("bad number: {}", x)))
+        .map(|x| {
+            x.trim()
+                .parse::<f64>()
+                .map_err(|_| format!("bad number: {}", x))
+        })
         .collect()
 }
 
@@ -681,9 +697,27 @@ fn selftest() -> i32 {
     let mut p = dist_mod::Params::new();
     p.insert("beta".into(), 2.0);
     p.insert("eta".into(), 1000.0);
-    check("weibull R(eta)", dist_mod::reliability("weibull2", &p, 1000.0), (-1.0f64).exp(), 1e-10, &mut failures);
-    check("series", system::series_reliability(&[0.9, 0.8]), 0.72, 1e-12, &mut failures);
-    check("parallel", system::parallel_reliability(&[0.9, 0.8]), 0.98, 1e-12, &mut failures);
+    check(
+        "weibull R(eta)",
+        dist_mod::reliability("weibull2", &p, 1000.0),
+        (-1.0f64).exp(),
+        1e-10,
+        &mut failures,
+    );
+    check(
+        "series",
+        system::series_reliability(&[0.9, 0.8]),
+        0.72,
+        1e-12,
+        &mut failures,
+    );
+    check(
+        "parallel",
+        system::parallel_reliability(&[0.9, 0.8]),
+        0.98,
+        1e-12,
+        &mut failures,
+    );
     let mut pe = dist_mod::Params::new();
     pe.insert("theta".into(), 1000.0);
     check(
@@ -693,16 +727,38 @@ fn selftest() -> i32 {
         1e-9,
         &mut failures,
     );
-    check("arrhenius AF", alt_mod::acceleration_factor_arrhenius(0.7, 25.0, 125.0), 936.5, 20.0, &mut failures);
+    check(
+        "arrhenius AF",
+        alt_mod::acceleration_factor_arrhenius(0.7, 25.0, 125.0),
+        936.5,
+        20.0,
+        &mut failures,
+    );
     let calib = vec![5000.0; 20];
-    check("conformal zero-fail", bayes::conformal_reliability_lower(&calib, 1000.0, 0.05), 0.05f64.powf(0.05), 1e-9, &mut failures);
+    check(
+        "conformal zero-fail",
+        bayes::conformal_reliability_lower(&calib, 1000.0, 0.05),
+        0.05f64.powf(0.05),
+        1e-9,
+        &mut failures,
+    );
     // Competing risks invariant: for any fitted model the cumulative
     // incidences at t plus the overall reliability at t sum to 1.
     {
-        let times = vec![120.0, 340.0, 560.0, 800.0, 950.0, 1300.0, 1700.0, 2200.0, 2600.0, 3100.0];
+        let times = vec![
+            120.0, 340.0, 560.0, 800.0, 950.0, 1300.0, 1700.0, 2200.0, 2600.0, 3100.0,
+        ];
         let events: Vec<Option<&str>> = vec![
-            Some("wear"), Some("electrical"), Some("wear"), None, Some("electrical"),
-            Some("wear"), None, Some("electrical"), Some("wear"), None,
+            Some("wear"),
+            Some("electrical"),
+            Some("wear"),
+            None,
+            Some("electrical"),
+            Some("wear"),
+            None,
+            Some("electrical"),
+            Some("wear"),
+            None,
         ];
         match competing::fit_competing_risks(&times, &events, "weibull2") {
             Ok(cr) => {
@@ -712,7 +768,13 @@ fn selftest() -> i32 {
                     .iter()
                     .map(|m| competing::cumulative_incidence(&cr, m, t))
                     .sum();
-                check("competing risks CIF + R = 1", cif_sum + overall, 1.0, 0.02, &mut failures);
+                check(
+                    "competing risks CIF + R = 1",
+                    cif_sum + overall,
+                    1.0,
+                    0.02,
+                    &mut failures,
+                );
             }
             Err(e) => {
                 println!("FAIL competing risks fit: {}", e);
@@ -739,7 +801,8 @@ fn cmd_alt_mle(
     let (cols, rows) = read_csv_rows(file)?;
     let si = col_index(&cols, &["stress"]).ok_or("csv needs a stress column")?;
     let s2i = col_index(&cols, &["stress2", "stress_2", "voltage"]);
-    let ti = col_index(&cols, &["time", "times", "life", "hours"]).ok_or("csv needs a time column")?;
+    let ti =
+        col_index(&cols, &["time", "times", "life", "hours"]).ok_or("csv needs a time column")?;
     let fi = col_index(&cols, &["failed", "failure", "event"]);
     let mut stress: Vec<Vec<f64>> = Vec::new();
     let mut times: Vec<f64> = Vec::new();
@@ -778,8 +841,10 @@ fn cmd_alt_mle(
 
 fn cmd_competing(file: &str, dist: &str, t: f64) -> Result<Value, String> {
     let (cols, rows) = read_csv_rows(file)?;
-    let ti = col_index(&cols, &["time", "times", "life", "hours"]).ok_or("csv needs a time column")?;
-    let mi = col_index(&cols, &["mode", "failure_mode", "cause"]).ok_or("csv needs a mode column")?;
+    let ti =
+        col_index(&cols, &["time", "times", "life", "hours"]).ok_or("csv needs a time column")?;
+    let mi =
+        col_index(&cols, &["mode", "failure_mode", "cause"]).ok_or("csv needs a mode column")?;
     let mut times: Vec<f64> = Vec::new();
     let mut mode_strings: Vec<Option<String>> = Vec::new();
     for row in &rows {
@@ -797,7 +862,10 @@ fn cmd_competing(file: &str, dist: &str, t: f64) -> Result<Value, String> {
             name.clone(),
             json!({"params": fit.params, "loglik": fit.loglik, "n": fit.n, "n_fail": fit.n_fail}),
         );
-        cif.insert(name.clone(), json!(competing::cumulative_incidence(&cr, name, t)));
+        cif.insert(
+            name.clone(),
+            json!(competing::cumulative_incidence(&cr, name, t)),
+        );
     }
     Ok(json!({
         "dist": dist,
@@ -813,7 +881,12 @@ fn cmd_competing(file: &str, dist: &str, t: f64) -> Result<Value, String> {
     }))
 }
 
-fn cmd_warranty(sales_path: &str, returns_path: &str, current: usize, horizon: usize) -> Result<Value, String> {
+fn cmd_warranty(
+    sales_path: &str,
+    returns_path: &str,
+    current: usize,
+    horizon: usize,
+) -> Result<Value, String> {
     // Sales: one integer per line, or period,count rows (header allowed).
     let sales_text = std::fs::read_to_string(sales_path).map_err(|e| e.to_string())?;
     let mut pairs: Vec<(usize, u32)> = Vec::new();
@@ -845,8 +918,10 @@ fn cmd_warranty(sales_path: &str, returns_path: &str, current: usize, horizon: u
     };
     // Returns: sale_period,return_period with header.
     let (cols, rows) = read_csv_rows(returns_path)?;
-    let spi = col_index(&cols, &["sale_period", "sale", "sold_period"]).ok_or("returns csv needs sale_period")?;
-    let rpi = col_index(&cols, &["return_period", "return", "returned_period"]).ok_or("returns csv needs return_period")?;
+    let spi = col_index(&cols, &["sale_period", "sale", "sold_period"])
+        .ok_or("returns csv needs sale_period")?;
+    let rpi = col_index(&cols, &["return_period", "return", "returned_period"])
+        .ok_or("returns csv needs return_period")?;
     let mut records: Vec<WarrantyRecord> = Vec::new();
     for row in &rows {
         records.push(WarrantyRecord {
@@ -883,7 +958,11 @@ fn cmd_predict(file: &str, t: f64) -> Result<Value, String> {
     let items = arr.as_array().ok_or("predict file must be a JSON array")?;
     let mut parts: Vec<PartEntry> = Vec::new();
     for item in items {
-        let name = item.get("name").and_then(|v| v.as_str()).unwrap_or("part").to_string();
+        let name = item
+            .get("name")
+            .and_then(|v| v.as_str())
+            .unwrap_or("part")
+            .to_string();
         let rate = item
             .get("base_rate_per_million_hours")
             .or_else(|| item.get("base_rate"))
@@ -1036,13 +1115,19 @@ fn cmd_markov(
     let model = MarkovModel::new(names.clone(), &transitions)?;
     let n = model.n_states();
     if start >= n {
-        return Err(format!("start state {} out of range for {} states", start, n));
+        return Err(format!(
+            "start state {} out of range for {} states",
+            start, n
+        ));
     }
     let steady = model.steady_state()?;
     let mut flags = vec![false; n];
     for &i in absorbing {
         if i >= n {
-            return Err(format!("absorbing state {} out of range for {} states", i, n));
+            return Err(format!(
+                "absorbing state {} out of range for {} states",
+                i, n
+            ));
         }
         flags[i] = true;
     }
@@ -1051,7 +1136,13 @@ fn cmd_markov(
     } else {
         (
             jnum(model.mean_time_to_absorption(&flags, start)?),
-            Value::Array(model.expected_time_in_state(&flags, start)?.iter().map(|v| jnum(*v)).collect()),
+            Value::Array(
+                model
+                    .expected_time_in_state(&flags, start)?
+                    .iter()
+                    .map(|v| jnum(*v))
+                    .collect(),
+            ),
         )
     };
     let transient_rows: Vec<Value> = if times.is_empty() {
@@ -1095,12 +1186,16 @@ fn resolve_mil217_category(category: &str) -> Result<PathBuf, String> {
     } else {
         format!("{}.json", stem)
     };
-    let normalized = with_ext.to_lowercase().replace(' ', "_").replace('-', "_");
+    let normalized = with_ext.to_lowercase().replace([' ', '-'], "_");
     let mut bases: Vec<PathBuf> = Vec::new();
     if let Ok(cwd) = std::env::current_dir() {
         bases.push(cwd.join("libraries").join("mil217"));
     }
-    bases.push(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("libraries").join("mil217"));
+    bases.push(
+        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("libraries")
+            .join("mil217"),
+    );
     for base in &bases {
         for name in [&with_ext, &normalized] {
             let cand = base.join(name);
@@ -1223,11 +1318,22 @@ fn cmd_predict217(
 
 fn cmd_sr332(method: &Sr332Method) -> Result<Value, String> {
     match method {
-        Sr332Method::Method1 { generic, pi_q, pi_s, pi_t, temp, ref_temp, ea } => {
+        Sr332Method::Method1 {
+            generic,
+            pi_q,
+            pi_s,
+            pi_t,
+            temp,
+            ref_temp,
+            ea,
+        } => {
             let (pi_t_value, pi_t_source) = if let Some(v) = pi_t {
                 (*v, "given")
             } else if let (Some(t), Some(rt)) = (temp, ref_temp) {
-                (prediction::sr332_temperature_factor(*ea, *t, *rt), "computed")
+                (
+                    prediction::sr332_temperature_factor(*ea, *t, *rt),
+                    "computed",
+                )
             } else if temp.is_some() || ref_temp.is_some() {
                 return Err("computing pi_t needs both --temp and --ref-temp".into());
             } else {
@@ -1255,7 +1361,9 @@ fn cmd_sr332(method: &Sr332Method) -> Result<Value, String> {
                     .split_once(':')
                     .ok_or_else(|| format!("--parts entries must be qty:rate, got {}", piece))?;
                 parsed.push((
-                    q.trim().parse::<u32>().map_err(|_| "bad quantity in --parts")?,
+                    q.trim()
+                        .parse::<u32>()
+                        .map_err(|_| "bad quantity in --parts")?,
                     r.trim().parse::<f64>().map_err(|_| "bad rate in --parts")?,
                 ));
             }
@@ -1270,7 +1378,13 @@ fn cmd_sr332(method: &Sr332Method) -> Result<Value, String> {
                 "equipment_rate": prediction::sr332_equipment_rate(&parsed, *pi_e),
             }))
         }
-        Sr332Method::Method2 { observed_rate, pi_t_obs, pi_t_target, pi_s_obs, pi_s_target } => Ok(json!({
+        Sr332Method::Method2 {
+            observed_rate,
+            pi_t_obs,
+            pi_t_target,
+            pi_s_obs,
+            pi_s_target,
+        } => Ok(json!({
             "method": "method2",
             "observed_rate": observed_rate,
             "pi_t_observed": pi_t_obs,
@@ -1280,7 +1394,11 @@ fn cmd_sr332(method: &Sr332Method) -> Result<Value, String> {
             "target_rate": prediction::sr332_method2_extrapolate(
                 *observed_rate, *pi_t_obs, *pi_t_target, *pi_s_obs, *pi_s_target),
         })),
-        Sr332Method::Ci { failures, hours, confidence } => {
+        Sr332Method::Ci {
+            failures,
+            hours,
+            confidence,
+        } => {
             let (lo, hi) = prediction::failure_rate_ci(*failures, *hours, *confidence);
             Ok(json!({
                 "method": "ci",
@@ -1292,7 +1410,12 @@ fn cmd_sr332(method: &Sr332Method) -> Result<Value, String> {
                 "upper": hi,
             }))
         }
-        Sr332Method::Method3 { predicted, predicted_weight, observed, observed_weight } => Ok(json!({
+        Sr332Method::Method3 {
+            predicted,
+            predicted_weight,
+            observed,
+            observed_weight,
+        } => Ok(json!({
             "method": "method3",
             "predicted_rate": predicted,
             "predicted_weight": predicted_weight,
@@ -1334,7 +1457,8 @@ fn cmd_mission(
             false
         };
         let dormant_factor = if f.len() >= 6 && !f[5].is_empty() {
-            f[5].parse::<f64>().map_err(|_| "bad dormant_factor in phase")?
+            f[5].parse::<f64>()
+                .map_err(|_| "bad dormant_factor in phase")?
         } else {
             1.0
         };
@@ -1419,7 +1543,9 @@ fn cmd_fracas(file: &str, total_hours: Option<f64>) -> Result<Value, String> {
         .map(|(m, c)| json!({"mode": m, "count": c}))
         .collect();
     let mtbf = match total_hours {
-        Some(h) => fracas::mtbf_hours(h, &incidents).map(jnum).unwrap_or(Value::Null),
+        Some(h) => fracas::mtbf_hours(h, &incidents)
+            .map(jnum)
+            .unwrap_or(Value::Null),
         None => Value::Null,
     };
     Ok(json!({
@@ -1458,8 +1584,12 @@ fn cmd_degradation(
                 units.len() - 1
             }
         };
-        units[pos].0.push(row[ti].parse::<f64>().map_err(|_| "bad time value")?);
-        units[pos].1.push(row[vi].parse::<f64>().map_err(|_| "bad value")?);
+        units[pos]
+            .0
+            .push(row[ti].parse::<f64>().map_err(|_| "bad time value")?);
+        units[pos]
+            .1
+            .push(row[vi].parse::<f64>().map_err(|_| "bad value")?);
     }
     let res = degradation::degradation_analysis(&units, threshold, model, dist, !decreasing)?;
     let path_rows: Vec<Value> = unit_names
@@ -1485,7 +1615,13 @@ fn main() {
     let result: Result<Value, String> = (|| {
         match &cli.cmd {
             Cmd::Selftest => std::process::exit(selftest()),
-            Cmd::Fit { file, csv, dist, rank, beta } => {
+            Cmd::Fit {
+                file,
+                csv,
+                dist,
+                rank,
+                beta,
+            } => {
                 let path = resolve_file_arg(file, csv, "fit")?;
                 let (times, failed) = read_csv_life(&path)?;
                 let fit = if dist == "weibull1" {
@@ -1517,7 +1653,12 @@ fn main() {
                 let r = system::evaluate_rbd(&spec, *t)?;
                 Ok(json!({"reliability": r, "t": t}))
             }
-            Cmd::Availability { file, horizon, sims, seed } => {
+            Cmd::Availability {
+                file,
+                horizon,
+                sims,
+                seed,
+            } => {
                 let text = std::fs::read_to_string(file).map_err(|e| e.to_string())?;
                 let spec: Value = serde_json::from_str(&text).map_err(|e| e.to_string())?;
                 let res = system::simulate_availability(&spec, *horizon, *sims, *seed, 50);
@@ -1532,7 +1673,7 @@ fn main() {
                 let path = resolve_file_arg(file, csv, "growth")?;
                 let times = read_csv_column(&path)?;
                 let ca = growth::fit_crow_amsaa(&times, *t_end);
-                let du = growth::fit_duane(&times).map_err(|e| e)?;
+                let du = growth::fit_duane(&times)?;
                 Ok(json!({
                     "crow_amsaa": {"beta": ca.beta, "lambda": ca.lam,
                         "instantaneous_mtbf_at_T": ca.instantaneous_mtbf(ca.t_end)},
@@ -1545,13 +1686,22 @@ fn main() {
                     return Err("need exactly 3 values".into());
                 }
                 let af = match model.as_str() {
-                    "arrhenius" => alt_mod::acceleration_factor_arrhenius(values[0], values[1], values[2]),
+                    "arrhenius" => {
+                        alt_mod::acceleration_factor_arrhenius(values[0], values[1], values[2])
+                    }
                     "ipl" => alt_mod::acceleration_factor_ipl(values[0], values[1], values[2]),
                     _ => return Err("model must be arrhenius or ipl".into()),
                 };
                 Ok(json!({"model": model, "acceleration_factor": af}))
             }
-            Cmd::AltMle { file, csv, model, t, use_stress, alpha } => {
+            Cmd::AltMle {
+                file,
+                csv,
+                model,
+                t,
+                use_stress,
+                alpha,
+            } => {
                 let path = resolve_file_arg(file, csv, "alt-mle")?;
                 cmd_alt_mle(&path, model, *t, use_stress, *alpha)
             }
@@ -1559,7 +1709,14 @@ fn main() {
                 let path = resolve_file_arg(file, csv, "competing")?;
                 cmd_competing(&path, dist, *t)
             }
-            Cmd::Standby { dist, n, dormancy, switch_rel, t, params } => {
+            Cmd::Standby {
+                dist,
+                n,
+                dormancy,
+                switch_rel,
+                t,
+                params,
+            } => {
                 let p = parse_params(params)?;
                 Ok(json!({
                     "dist": dist,
@@ -1617,9 +1774,12 @@ fn main() {
                     .collect();
                 Ok(json!({"rows": out}))
             }
-            Cmd::Warranty { sales, returns, current, horizon } => {
-                cmd_warranty(sales, returns, *current, *horizon)
-            }
+            Cmd::Warranty {
+                sales,
+                returns,
+                current,
+                horizon,
+            } => cmd_warranty(sales, returns, *current, *horizon),
             Cmd::Faulttree { file } => {
                 let text = std::fs::read_to_string(file).map_err(|e| e.to_string())?;
                 let node: FtNode = serde_json::from_str(&text).map_err(|e| e.to_string())?;
@@ -1653,7 +1813,14 @@ fn main() {
                 let path = resolve_file_arg(file, csv, "wizard")?;
                 cmd_wizard(&path)
             }
-            Cmd::Qcp { dist_pos, dist, t, bx, params_opt, params_pos } => {
+            Cmd::Qcp {
+                dist_pos,
+                dist,
+                t,
+                bx,
+                params_opt,
+                params_pos,
+            } => {
                 let d = dist
                     .clone()
                     .or_else(|| dist_pos.clone())
@@ -1682,19 +1849,33 @@ fn main() {
                     "pdf": r.pdf,
                 }))
             }
-            Cmd::Importance { file_pos, json, file_flag, t } => {
-                cmd_importance(file_pos, json, file_flag, *t)
-            }
-            Cmd::Markov { file_pos, json, absorbing, times, start } => {
-                cmd_markov(file_pos, json, absorbing, times, *start)
-            }
-            Cmd::Predict217 { category, input, env, quality } => {
-                cmd_predict217(category, input, env, quality)
-            }
+            Cmd::Importance {
+                file_pos,
+                json,
+                file_flag,
+                t,
+            } => cmd_importance(file_pos, json, file_flag, *t),
+            Cmd::Markov {
+                file_pos,
+                json,
+                absorbing,
+                times,
+                start,
+            } => cmd_markov(file_pos, json, absorbing, times, *start),
+            Cmd::Predict217 {
+                category,
+                input,
+                env,
+                quality,
+            } => cmd_predict217(category, input, env, quality),
             Cmd::Sr332 { method } => cmd_sr332(method),
-            Cmd::Mission { base_rate, ea, ref_temp, cycling_factor, phase } => {
-                cmd_mission(*base_rate, *ea, *ref_temp, *cycling_factor, phase)
-            }
+            Cmd::Mission {
+                base_rate,
+                ea,
+                ref_temp,
+                cycling_factor,
+                phase,
+            } => cmd_mission(*base_rate, *ea, *ref_temp, *cycling_factor, phase),
             Cmd::Allocate { target, n, weights } => {
                 let (method, targets) = if let Some(w) = weights {
                     let ws = parse_comma_f64s(w)?;
@@ -1716,11 +1897,22 @@ fn main() {
                 let path = resolve_file_arg(file_pos, csv, "library")?;
                 cmd_library(&path, *t)
             }
-            Cmd::Fracas { file_pos, csv, total_hours } => {
+            Cmd::Fracas {
+                file_pos,
+                csv,
+                total_hours,
+            } => {
                 let path = resolve_file_arg(file_pos, csv, "fracas")?;
                 cmd_fracas(&path, *total_hours)
             }
-            Cmd::Degradation { file, csv, threshold, model, dist, decreasing } => {
+            Cmd::Degradation {
+                file,
+                csv,
+                threshold,
+                model,
+                dist,
+                decreasing,
+            } => {
                 let path = resolve_file_arg(file, csv, "degradation")?;
                 cmd_degradation(&path, *threshold, model, dist, *decreasing)
             }
