@@ -3,11 +3,16 @@
 Original design work for ReliaKit, structured on Apple's Human
 Interface Guidelines (HIG). No Apple fonts, SF Symbols, ReliaSoft
 icons or artwork, stock photos, or other third party art are used.
-The logo, hero graphic, and every icon are original vector shapes
-drawn in code with the egui painter.
+The logo, hero graphic, and every icon are original vector shapes,
+drawn as SVG assets and rendered by the Slint UI toolkit
+(gui/ui/icons/, gui/ui/logo.svg, gui/ui/hero.svg).
 
-The layout target is a 1500 by 1050 window. The application opens at
+The layout target is a 1600 by 1000 window. The application opens at
 that size so screenshots and daily use share the same proportions.
+Standard widgets (combo boxes, line edits, check boxes, scroll
+views) use the Cupertino dark widget style that ships with Slint;
+every custom control, card, and panel follows the tokens in
+gui/ui/theme.slint.
 
 ## The three HIG principles
 
@@ -46,11 +51,10 @@ The interface recedes and the content leads.
 - Plots and the RBD canvas sit directly on the content surface, not
   inside nested decorated cards. Only results get a card, because a
   result is content the user may copy or act on.
-- Hover and selection use egui's built-in widget visuals, which fade
-  through the raised neutral fill and the tint selection fill rather
-  than swapping to a new decorated state. Where egui animates a
-  visual change cheaply it is left on; no custom animation system
-  was added.
+- Hover and selection are state changes on the same control, not a
+  swap to a decorated variant: backgrounds and borders cross-fade
+  over 100 to 120 ms (Slint `animate` transitions), selection fills
+  with the tint, hover lifts to the raised neutral fill.
 - Advanced options stay collapsed (collapsing sections on the
   Prediction screen, the RBD diagram JSON, allocation and derating)
   until the user opens them. This is progressive disclosure: the
@@ -68,16 +72,15 @@ Layers convey hierarchy.
   holding project actions on the left, the current item title in
   the middle, and version and primary project actions on the right.
 - Result cards sit above the content surface: panel fill one tonal
-  step up, 1 px border, 6 px radius, and the soft shadow egui can
-  draw for a framed area. The RBD property editor reads as an
-  inspector panel in the same treatment, a distinct section below
-  the canvas rather than a mode switch.
-- Translucency and vibrancy: egui does not offer system vibrancy or
-  backdrop translucency without hacks, so this build does not fake
-  them. Layers are flat with tonal separation, exactly the fallback
-  the HIG allows when translucency is unavailable. This is stated
-  here rather than imitated with translucent fills that would hurt
-  text contrast.
+  step up, 1 px border, 10 px radius. The dark theme uses no drop
+  shadows; tonal steps and borders carry the layering. The RBD
+  property editor reads as an inspector panel in the same
+  treatment, in the right panel rather than a mode switch.
+- Translucency and vibrancy: this build does not fake system
+  vibrancy. Layers are flat with tonal separation, exactly the
+  fallback the HIG allows when translucency is unavailable. This is
+  stated here rather than imitated with translucent fills that
+  would hurt text contrast.
 
 ## HIG patterns in the build
 
@@ -90,19 +93,18 @@ Layers convey hierarchy.
 - Unified toolbar. Save project, Open project, the project name,
   and the current item title live in the top toolbar. The bottom
   status bar is kept from the earlier shell as the results line.
-- Content-first single window. One window, resizable sidebar
-  (220 to 380 px, 280 px default), content takes the rest.
+- Content-first single window. One window, a fixed 274 px source
+  list sidebar, content takes the rest: inputs on the left, the
+  plot, diagram, or table in the center, inspector on the right.
 - Inspector, not modes. The RBD block property editor is a labeled
   inspector section shown when a block is selected. It edits in
   place and never replaces the canvas.
-- Keyboard shortcuts. Ctrl+S saves the project, Ctrl+O opens the
-  project at the path in the project panel, Delete removes the
-  selected RBD block when an RBD item is open and no text field has
-  focus, and otherwise removes the selected project item after the
-  same focus check. Ctrl+Z undoes the last RBD diagram change when
-  an RBD item is open (the RBD editor keeps a bounded undo stack of
-  diagram JSON values; other screens have no cheap single state to
-  undo, so undo is RBD only, as scoped).
+- Keyboard shortcuts. The v0.3.0 Slint build has no global
+  shortcuts; project save and open are toolbar and sidebar buttons,
+  and the RBD undo is a button on the RBD screen. (The retired egui
+  build had Ctrl+S, Ctrl+O, Ctrl+Z, and Delete shortcuts; they did
+  not carry over and are not claimed here.) Standard text field
+  editing keys work in every field.
 - Hit targets. Buttons and source list rows are at least 28 px tall
   through toolbar and button padding and a 28 px minimum interact
   size in the style.
@@ -116,26 +118,25 @@ Layers convey hierarchy.
 
 ## Typography
 
-An Apple-like scale in spirit, set with the clean system style sans
-faces egui provides. Apple SF fonts are licensed assets and are not
-bundled. Weights available in egui are regular and strong (headings
-and labels use the strong rendering egui applies to heading and
-strong text).
+Inter is bundled with the app (gui/ui/fonts, SIL Open Font License
+1.1) in four weights: Regular, Medium, SemiBold, and Bold. Apple SF
+fonts are licensed assets and are not bundled. The same Inter files
+are registered with the chart renderer, so plots and interface text
+match.
 
 | HIG style | Size | Use in ReliaKit |
 | --- | --- | --- |
 | Large title | 32 pt | Start page title only |
-| Title | 24 pt | Screen title at the top of each item view (egui Heading) |
-| Headline | 15 pt, strong | Section headings, card titles |
+| Title | 24 pt | Screen title at the top of each item view |
+| Headline | 15 pt, semibold | Section headings, card titles |
 | Body | 14 pt | Labels, field text, table text, buttons |
 | Caption | 12 pt | Hints, notes, secondary detail |
 
-Font note: egui ships proportional and monospace families only. The
-scale above is implemented exactly for large title, title, headline,
-body, and caption. Result values use the body face rather than a
-mono face, because the bundled mono face at a legible size makes
-long result lines overflow the 1500 px layout; no image or outline
-trick is used to fake a typeface egui does not have.
+Font note: the scale above is the Theme type scale in
+gui/ui/theme.slint (fs-large, fs-title, fs-headline, fs-body,
+fs-caption). Long result text wraps inside its card; the v0.2.0 bug
+where a one-line fit summary overflowed its card does not recur,
+because result cards are laid out from their full wrapped height.
 
 ## Color palette
 
@@ -164,20 +165,21 @@ accent wording: there is one tint.
 
 Series colors beyond the first are used only inside plots, where
 several data series must be told apart; interface chrome never uses
-them. Charts keep labeled axes, and series are named so egui_plot
-shows a legend when more than one series is plotted.
+them. Charts are drawn with the plotters crate into an image buffer
+at 1280 by 600 and shown in the center panel; they keep labeled
+axes, and a legend names each series when more than one is plotted.
 
 ## Corners, borders, states
 
-- Radius 6 px on cards, the inspector, and the hero; 4 px on buttons
-  and fields.
-- Cards: card surface fill, 1 px border, soft shadow from egui's
-  frame shadow at low strength, 16 px inner margin.
-- Hover: raised neutral fill (egui widget hover visual).
+- Radius 10 px on cards, the inspector, and the hero; 7 px on
+  buttons and fields.
+- Cards: card surface fill, 1 px border, no drop shadow, 16 px
+  inner margin.
+- Hover: raised neutral fill, cross-faded over 120 ms.
 - Selected: tint fill row in the source list; a 2.5 px tint stroke
   on the selected RBD block.
-- Disabled: egui dimming. Actions that need a fit first are replaced
-  by an empty state sentence instead of a disabled control.
+- Disabled: actions that need a fit first are replaced by an empty
+  state sentence instead of a disabled control.
 - Empty: a plain sentence naming the next step, for example "Run a
   fit first, then the send actions appear here."
 
@@ -200,7 +202,8 @@ shows a legend when more than one series is plotted.
 
 Original icons, drawn to HIG clarity standards: one recognizable
 idea per icon, plain shapes, consistent 1.6 px stroke on an 18 px
-grid, current color so they sit quietly in the source list
+grid. Each icon is an original SVG file in gui/ui/icons, tinted to
+the current text color so they sit quietly in the source list
 (Deference). No icon fonts, packs, SF Symbols, or emoji.
 
 Item icons, in the source list next to each item name:
@@ -244,16 +247,16 @@ icon in the tree. Examples are start page content, not an item kind.
 
 Logo mark: a rounded square outline in the tint accent holding a
 reliability curve in neutral light gray that steps down from the
-top left, with a solid tint dot at the curve start. Drawn by the
-`draw_logo` function in code, 28 px in the toolbar and 56 px on the
-start page. No separate image file, no assets folder added.
+top left, with a solid tint dot at the curve start. It is the
+original SVG asset gui/ui/logo.svg, 28 px in the toolbar and 56 px
+on the start page.
 
-Hero graphic: a wide flat panel on the start page drawn by the
-`draw_hero` function (Deference: it is the one decorative element,
+Hero graphic: a wide flat panel on the start page, the original SVG
+asset gui/ui/hero.svg (Deference: it is the one decorative element,
 kept quiet). A large reliability curve in the tint accent, a fainter
 second curve in muted gray, three outline blocks joined by lines in
 the lower right as a block diagram motif, and a row of small dots
-along the bottom for test units. Plain painter geometry only.
+along the bottom for test units.
 
 ## Screens restyled
 

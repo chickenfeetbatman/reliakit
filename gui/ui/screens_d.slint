@@ -1,0 +1,458 @@
+import { Theme, Cells } from "theme.slint";
+import { Actions, FmeaUi, WarUi, RcmUi, FracasUi } from "state.slint";
+import { PrimaryButton, GhostButton, SectionTitle, Caption, Field, ComboField, CheckField, TextAreaField, ResultCards, LeftPanel, CenterPanel, RightPanel, ScreenTitle, CsvImport } from "components.slint";
+import { ScrollView, ListView } from "std-widgets.slint";
+
+component HeaderText inherits Text {
+    font-family: Theme.font;
+    font-size: 12px;
+    font-weight: 600;
+    color: Theme.muted;
+    vertical-alignment: center;
+    overflow: elide;
+}
+
+export component FmeaScreen inherits HorizontalLayout {
+    spacing: 0;
+    LeftPanel {
+        ScreenTitle { title: "FMEA Worksheet"; sub: "Design, Process, or System FMEA with RPN and FMECA criticality."; }
+        ComboField {
+            label: "Worksheet type (stored with the worksheet)";
+            options: ["Design", "Process", "System"];
+            index <=> FmeaUi.type-index;
+            field-width: 264px;
+        }
+        SectionTitle { text: "Add row"; }
+        Field { label: "Item"; value <=> FmeaUi.fm-item; field-width: 264px; }
+        Field { label: "Failure mode"; value <=> FmeaUi.fm-mode; field-width: 264px; }
+        HorizontalLayout {
+            spacing: 10px;
+            Field { label: "Sev"; value <=> FmeaUi.fm-sev; field-width: 70px; }
+            Field { label: "Occ"; value <=> FmeaUi.fm-occ; field-width: 70px; }
+            Field { label: "Det"; value <=> FmeaUi.fm-det; field-width: 70px; }
+        }
+        HorizontalLayout {
+            spacing: 10px;
+            Field { label: "FMECA alpha"; value <=> FmeaUi.fm-alpha; field-width: 80px; }
+            Field { label: "FMECA beta"; value <=> FmeaUi.fm-beta; field-width: 80px; }
+            Field { label: "Mission hours"; value <=> FmeaUi.fm-hours; field-width: 84px; }
+        }
+        Field { label: "FMECA lambda per hour"; value <=> FmeaUi.fm-lambda; field-width: 180px; }
+        PrimaryButton {
+            text: "Add row";
+            icon: @image-url("icons/plus.svg");
+            clicked => { Actions.act("fmea-add-row"); }
+        }
+        SectionTitle { text: "Send a row to RCM"; }
+        HorizontalLayout {
+            spacing: 8px;
+            Field { label: "Row number (1 based)"; value <=> FmeaUi.rcm-row; field-width: 120px; }
+            GhostButton {
+                text: "Create RCM row";
+                icon: @image-url("icons/link.svg");
+                clicked => { Actions.act("fmea-to-rcm"); }
+            }
+        }
+        SectionTitle { text: "DVP&R entry"; }
+        Field { label: "Id"; value <=> FmeaUi.dv-id; field-width: 264px; }
+        Field { label: "Failure mode ref"; value <=> FmeaUi.dv-ref; field-width: 264px; }
+        Field { label: "Test"; value <=> FmeaUi.dv-test; field-width: 264px; }
+        HorizontalLayout {
+            spacing: 10px;
+            Field { label: "Sample size"; value <=> FmeaUi.dv-sample; field-width: 100px; }
+            Field { label: "Acceptance criteria"; value <=> FmeaUi.dv-criteria; field-width: 150px; }
+        }
+        GhostButton {
+            text: "Add DVP&R entry";
+            icon: @image-url("icons/plus.svg");
+            clicked => { Actions.act("fmea-add-dvpr"); }
+        }
+        Caption { text: FmeaUi.status; }
+    }
+    CenterPanel {
+        SectionTitle { text: "Worksheet"; }
+        Rectangle {
+            background: Theme.card;
+            border-radius: Theme.radius;
+            border-width: 1px;
+            border-color: Theme.border-soft;
+            vertical-stretch: 1;
+            VerticalLayout {
+                padding: 6px;
+                                HorizontalLayout {
+                    height: 28px;
+                    padding-left: 10px;
+                    padding-right: 10px;
+                    HeaderText { text: "Item"; width: 17%; }
+                    HeaderText { text: "Failure mode"; width: 19%; }
+                    HeaderText { text: "Sev"; width: 6%; }
+                    HeaderText { text: "Occ"; width: 6%; }
+                    HeaderText { text: "Det"; width: 6%; }
+                    HeaderText { text: "RPN"; width: 8%; }
+                    HeaderText { text: "Rev RPN"; width: 9%; }
+                    HeaderText { text: "Criticality"; width: 12%; }
+                    HeaderText { text: ""; width: 17%; }
+                }
+                ListView {
+                    for r[i] in FmeaUi.rows: HorizontalLayout {
+                        height: 36px;
+                        padding-left: 10px;
+                        padding-right: 10px;
+                        Text { text: r.cells[0]; width: 17%; font-family: Theme.font; font-size: 13px; color: Theme.text; vertical-alignment: center; overflow: elide; }
+                        Text { text: r.cells[1]; width: 19%; font-family: Theme.font; font-size: 13px; color: Theme.text; vertical-alignment: center; overflow: elide; }
+                        Text { text: r.cells[2]; width: 6%; font-family: Theme.font; font-size: 13px; color: Theme.text; vertical-alignment: center; }
+                        Text { text: r.cells[3]; width: 6%; font-family: Theme.font; font-size: 13px; color: Theme.text; vertical-alignment: center; }
+                        Text { text: r.cells[4]; width: 6%; font-family: Theme.font; font-size: 13px; color: Theme.text; vertical-alignment: center; }
+                        Text { text: r.cells[5]; width: 8%; font-family: Theme.font; font-size: 13px; font-weight: 600; color: Theme.text; vertical-alignment: center; }
+                        Text { text: r.cells[6]; width: 9%; font-family: Theme.font; font-size: 13px; color: Theme.text; vertical-alignment: center; }
+                        Text { text: r.cells[7]; width: 12%; font-family: Theme.font; font-size: 13px; color: Theme.text; vertical-alignment: center; }
+                        HorizontalLayout {
+                            width: 17%;
+                            spacing: 6px;
+                            alignment: start;
+                            GhostButton { text: "To RCM"; height: 26px; clicked => { Actions.row-act("fmea-rcm-row", i); } }
+                            GhostButton { text: "Delete"; height: 26px; clicked => { Actions.row-act("fmea-del", i); } }
+                        }
+                    }
+                }
+                if FmeaUi.rows.length == 0: Text {
+                    text: "No FMEA rows yet. Add a row from the panel on the left.";
+                    font-family: Theme.font;
+                    font-size: Theme.fs-caption;
+                    color: Theme.faint;
+                    horizontal-alignment: center;
+                }
+            }
+        }
+        SectionTitle { text: "DVP&R entries"; }
+        Rectangle {
+            background: Theme.card;
+            border-radius: Theme.radius;
+            border-width: 1px;
+            border-color: Theme.border-soft;
+            height: 150px;
+            VerticalLayout {
+                padding: 6px;
+                                HorizontalLayout {
+                    height: 28px;
+                    padding-left: 10px;
+                    padding-right: 10px;
+                    HeaderText { text: "Id"; width: 12%; }
+                    HeaderText { text: "Failure mode ref"; width: 22%; }
+                    HeaderText { text: "Test"; width: 28%; }
+                    HeaderText { text: "Samples"; width: 10%; }
+                    HeaderText { text: "Acceptance criteria"; width: 28%; }
+                }
+                ListView {
+                    for r in FmeaUi.dvpr-rows: HorizontalLayout {
+                        height: 30px;
+                        padding-left: 10px;
+                        padding-right: 10px;
+                        Text { text: r.cells[0]; width: 12%; font-family: Theme.font; font-size: 13px; color: Theme.text; vertical-alignment: center; overflow: elide; }
+                        Text { text: r.cells[1]; width: 22%; font-family: Theme.font; font-size: 13px; color: Theme.text; vertical-alignment: center; overflow: elide; }
+                        Text { text: r.cells[2]; width: 28%; font-family: Theme.font; font-size: 13px; color: Theme.text; vertical-alignment: center; overflow: elide; }
+                        Text { text: r.cells[3]; width: 10%; font-family: Theme.font; font-size: 13px; color: Theme.text; vertical-alignment: center; }
+                        Text { text: r.cells[4]; width: 28%; font-family: Theme.font; font-size: 13px; color: Theme.text; vertical-alignment: center; overflow: elide; }
+                    }
+                }
+            }
+        }
+    }
+    RightPanel {
+        SectionTitle { text: "Worksheet CSV"; }
+        Caption { text: "Worksheet CSV carries a first line with the FMEA type, then the rows CSV."; }
+        TextAreaField { label: "CSV text"; value <=> FmeaUi.csv; rows: 7; }
+        GhostButton { text: "Export worksheet to CSV text"; clicked => { Actions.act("fmea-export-ws"); } }
+        GhostButton { text: "Export rows only"; clicked => { Actions.act("fmea-export-rows"); } }
+        GhostButton { text: "Import CSV"; clicked => { Actions.act("fmea-import"); } }
+        GhostButton { text: "Clear rows"; clicked => { Actions.act("fmea-clear"); } }
+        SectionTitle { text: "File exports"; }
+        Field { label: "Export file path"; value <=> FmeaUi.export-path; field-width: 250px; }
+        GhostButton { text: "Export control plan CSV"; icon: @image-url("icons/export.svg"); clicked => { Actions.act("fmea-export-cp"); } }
+        GhostButton { text: "Export DVP&R CSV"; icon: @image-url("icons/export.svg"); clicked => { Actions.act("fmea-export-dvpr"); } }
+    }
+}
+
+export component WarrantyScreen inherits HorizontalLayout {
+    spacing: 0;
+    LeftPanel {
+        ScreenTitle { title: "Warranty"; sub: "Nevada table aggregation and a Weibull returns forecast."; }
+        Field { label: "Sales per period (comma separated)"; value <=> WarUi.sales; field-width: 264px; }
+        TextAreaField {
+            label: "Returns, one per line: sale period, return period (0-based)";
+            value <=> WarUi.returns;
+            rows: 5;
+        }
+        HorizontalLayout {
+            spacing: 10px;
+            Field { label: "Current period"; value <=> WarUi.current; field-width: 110px; }
+            Field { label: "Horizon periods"; value <=> WarUi.horizon; field-width: 110px; }
+        }
+        PrimaryButton {
+            text: "Run warranty analysis";
+            icon: @image-url("icons/play.svg");
+            clicked => { Actions.act("war-run"); }
+        }
+        CsvImport { }
+    }
+    CenterPanel {
+        SectionTitle { text: "Nevada table"; }
+        Caption { text: "Rows are sale periods, columns are age in periods."; }
+        Rectangle {
+            background: Theme.card;
+            border-radius: Theme.radius;
+            border-width: 1px;
+            border-color: Theme.border-soft;
+            min-height: 180px;
+            VerticalLayout {
+                padding: 10px;
+                spacing: 4px;
+                if WarUi.table-rows.length == 0: Text {
+                    text: "Run the analysis to build the Nevada table.";
+                    font-family: Theme.font;
+                    font-size: Theme.fs-caption;
+                    color: Theme.faint;
+                }
+                for r in WarUi.table-rows: HorizontalLayout {
+                    spacing: 14px;
+                    height: 24px;
+                    for c in r.cells: Text {
+                        text: c;
+                        font-family: Theme.font;
+                        font-size: 13px;
+                        color: Theme.text;
+                        min-width: 56px;
+                        vertical-alignment: center;
+                    }
+                }
+            }
+        }
+        SectionTitle { text: "Results"; }
+        ScrollView {
+            ResultCards { rows: WarUi.results; }
+        }
+    }
+}
+
+export component RcmScreen inherits HorizontalLayout {
+    spacing: 0;
+    LeftPanel {
+        ScreenTitle { title: "RCM Worksheet"; sub: "Reliability centered maintenance: consequence classes drive the task selection."; }
+        Caption { text: "Task selection and criticality update from the row inputs. Criticality needs failure rate, mode ratio, effect probability, and mission hours."; }
+        PrimaryButton {
+            text: "Add row";
+            icon: @image-url("icons/plus.svg");
+            clicked => { Actions.act("rcm-add"); }
+        }
+        Caption { text: "Select a row in the worksheet to edit it in the inspector. Rows can also arrive from an FMEA worksheet."; }
+    }
+    CenterPanel {
+        SectionTitle { text: "Worksheet"; }
+        Rectangle {
+            background: Theme.card;
+            border-radius: Theme.radius;
+            border-width: 1px;
+            border-color: Theme.border-soft;
+            vertical-stretch: 1;
+            VerticalLayout {
+                padding: 6px;
+                                HorizontalLayout {
+                    height: 28px;
+                    padding-left: 10px;
+                    padding-right: 10px;
+                    HeaderText { text: "Asset"; width: 16%; }
+                    HeaderText { text: "Function"; width: 18%; }
+                    HeaderText { text: "Failure mode"; width: 20%; }
+                    HeaderText { text: "Consequence"; width: 15%; }
+                    HeaderText { text: "Selected task"; width: 19%; }
+                    HeaderText { text: "Criticality"; width: 12%; }
+                }
+                ListView {
+                    for r[i] in RcmUi.rows: Rectangle {
+                        height: 38px;
+                        border-radius: 6px;
+                        background: RcmUi.sel == i ? Theme.tint-soft : transparent;
+                        HorizontalLayout {
+                            padding-left: 10px;
+                            padding-right: 10px;
+                            Text { text: r.cells[0]; width: 16%; font-family: Theme.font; font-size: 13px; color: Theme.text; vertical-alignment: center; overflow: elide; }
+                            Text { text: r.cells[1]; width: 18%; font-family: Theme.font; font-size: 13px; color: Theme.text; vertical-alignment: center; overflow: elide; }
+                            Text { text: r.cells[2]; width: 20%; font-family: Theme.font; font-size: 13px; color: Theme.text; vertical-alignment: center; overflow: elide; }
+                            Text { text: r.cells[3]; width: 15%; font-family: Theme.font; font-size: 13px; color: Theme.text; vertical-alignment: center; overflow: elide; }
+                            Text { text: r.cells[4]; width: 19%; font-family: Theme.font; font-size: 13px; font-weight: 500; color: Theme.text; vertical-alignment: center; overflow: elide; }
+                            Text { text: r.cells[5]; width: 12%; font-family: Theme.font; font-size: 13px; color: Theme.text; vertical-alignment: center; overflow: elide; }
+                        }
+                        TouchArea {
+                            clicked => { Actions.row-act("rcm-select", i); }
+                        }
+                    }
+                }
+                if RcmUi.rows.length == 0: Text {
+                    text: "No RCM rows yet. Add a row, or send one from an FMEA worksheet.";
+                    font-family: Theme.font;
+                    font-size: Theme.fs-caption;
+                    color: Theme.faint;
+                    horizontal-alignment: center;
+                }
+            }
+        }
+    }
+    RightPanel {
+        SectionTitle { text: "Row inspector"; }
+        if RcmUi.sel >= 0: VerticalLayout {
+            spacing: 10px;
+            Field { label: "Asset"; value <=> RcmUi.ed-asset; field-width: 250px; }
+            Field { label: "Function"; value <=> RcmUi.ed-function; field-width: 250px; }
+            Field { label: "Failure mode"; value <=> RcmUi.ed-mode; field-width: 250px; }
+            ComboField {
+                label: "Consequence";
+                options: ["Hidden", "Safety", "Environmental", "Operational", "NonOperational"];
+                index <=> RcmUi.ed-consequence-index;
+                field-width: 250px;
+            }
+            CheckField { label: "Condition monitorable"; checked <=> RcmUi.ed-monitorable; }
+            CheckField { label: "Age related"; checked <=> RcmUi.ed-age; }
+            CheckField { label: "Restorable"; checked <=> RcmUi.ed-restorable; }
+            HorizontalLayout {
+                spacing: 10px;
+                Field { label: "Rate per hour"; value <=> RcmUi.ed-rate; field-width: 118px; }
+                Field { label: "Hours"; value <=> RcmUi.ed-hours; field-width: 118px; }
+            }
+            HorizontalLayout {
+                spacing: 10px;
+                Field { label: "Alpha"; value <=> RcmUi.ed-alpha; field-width: 118px; }
+                Field { label: "Beta"; value <=> RcmUi.ed-beta; field-width: 118px; }
+            }
+            ResultCards {
+                rows: [
+                    { label: "Selected task", value: RcmUi.ed-task },
+                    { label: "Criticality Cm", value: RcmUi.ed-crit },
+                ];
+            }
+            GhostButton {
+                text: "Refresh task and criticality";
+                clicked => { Actions.act("rcm-refresh"); }
+            }
+            GhostButton {
+                text: "Remove row";
+                icon: @image-url("icons/trash.svg");
+                clicked => { Actions.act("rcm-remove"); }
+            }
+        }
+        if RcmUi.sel < 0: Caption { text: "Select a worksheet row to edit it here."; }
+    }
+}
+
+export component FracasScreen inherits HorizontalLayout {
+    spacing: 0;
+    LeftPanel {
+        ScreenTitle { title: "FRACAS"; sub: "Failure reporting and corrective action: incident log with status workflow."; }
+        SectionTitle { text: "Summary"; }
+        ResultCards { rows: FracasUi.summary; }
+        Field { label: "Total operating hours (for MTBF)"; value <=> FracasUi.total-hours; field-width: 160px; }
+        PrimaryButton {
+            text: "Add incident";
+            icon: @image-url("icons/plus.svg");
+            clicked => { Actions.act("fracas-add"); }
+        }
+        SectionTitle { text: "Send incidents to Life Data"; }
+        GhostButton {
+            text: "Export to Life Data item";
+            icon: @image-url("icons/export.svg");
+            clicked => { Actions.act("flow-fracas-life"); }
+        }
+        Caption { text: "Each incident hour value becomes a failure time. All incidents count as failures, because the FRACAS log has no censoring notion."; }
+        SectionTitle { text: "CSV import and export"; }
+        Field { label: "CSV file path"; value <=> FracasUi.path; field-width: 264px; }
+        HorizontalLayout {
+            spacing: 8px;
+            GhostButton { text: "Export CSV"; clicked => { Actions.act("fracas-export-csv"); } }
+            GhostButton { text: "Import CSV"; clicked => { Actions.act("fracas-import-csv"); } }
+        }
+        Caption { text: FracasUi.status; }
+    }
+    CenterPanel {
+        SectionTitle { text: "Incidents"; }
+        Rectangle {
+            background: Theme.card;
+            border-radius: Theme.radius;
+            border-width: 1px;
+            border-color: Theme.border-soft;
+            vertical-stretch: 1;
+            VerticalLayout {
+                padding: 6px;
+                                HorizontalLayout {
+                    height: 28px;
+                    padding-left: 10px;
+                    padding-right: 10px;
+                    HeaderText { text: "Id"; width: 9%; }
+                    HeaderText { text: "Part"; width: 17%; }
+                    HeaderText { text: "Failure mode"; width: 17%; }
+                    HeaderText { text: "Hours"; width: 10%; }
+                    HeaderText { text: "Date"; width: 12%; }
+                    HeaderText { text: "Status"; width: 14%; }
+                    HeaderText { text: "Corrective action"; width: 21%; }
+                }
+                ListView {
+                    for r[i] in FracasUi.rows: Rectangle {
+                        height: 38px;
+                        border-radius: 6px;
+                        background: FracasUi.sel == i ? Theme.tint-soft : transparent;
+                        HorizontalLayout {
+                            padding-left: 10px;
+                            padding-right: 10px;
+                            Text { text: r.cells[0]; width: 9%; font-family: Theme.font; font-size: 13px; color: Theme.text; vertical-alignment: center; overflow: elide; }
+                            Text { text: r.cells[1]; width: 17%; font-family: Theme.font; font-size: 13px; color: Theme.text; vertical-alignment: center; overflow: elide; }
+                            Text { text: r.cells[2]; width: 17%; font-family: Theme.font; font-size: 13px; color: Theme.text; vertical-alignment: center; overflow: elide; }
+                            Text { text: r.cells[3]; width: 10%; font-family: Theme.font; font-size: 13px; color: Theme.text; vertical-alignment: center; }
+                            Text { text: r.cells[4]; width: 12%; font-family: Theme.font; font-size: 13px; color: Theme.text; vertical-alignment: center; overflow: elide; }
+                            Text { text: r.cells[5]; width: 14%; font-family: Theme.font; font-size: 13px; font-weight: 500; color: Theme.text; vertical-alignment: center; overflow: elide; }
+                            Text { text: r.cells[6]; width: 21%; font-family: Theme.font; font-size: 13px; color: Theme.text; vertical-alignment: center; overflow: elide; }
+                        }
+                        TouchArea {
+                            clicked => { Actions.row-act("fracas-select", i); }
+                        }
+                    }
+                }
+                if FracasUi.rows.length == 0: Text {
+                    text: "No incidents yet. Add an incident from the panel on the left.";
+                    font-family: Theme.font;
+                    font-size: Theme.fs-caption;
+                    color: Theme.faint;
+                    horizontal-alignment: center;
+                }
+            }
+        }
+    }
+    RightPanel {
+        SectionTitle { text: "Incident inspector"; }
+        if FracasUi.sel >= 0: VerticalLayout {
+            spacing: 10px;
+            Field { label: "Id"; value <=> FracasUi.ed-id; field-width: 250px; }
+            Field { label: "Part"; value <=> FracasUi.ed-part; field-width: 250px; }
+            Field { label: "Failure mode"; value <=> FracasUi.ed-mode; field-width: 250px; }
+            HorizontalLayout {
+                spacing: 10px;
+                Field { label: "Hours"; value <=> FracasUi.ed-hours; field-width: 118px; }
+                Field { label: "Date"; value <=> FracasUi.ed-date; field-width: 118px; }
+            }
+            ComboField {
+                label: "Status";
+                options: ["Open", "Analysis", "CorrectiveAction", "Closed"];
+                index <=> FracasUi.ed-status-index;
+                field-width: 250px;
+            }
+            Field { label: "Corrective action"; value <=> FracasUi.ed-action; field-width: 250px; }
+            GhostButton {
+                text: "Apply edits";
+                clicked => { Actions.act("fracas-refresh"); }
+            }
+            GhostButton {
+                text: "Remove incident";
+                icon: @image-url("icons/trash.svg");
+                clicked => { Actions.act("fracas-remove"); }
+            }
+        }
+        if FracasUi.sel < 0: Caption { text: "Select an incident to edit it here."; }
+    }
+}

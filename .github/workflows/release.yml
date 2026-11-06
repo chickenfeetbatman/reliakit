@@ -31,9 +31,9 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y libxcb-render0-dev libxcb-shape0-dev libxcb-xfixes0-dev libxkbcommon-dev libssl-dev
+          sudo apt-get install -y libxcb-render0-dev libxcb-shape0-dev libxcb-xfixes0-dev libxkbcommon-dev libssl-dev libfontconfig1-dev pkg-config
       - name: Build release binaries
-        run: cargo build --release --bins
+        run: cargo build --release --workspace --bins
       - name: Package (Linux and macOS)
         if: runner.os != 'Windows'
         shell: bash

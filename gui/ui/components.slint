@@ -1,0 +1,383 @@
+import { Theme, PairRow } from "theme.slint";
+import { Actions, CsvUi } from "state.slint";
+import { LineEdit, TextEdit, ComboBox, CheckBox, ScrollView } from "std-widgets.slint";
+
+export component PrimaryButton inherits Rectangle {
+    in property <string> text;
+    in property <image> icon;
+    in property <bool> enabled: true;
+    in property <bool> danger: false;
+    callback clicked();
+    height: 34px;
+    min-width: 92px;
+    border-radius: Theme.radius-small;
+    background: !enabled ? Theme.border-soft : danger ? (ta.pressed ? #D63A30 : ta.has-hover ? #FF5548 : Theme.red) : (ta.pressed ? #0970D8 : ta.has-hover ? #1B90FF : Theme.tint);
+    animate background { duration: 120ms; }
+    opacity: enabled ? 1.0 : 0.55;
+    HorizontalLayout {
+        alignment: center;
+        spacing: 7px;
+        padding-left: 14px;
+        padding-right: 14px;
+        if root.icon.width > 0: Image {
+            source: root.icon;
+            width: 15px;
+            height: 15px;
+            colorize: #FFFFFF;
+            vertical-alignment: center;
+        }
+        Text {
+            text: root.text;
+            color: #FFFFFF;
+            font-family: Theme.font;
+            font-size: 13.5px;
+            font-weight: 500;
+            vertical-alignment: center;
+            horizontal-alignment: center;
+        }
+    }
+    ta := TouchArea {
+        enabled: root.enabled;
+        mouse-cursor: pointer;
+        clicked => { root.clicked(); }
+    }
+}
+
+export component GhostButton inherits Rectangle {
+    in property <string> text;
+    in property <image> icon;
+    in property <bool> enabled: true;
+    in property <bool> active: false;
+    callback clicked();
+    height: 34px;
+    min-width: 76px;
+    border-radius: Theme.radius-small;
+    border-width: 1px;
+    border-color: active ? Theme.tint : Theme.border;
+    background: !enabled ? transparent : active ? Theme.tint-soft : (ta.pressed ? Theme.card-raised : ta.has-hover ? Theme.card-raised : Theme.card);
+    animate background { duration: 120ms; }
+    opacity: enabled ? 1.0 : 0.5;
+    HorizontalLayout {
+        alignment: center;
+        spacing: 7px;
+        padding-left: 12px;
+        padding-right: 12px;
+        if root.icon.width > 0: Image {
+            source: root.icon;
+            width: 15px;
+            height: 15px;
+            colorize: active ? Theme.tint : Theme.muted;
+            vertical-alignment: center;
+        }
+        Text {
+            text: root.text;
+            color: active ? Theme.text : Theme.text;
+            font-family: Theme.font;
+            font-size: 13.5px;
+            font-weight: 500;
+            vertical-alignment: center;
+            horizontal-alignment: center;
+        }
+    }
+    ta := TouchArea {
+        enabled: root.enabled;
+        mouse-cursor: pointer;
+        clicked => { root.clicked(); }
+    }
+}
+
+export component IconButton inherits Rectangle {
+    in property <image> icon;
+    in property <string> tooltip;
+    in property <bool> danger: false;
+    callback clicked();
+    width: 30px;
+    height: 30px;
+    border-radius: 6px;
+    background: ta.pressed ? Theme.card-raised : ta.has-hover ? Theme.card-raised : transparent;
+    animate background { duration: 100ms; }
+    Image {
+        source: root.icon;
+        width: 16px;
+        height: 16px;
+        colorize: danger ? Theme.red : Theme.muted;
+        x: (parent.width - self.width) / 2;
+        y: (parent.height - self.height) / 2;
+    }
+    ta := TouchArea {
+        mouse-cursor: pointer;
+        clicked => { root.clicked(); }
+    }
+}
+
+export component SectionTitle inherits Text {
+    font-family: Theme.font;
+    font-size: Theme.fs-headline;
+    font-weight: 600;
+    color: Theme.text;
+}
+
+export component Caption inherits Text {
+    font-family: Theme.font;
+    font-size: Theme.fs-caption;
+    color: Theme.muted;
+    wrap: word-wrap;
+}
+
+export component Field inherits VerticalLayout {
+    in property <string> label;
+    in-out property <string> value;
+    in property <length> field-width: 120px;
+    spacing: 5px;
+    Text {
+        text: root.label;
+        font-family: Theme.font;
+        font-size: Theme.fs-caption;
+        color: Theme.muted;
+    }
+    LineEdit {
+        width: root.field-width;
+        height: 32px;
+        text <=> root.value;
+        font-family: Theme.font;
+        font-size: Theme.fs-body;
+    }
+}
+
+export component ComboField inherits VerticalLayout {
+    in property <string> label;
+    in property <[string]> options;
+    in-out property <int> index;
+    in property <length> field-width: 150px;
+    callback changed();
+    spacing: 5px;
+    Text {
+        text: root.label;
+        font-family: Theme.font;
+        font-size: Theme.fs-caption;
+        color: Theme.muted;
+    }
+    ComboBox {
+        width: root.field-width;
+        height: 32px;
+        model: root.options;
+        current-index <=> root.index;
+        selected => { root.changed(); }
+    }
+}
+
+export component CheckField inherits HorizontalLayout {
+    in property <string> label;
+    in-out property <bool> checked;
+    spacing: 8px;
+    height: 32px;
+    CheckBox {
+        checked <=> root.checked;
+        text: root.label;
+    }
+}
+
+export component TextAreaField inherits VerticalLayout {
+    in property <string> label;
+    in-out property <string> value;
+    in property <int> rows: 4;
+    spacing: 5px;
+    Text {
+        text: root.label;
+        font-family: Theme.font;
+        font-size: Theme.fs-caption;
+        color: Theme.muted;
+        wrap: word-wrap;
+    }
+    TextEdit {
+        height: root.rows * 21px + 14px;
+        text <=> root.value;
+        font-family: Theme.font;
+        font-size: 13px;
+        wrap: word-wrap;
+    }
+}
+
+export component ResultCard inherits Rectangle {
+    in property <string> label;
+    in property <string> value;
+    background: Theme.card;
+    border-radius: Theme.radius;
+    border-width: 1px;
+    border-color: Theme.border-soft;
+    VerticalLayout {
+        padding: 12px;
+        spacing: 3px;
+        if root.label != "": Text {
+            text: root.label;
+            font-family: Theme.font;
+            font-size: Theme.fs-caption;
+            color: Theme.muted;
+        }
+        Text {
+            text: root.value;
+            font-family: Theme.font;
+            font-size: Theme.fs-body;
+            font-weight: 500;
+            color: Theme.text;
+            wrap: word-wrap;
+        }
+    }
+}
+
+export component ResultCards inherits VerticalLayout {
+    in property <[PairRow]> rows;
+    spacing: 8px;
+    for r in root.rows: ResultCard {
+        label: r.label;
+        value: r.value;
+    }
+    if root.rows.length == 0: Text {
+        text: "No results yet. Run the analysis to see results here.";
+        font-family: Theme.font;
+        font-size: Theme.fs-caption;
+        color: Theme.faint;
+        wrap: word-wrap;
+    }
+}
+
+export component HeadlineCard inherits Rectangle {
+    in property <string> label;
+    in property <string> value;
+    background: Theme.card;
+    border-radius: Theme.radius;
+    border-width: 1px;
+    border-color: Theme.border-soft;
+    VerticalLayout {
+        padding: 14px;
+        spacing: 2px;
+        Text {
+            text: root.label;
+            font-family: Theme.font;
+            font-size: Theme.fs-caption;
+            color: Theme.muted;
+        }
+        Text {
+            text: root.value;
+            font-family: Theme.font;
+            font-size: 21px;
+            font-weight: 600;
+            color: Theme.tint;
+            wrap: word-wrap;
+        }
+    }
+}
+
+export component Panel inherits Rectangle {
+    background: Theme.card;
+    border-radius: Theme.radius;
+    border-width: 1px;
+    border-color: Theme.border-soft;
+}
+
+export component LeftPanel inherits Rectangle {
+    width: 332px;
+    background: Theme.bg;
+    border-width: 1px;
+    border-color: Theme.border-soft;
+    ScrollView {
+        VerticalLayout {
+            padding: 16px;
+            spacing: 14px;
+            alignment: start;
+            @children
+        }
+    }
+}
+
+export component CenterPanel inherits VerticalLayout {
+    padding: 16px;
+    spacing: 14px;
+    @children
+}
+
+export component RightPanel inherits Rectangle {
+    width: 318px;
+    background: Theme.bg;
+    border-width: 1px;
+    border-color: Theme.border-soft;
+    ScrollView {
+        VerticalLayout {
+            padding: 16px;
+            spacing: 14px;
+            alignment: start;
+            @children
+        }
+    }
+}
+
+export component ScreenTitle inherits VerticalLayout {
+    in property <string> title;
+    in property <string> sub;
+    spacing: 2px;
+    Text {
+        text: root.title;
+        font-family: Theme.font;
+        font-size: Theme.fs-title;
+        font-weight: 600;
+        color: Theme.text;
+    }
+    if root.sub != "": Text {
+        text: root.sub;
+        font-family: Theme.font;
+        font-size: Theme.fs-caption;
+        color: Theme.muted;
+        wrap: word-wrap;
+    }
+}
+
+export component CsvImport inherits VerticalLayout {
+    spacing: 8px;
+    SectionTitle { text: "Import data"; }
+    ComboField {
+        label: "Bundled dataset";
+        options: CsvUi.files;
+        index <=> CsvUi.pick-index;
+        field-width: 264px;
+    }
+    HorizontalLayout {
+        spacing: 8px;
+        GhostButton {
+            text: "Load bundled CSV";
+            icon: @image-url("icons/dataset.svg");
+            clicked => { Actions.csv-bundled(); }
+        }
+    }
+    Field {
+        label: "CSV file path";
+        value <=> CsvUi.path;
+        field-width: 264px;
+    }
+    HorizontalLayout {
+        spacing: 8px;
+        GhostButton {
+            text: "Load CSV file";
+            icon: @image-url("icons/open.svg");
+            clicked => { Actions.csv-file(); }
+        }
+    }
+}
+
+export component ChartCard inherits Rectangle {
+    in property <image> chart;
+    in property <string> title;
+    background: Theme.card;
+    border-radius: Theme.radius;
+    border-width: 1px;
+    border-color: Theme.border-soft;
+    min-height: 330px;
+    VerticalLayout {
+        padding: 10px;
+        Image {
+            source: root.chart;
+            image-fit: contain;
+            width: 100%;
+            height: 100%;
+        }
+    }
+}

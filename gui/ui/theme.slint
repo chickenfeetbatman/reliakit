@@ -1,0 +1,97 @@
+// ReliaKit design tokens. Palette and type scale follow docs/DESIGN.md:
+// Apple HIG clarity, deference, depth; neutral dark surfaces, one tint.
+
+export global Theme {
+    out property <color> bg: #17181A;
+    out property <color> sidebar: #131416;
+    out property <color> toolbar: #212326;
+    out property <color> card: #212326;
+    out property <color> card-raised: #26282C;
+    out property <color> field: #1C1D20;
+    out property <color> border: #3A3C40;
+    out property <color> border-soft: #2C2E33;
+    out property <color> text: #F2F2F7;
+    out property <color> muted: #A7A7AD;
+    out property <color> faint: #6E6E76;
+    out property <color> tint: #0A84FF;
+    out property <color> tint-soft: #0A84FF33;
+    out property <color> green: #30D158;
+    out property <color> red: #FF453A;
+    out property <color> orange: #FF9F0A;
+    out property <color> yellow: #FFD60A;
+    out property <color> series2: #64D2FF;
+    out property <color> series3: #BF5AF2;
+    out property <color> series4: #FF6482;
+    out property <color> series5: #30D158;
+    out property <string> font: "Inter";
+    out property <length> fs-caption: 12px;
+    out property <length> fs-body: 14px;
+    out property <length> fs-headline: 15px;
+    out property <length> fs-title: 24px;
+    out property <length> fs-large: 32px;
+    out property <length> radius: 10px;
+    out property <length> radius-small: 7px;
+}
+
+export struct ItemRow {
+    id: int,
+    kind: string,
+    kind-label: string,
+    name: string,
+    icon: image,
+}
+
+export struct PairRow {
+    label: string,
+    value: string,
+}
+
+export struct WizardRow {
+    dist: string,
+    label: string,
+    loglik: string,
+    aic: string,
+    bic: string,
+    ad: string,
+    usable: bool,
+}
+
+export struct Cells {
+    cells: [string],
+}
+
+export struct BlockGeom {
+    idx: int,
+    x: length,
+    y: length,
+    w: length,
+    h: length,
+    name: string,
+    sub: string,
+    selected: bool,
+}
+
+export struct Segment {
+    x: length,
+    y: length,
+    w: length,
+    h: length,
+}
+
+export struct FieldSpec {
+    id: string,
+    key: string,
+    label: string,
+    named: bool,
+    options: [string],
+    value: string,
+    sel: int,
+}
+
+export struct CardInfo {
+    title: string,
+    sub: string,
+    tag: string,
+    icon: image,
+    action-id: string,
+}

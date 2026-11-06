@@ -53,17 +53,24 @@ screen, so the downloaded binary runs without data of your own.
 ## Downloads
 
 - From source: clone this repo and run
-  `cargo run --release --bin reliakit-app` for the desktop app or
+  `cargo run --release -p reliakit-gui` for the desktop app or
   `cargo run --release --bin reliakit` for the CLI.
-- Binaries: the [v0.2.0 release](https://github.com/chickenfeetbatman/reliakit/releases/tag/v0.2.0)
+- Binaries: the [v0.3.0 release](https://github.com/chickenfeetbatman/reliakit/releases/tag/v0.3.0)
   has the desktop app and CLI for Windows, macOS, and Linux. New
   version tags build new releases the same way.
 
 ## Desktop application
 
-`reliakit-app` is one compiled binary (egui/eframe, no server).
-It opens as one project workspace: a start page, a project tree
-in the sidebar, and analysis items in the main pane. Item kinds:
+`reliakit-app` is one compiled binary (Slint UI, no server).
+The interface is built with [Slint](https://slint.dev), used under
+the Slint royalty-free license; the app's About dialog carries the
+AboutSlint attribution widget that license asks for. Inter, the
+bundled user interface font, is licensed under the SIL Open Font
+License 1.1 (see gui/ui/fonts/OFL.txt).
+It opens as one project workspace: a start page with example and
+dataset cards, a project tree in the sidebar, the plot, diagram,
+or table in the center, and an inspector with headline result
+cards on the right. Item kinds:
 Life Data (CSV load, fit, reliability curve and probability
 plot), Limited Data, MCMC, Degradation, ALT, Growth, Competing
 Risks, System RBD, Fault Tree, FMEA, Warranty, Prediction, DOE,
@@ -75,7 +82,10 @@ can be exported to a Life Data item. One JSON project file saves
 and loads the whole project in ReliaKit own format. The design
 system is documented in docs/DESIGN.md.
 
-On the System RBD screen you drag blocks with the mouse. Each block
+On the System RBD screen you arm a palette item (single block,
+standby group, parallel group, k-out-of-n group), click the
+canvas to place it, drag blocks to move them, and click a block
+to select it and edit its properties in the inspector. Each block
 carries a name, distribution, parameters, MTBF/MTTR, and a mode
 (active, hot standby, cold standby, warm with dormancy). The
 topology evaluates as you edit, availability is computed on the
@@ -225,8 +235,8 @@ src/
   standards217.rs   MIL-HDBK-217F Notice 2 part stress models
   datasets.rs       synthetic example data generators (labelled synthetic)
   bin/reliakit.rs       CLI
-  bin/reliakit_app.rs   desktop app (egui)
   bin/reliakit_bench.rs benchmarks
+gui/                desktop app crate (Slint), binary reliakit-app
 examples/           worked examples with captured outputs (OUTPUTS.md)
 datasets/           16 bundled sourced CSV datasets (see FEATURE_RESEARCH.md)
 libraries/mil217/   MIL-HDBK-217F Notice 2 library, one JSON file per category
@@ -234,15 +244,17 @@ bench/              the Python benchmark script used above
 tests/              the test files listed above
 ```
 
-Four dependencies: serde, serde_json, clap, and eframe/egui for
-the desktop app. The RNG is the crate's own seeded xoshiro256**.
+The library depends on serde, serde_json, and clap. The desktop
+app crate adds slint and plotters (charts are rendered to an image
+buffer with plotters). The RNG is the crate's own seeded
+xoshiro256**.
 
 ## Toolchain
 
 Built with rustc 1.99.1 and cargo 1.99.1, installed from the
-official rustup script on Ubuntu 24.04. CI runs `cargo test` on
-Linux. The release workflow builds Windows, macOS, and Linux
-binaries on version tags.
+official rustup script on Ubuntu 24.04. CI runs
+`cargo test --workspace` on Linux. The release workflow builds
+Windows, macOS, and Linux binaries on version tags.
 
 ## License
 

@@ -91,7 +91,7 @@ Status meanings:
 | Specfunc: beta quantile closed form | tests/qa_tests.rs | qa_specfunc_beta_ppf_closed_form | PASS |
 | Specfunc: normal quantile and cdf round trip | tests/qa_tests.rs | qa_specfunc_norm_ppf_cdf_roundtrip | PASS |
 | CLI selftest | src/bin/reliakit.rs | selftest (Selftest subcommand, built-in checks) | PASS |
-| GUI headless check | src/bin/reliakit_app.rs | reliakit-app --headless (constructs the Example 3 RBD, prints reliability 0.921419 and mean availability, exits 0; verified by the coordinator in the gate run) | PASS |
+| GUI headless check | gui/src/main.rs | reliakit-app --headless (builds the Example 3 RBD in the app state engine, prints reliability 0.921419 and availability rows plus the bearing life fit, exits 0; verified by the coordinator in the gate run) | PASS |
 
 Note on the specfunc row: qa_specfunc_norm_ppf_cdf_roundtrip was
 briefly ignored because norm_cdf was built on the Abramowitz and
@@ -103,3 +103,51 @@ now runs un-ignored with its original tolerance and passes.
 Features with no test at all: none. The four gaps QA found
 (lognormal, normal, degradation power path, IPL least squares fit)
 are covered by tests/coverage_tests.rs.
+
+## v0.3.0 GUI rebuild (Slint)
+
+The desktop app was rebuilt for v0.3.0. The egui front end
+(src/bin/reliakit_app.rs, deleted) was replaced by a separate
+workspace crate, gui/ (package reliakit-gui, binary reliakit-app):
+the interface is written in Slint (declarative files under
+gui/ui/), and charts are rendered with plotters into an image
+buffer. Slint is used under its royalty-free license
+(LicenseRef-Slint-Royalty-free-2.0); the About dialog carries the
+AboutSlint widget that license asks for, and the README names the
+license. Inter is bundled under the SIL Open Font License 1.1.
+
+The library, the CLI, the datasets, and the project format
+(reliakit-project-2, v1 files still open) are unchanged. The full
+test run for this version is the same 167 tests:
+cargo test --release --workspace reports 167 passed, 0 failed.
+The headless check above runs on the new binary and prints the
+same Example 3 reliability, 0.921419.
+
+GUI evidence for this version is by screenshot, not unit test.
+Screenshots taken under Xvfb at a 1600x1000 window with scripted
+XTest input are kept with the GUI test material: the start page,
+Life Data with a fit and its reliability chart, the distribution
+wizard ranking table, the RBD screen after a palette placement and
+a drag with the block selected and its inspector open, an MCMC run
+with posterior cards, the Markov example (MTTF 650.00 hours, as
+the preset states), and the FRACAS log with its summary cards and
+incident inspector. The project tree in the later screenshots
+holds five item kinds. The FRACAS to Life Data flow was also
+exercised live: it created a Life Data item holding the two
+incident hour values as failure times.
+
+Two v0.2.0 caveats are closed by this rebuild. Synthetic clicks
+under Xvfb could not select an RBD block in the egui app; in the
+Slint app, click-to-select and drag both work and are visible in
+the screenshots. The one-line fit summary that overflowed its card
+in the egui app renders as a wrapped card that takes its full
+height.
+
+Behavior notes. Global keyboard shortcuts from the egui build
+(Ctrl+S, Ctrl+O, Ctrl+Z, Delete) did not carry over; save, open,
+and undo are buttons. RBD connector lines chain leaves in reading
+order; leaves inside a parallel group are drawn on the same line
+as their neighbours, and the diagram JSON carries the real
+topology. At the default window size the FMEA worksheet table is
+wider than the center panel, so its row action buttons are partly
+clipped until the window is widened.

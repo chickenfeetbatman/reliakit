@@ -1,0 +1,178 @@
+import { Theme } from "theme.slint";
+import { Actions, DegUi, AltUi, GrowthUi, CompUi } from "state.slint";
+import { PrimaryButton, GhostButton, SectionTitle, Caption, Field, ComboField, CheckField, TextAreaField, ResultCards, LeftPanel, CenterPanel, RightPanel, ScreenTitle, CsvImport, ChartCard } from "components.slint";
+import { ScrollView } from "std-widgets.slint";
+
+export component DegradationScreen inherits HorizontalLayout {
+    spacing: 0;
+    LeftPanel {
+        ScreenTitle { title: "Degradation"; sub: "Path fits per unit, pseudo-failure times at the threshold, then a life fit."; }
+        TextAreaField {
+            label: "One unit per line: times | measurements";
+            value <=> DegUi.units;
+            rows: 6;
+        }
+        HorizontalLayout {
+            spacing: 10px;
+            Field { label: "Threshold"; value <=> DegUi.threshold; field-width: 84px; }
+            ComboField { label: "Path model"; options: ["linear", "exponential", "power"]; index <=> DegUi.model-index; field-width: 130px; }
+        }
+        ComboField {
+            label: "Life distribution";
+            options: ["weibull2", "weibull3", "lognormal", "normal", "exponential", "gamma", "gumbel", "loglogistic", "logistic", "gompertz", "gengamma", "weibull1", "exponential2", "mixed_weibull"];
+            index <=> DegUi.dist-index;
+            field-width: 264px;
+        }
+        CheckField { label: "Increasing failure direction"; checked <=> DegUi.increasing; }
+        PrimaryButton {
+            text: "Run degradation analysis";
+            icon: @image-url("icons/play.svg");
+            clicked => { Actions.act("deg-run"); }
+        }
+        CsvImport { }
+    }
+    CenterPanel {
+        if DegUi.has-chart: ChartCard { chart: DegUi.chart; title: "Degradation paths"; }
+        if !DegUi.has-chart: Rectangle {
+            background: Theme.card;
+            border-radius: Theme.radius;
+            border-width: 1px;
+            border-color: Theme.border-soft;
+            min-height: 200px;
+            Text {
+                text: "Run the analysis to see the degradation paths here.";
+                font-family: Theme.font;
+                font-size: Theme.fs-body;
+                color: Theme.faint;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+            }
+        }
+        SectionTitle { text: "Results"; }
+        ScrollView {
+            ResultCards { rows: DegUi.results; }
+        }
+    }
+}
+
+export component AltScreen inherits HorizontalLayout {
+    spacing: 0;
+    LeftPanel {
+        ScreenTitle { title: "Accelerated Life Test"; sub: "Least squares and censored maximum likelihood fits, extrapolated to use stress."; }
+        TextAreaField {
+            label: "One unit per line: stress,time (Eyring: stress,stress2,time). Optional trailing failed flag 1 or 0.";
+            value <=> AltUi.data;
+            rows: 6;
+        }
+        ComboField {
+            label: "Model";
+            options: ["arrhenius", "ipl", "eyring"];
+            index <=> AltUi.model-index;
+            field-width: 264px;
+        }
+        HorizontalLayout {
+            spacing: 10px;
+            Field { label: "Use stress"; value <=> AltUi.use-stress; field-width: 110px; }
+            Field { label: "Mission t"; value <=> AltUi.t; field-width: 96px; }
+        }
+        PrimaryButton {
+            text: "Run ALT fit";
+            icon: @image-url("icons/play.svg");
+            clicked => { Actions.act("alt-run"); }
+        }
+        CsvImport { }
+    }
+    CenterPanel {
+        if AltUi.has-chart: ChartCard { chart: AltUi.chart; title: "Reliability at use stress"; }
+        if !AltUi.has-chart: Rectangle {
+            background: Theme.card;
+            border-radius: Theme.radius;
+            border-width: 1px;
+            border-color: Theme.border-soft;
+            min-height: 200px;
+            Text {
+                text: "Run the fit to see reliability at use stress here.";
+                font-family: Theme.font;
+                font-size: Theme.fs-body;
+                color: Theme.faint;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+            }
+        }
+        SectionTitle { text: "Results"; }
+        ScrollView {
+            ResultCards { rows: AltUi.results; }
+        }
+    }
+}
+
+export component GrowthScreen inherits HorizontalLayout {
+    spacing: 0;
+    LeftPanel {
+        ScreenTitle { title: "Reliability Growth"; sub: "Crow-AMSAA and Duane fits on cumulative failure times."; }
+        TextAreaField {
+            label: "Failure times (comma separated)";
+            value <=> GrowthUi.times;
+            rows: 5;
+        }
+        PrimaryButton {
+            text: "Run growth fit";
+            icon: @image-url("icons/play.svg");
+            clicked => { Actions.act("growth-run"); }
+        }
+        CsvImport { }
+    }
+    CenterPanel {
+        if GrowthUi.has-chart: ChartCard { chart: GrowthUi.chart; title: "Growth curve"; }
+        if !GrowthUi.has-chart: Rectangle {
+            background: Theme.card;
+            border-radius: Theme.radius;
+            border-width: 1px;
+            border-color: Theme.border-soft;
+            min-height: 200px;
+            Text {
+                text: "Run the fit to see the growth curve here.";
+                font-family: Theme.font;
+                font-size: Theme.fs-body;
+                color: Theme.faint;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+            }
+        }
+        SectionTitle { text: "Results"; }
+        ScrollView {
+            ResultCards { rows: GrowthUi.results; }
+        }
+    }
+}
+
+export component CompetingScreen inherits HorizontalLayout {
+    spacing: 0;
+    LeftPanel {
+        ScreenTitle { title: "Competing Risks"; sub: "Cause-specific fits and cumulative incidence per failure mode."; }
+        TextAreaField {
+            label: "One unit per line: time,mode (blank mode = censored)";
+            value <=> CompUi.data;
+            rows: 6;
+        }
+        ComboField {
+            label: "Distribution";
+            options: ["weibull2", "weibull3", "lognormal", "normal", "exponential", "gamma", "gumbel", "loglogistic", "logistic", "gompertz", "gengamma", "weibull1", "exponential2", "mixed_weibull"];
+            index <=> CompUi.dist-index;
+            field-width: 264px;
+        }
+        Field { label: "Mission t"; value <=> CompUi.t; field-width: 110px; }
+        PrimaryButton {
+            text: "Run competing risks fit";
+            icon: @image-url("icons/play.svg");
+            clicked => { Actions.act("comp-run"); }
+        }
+        CsvImport { }
+    }
+    CenterPanel {
+        SectionTitle { text: "Results"; }
+        ScrollView {
+            ResultCards { rows: CompUi.results; }
+        }
+    }
+}

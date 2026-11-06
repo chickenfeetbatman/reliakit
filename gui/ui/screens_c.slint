@@ -1,0 +1,283 @@
+import { Theme } from "theme.slint";
+import { Actions, RbdUi, FtUi } from "state.slint";
+import { PrimaryButton, GhostButton, SectionTitle, Caption, Field, ComboField, TextAreaField, ResultCards, HeadlineCard, LeftPanel, CenterPanel, RightPanel, ScreenTitle } from "components.slint";
+import { ScrollView } from "std-widgets.slint";
+
+export component RbdScreen inherits HorizontalLayout {
+    spacing: 0;
+    LeftPanel {
+        ScreenTitle { title: "System RBD"; sub: "Blocks evaluate with the system reliability engine, including standby groups."; }
+        SectionTitle { text: "Palette"; }
+        Caption { text: "Pick a palette item, then click the canvas to place it. Click a block to select and edit it. Drag blocks to move them."; }
+        HorizontalLayout {
+            spacing: 8px;
+            GhostButton {
+                text: "Single block";
+                active: RbdUi.armed == "block";
+                clicked => { Actions.rbd-arm("block"); }
+            }
+            GhostButton {
+                text: "Standby group";
+                active: RbdUi.armed == "standby_group";
+                clicked => { Actions.rbd-arm("standby_group"); }
+            }
+        }
+        HorizontalLayout {
+            spacing: 8px;
+            GhostButton {
+                text: "Parallel group";
+                active: RbdUi.armed == "parallel";
+                clicked => { Actions.rbd-arm("parallel"); }
+            }
+            GhostButton {
+                text: "k-out-of-n group";
+                active: RbdUi.armed == "kofn";
+                clicked => { Actions.rbd-arm("kofn"); }
+            }
+        }
+        if RbdUi.armed != "": Caption { text: "Placement armed. Click the canvas to place."; }
+        SectionTitle { text: "Evaluation"; }
+        HorizontalLayout {
+            spacing: 10px;
+            Field { label: "Mission t"; value <=> RbdUi.t; field-width: 80px; }
+            ComboField { label: "Topology"; options: ["series", "parallel", "k-of-n", "series with standby group"]; index <=> RbdUi.topology-index; field-width: 132px; }
+            Field { label: "k"; value <=> RbdUi.k; field-width: 40px; }
+        }
+        GhostButton {
+            text: "Apply topology";
+            clicked => { Actions.act("rbd-topology"); }
+        }
+        HeadlineCard {
+            label: RbdUi.rel-label;
+            value: RbdUi.rel-value;
+        }
+        Field { label: "Availability horizon"; value <=> RbdUi.horizon; field-width: 120px; }
+        PrimaryButton {
+            text: "Run availability (40 sims)";
+            icon: @image-url("icons/play.svg");
+            clicked => { Actions.act("rbd-avail"); }
+        }
+        ResultCards { rows: RbdUi.avail-results; }
+        SectionTitle { text: "Reliability importance"; }
+        GhostButton {
+            text: "Compute importance measures";
+            clicked => { Actions.act("rbd-importance"); }
+        }
+        Caption { text: RbdUi.importance-note; }
+        for r in RbdUi.importance-rows: VerticalLayout {
+            spacing: 1px;
+            Text {
+                text: r.cells[0];
+                font-family: Theme.font;
+                font-size: 13px;
+                font-weight: 600;
+                color: Theme.text;
+            }
+            Text {
+                text: "Birnbaum " + r.cells[1] + "  ·  F-V " + r.cells[2] + "  ·  Crit " + r.cells[3];
+                font-family: Theme.font;
+                font-size: Theme.fs-caption;
+                color: Theme.muted;
+            }
+        }
+    }
+    CenterPanel {
+        Rectangle {
+            background: #1A1B1E;
+            border-radius: Theme.radius;
+            border-width: 1px;
+            border-color: Theme.border;
+            min-height: 430px;
+            vertical-stretch: 1;
+            TouchArea {
+                clicked => { Actions.rbd-place(self.mouse-x / 1px, self.mouse-y / 1px); }
+            }
+            for s in RbdUi.segments: Rectangle {
+                x: s.x;
+                y: s.y;
+                width: s.w;
+                height: s.h;
+                background: Theme.series2;
+                border-radius: 1px;
+            }
+            for b in RbdUi.blocks: Rectangle {
+                x: b.x;
+                y: b.y;
+                width: b.w;
+                height: b.h;
+                border-radius: 8px;
+                background: Theme.card-raised;
+                border-width: b.selected ? 2.5px : 1px;
+                border-color: b.selected ? Theme.tint : Theme.border;
+                animate border-color { duration: 120ms; }
+                VerticalLayout {
+                    width: 100%;
+                    padding-top: 7px;
+                    padding-left: 6px;
+                    padding-right: 6px;
+                    spacing: 1px;
+                    Text {
+                        text: b.name;
+                        width: 100%;
+                        font-family: Theme.font;
+                        font-size: 13px;
+                        font-weight: 600;
+                        color: Theme.text;
+                        horizontal-alignment: center;
+                        overflow: elide;
+                    }
+                    Text {
+                        text: b.sub;
+                        width: 100%;
+                        font-family: Theme.font;
+                        font-size: 11px;
+                        color: Theme.muted;
+                        horizontal-alignment: center;
+                        overflow: elide;
+                    }
+                }
+                TouchArea {
+                    mouse-cursor: pointer;
+                    pointer-event(e) => {
+                        if (e.kind == PointerEventKind.down && e.button == PointerEventButton.left) {
+                            Actions.rbd-press(b.idx);
+                        }
+                    }
+                    moved => {
+                        if (self.pressed) {
+                            Actions.rbd-drag(b.idx, (b.x + self.mouse-x) / 1px, (b.y + self.mouse-y) / 1px);
+                        }
+                    }
+                }
+            }
+            if RbdUi.blocks.length == 0: Text {
+                text: "No blocks yet. Arm a palette item and click here to place a block.";
+                font-family: Theme.font;
+                font-size: Theme.fs-body;
+                color: Theme.faint;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+                wrap: word-wrap;
+            }
+        }
+        Text {
+            text: RbdUi.status;
+            font-family: Theme.font;
+            font-size: Theme.fs-caption;
+            color: Theme.muted;
+            wrap: word-wrap;
+        }
+    }
+    RightPanel {
+        SectionTitle { text: "Block inspector"; }
+        if RbdUi.has-selection: VerticalLayout {
+            spacing: 10px;
+            Caption { text: RbdUi.sel-title; }
+            Field { label: "Name"; value <=> RbdUi.ed-name; field-width: 250px; }
+            ComboField {
+                label: "Distribution";
+                options: ["weibull2", "weibull3", "lognormal", "normal", "exponential", "gamma", "gumbel", "loglogistic", "logistic", "gompertz", "gengamma", "weibull1", "exponential2", "mixed_weibull"];
+                index <=> RbdUi.ed-dist-index;
+                field-width: 250px;
+            }
+            Field { label: "Params (beta=1.5, eta=5000)"; value <=> RbdUi.ed-params; field-width: 250px; }
+            HorizontalLayout {
+                spacing: 10px;
+                Field { label: "MTBF"; value <=> RbdUi.ed-mtbf; field-width: 110px; }
+                Field { label: "MTTR"; value <=> RbdUi.ed-mttr; field-width: 110px; }
+            }
+            if RbdUi.ed-is-standby: HorizontalLayout {
+                spacing: 10px;
+                Field { label: "Units"; value <=> RbdUi.ed-units; field-width: 70px; }
+                Field { label: "Dormancy"; value <=> RbdUi.ed-dormancy; field-width: 80px; }
+                Field { label: "Switch rel."; value <=> RbdUi.ed-switch; field-width: 80px; }
+            }
+            PrimaryButton {
+                text: "Apply properties";
+                clicked => { Actions.act("rbd-apply-props"); }
+            }
+            HorizontalLayout {
+                spacing: 8px;
+                GhostButton {
+                    text: "Duplicate";
+                    icon: @image-url("icons/copy.svg");
+                    clicked => { Actions.act("rbd-duplicate"); }
+                }
+                GhostButton {
+                    text: "Delete";
+                    icon: @image-url("icons/trash.svg");
+                    clicked => { Actions.act("rbd-delete"); }
+                }
+                GhostButton {
+                    text: "Undo";
+                    clicked => { Actions.act("rbd-undo"); }
+                }
+            }
+        }
+        if !RbdUi.has-selection: Caption {
+            text: "Click a placed block to select it. Its properties open here, in place, without leaving the canvas.";
+        }
+        SectionTitle { text: "Add block form"; }
+        Field { label: "Name"; value <=> RbdUi.nb-name; field-width: 250px; }
+        ComboField {
+            label: "Distribution";
+            options: ["weibull2", "weibull3", "lognormal", "normal", "exponential", "gamma", "gumbel", "loglogistic", "logistic", "gompertz", "gengamma", "weibull1", "exponential2", "mixed_weibull"];
+            index <=> RbdUi.nb-dist-index;
+            field-width: 250px;
+        }
+        Field { label: "Params"; value <=> RbdUi.nb-params; field-width: 250px; }
+        HorizontalLayout {
+            spacing: 10px;
+            Field { label: "MTBF"; value <=> RbdUi.nb-mtbf; field-width: 110px; }
+            Field { label: "MTTR"; value <=> RbdUi.nb-mttr; field-width: 110px; }
+        }
+        ComboField {
+            label: "Mode";
+            options: ["active", "hot standby", "cold standby", "warm"];
+            index <=> RbdUi.nb-mode-index;
+            field-width: 250px;
+        }
+        Field { label: "Dormancy (warm)"; value <=> RbdUi.nb-dormancy; field-width: 110px; }
+        PrimaryButton {
+            text: "Add block";
+            icon: @image-url("icons/plus.svg");
+            clicked => { Actions.act("rbd-add-form"); }
+        }
+        SectionTitle { text: "Diagram JSON"; }
+        Caption { text: "Same schema as the library RBD format. Leaf nodes may carry an additive pos field with canvas coordinates."; }
+        TextAreaField { label: "Diagram JSON"; value <=> RbdUi.json; rows: 6; }
+        GhostButton {
+            text: "Load from JSON text";
+            clicked => { Actions.act("rbd-load-json"); }
+        }
+        Field { label: "File path"; value <=> RbdUi.path; field-width: 250px; }
+        HorizontalLayout {
+            spacing: 8px;
+            GhostButton { text: "Save"; icon: @image-url("icons/save.svg"); clicked => { Actions.act("rbd-save-file"); } }
+            GhostButton { text: "Load"; icon: @image-url("icons/open.svg"); clicked => { Actions.act("rbd-load-file"); } }
+        }
+    }
+}
+
+export component FaultTreeScreen inherits HorizontalLayout {
+    spacing: 0;
+    LeftPanel {
+        ScreenTitle { title: "Fault Tree"; sub: "Top event probability and minimal cut sets from the gate tree."; }
+        TextAreaField {
+            label: "FtNode JSON (serde format)";
+            value <=> FtUi.json;
+            rows: 9;
+        }
+        PrimaryButton {
+            text: "Evaluate";
+            icon: @image-url("icons/play.svg");
+            clicked => { Actions.act("ft-run"); }
+        }
+    }
+    CenterPanel {
+        SectionTitle { text: "Results"; }
+        ScrollView {
+            ResultCards { rows: FtUi.results; }
+        }
+    }
+}

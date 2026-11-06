@@ -1,0 +1,21 @@
+[package]
+name = "reliakit-gui"
+version = "0.3.0"
+edition = "2021"
+license = "MIT"
+description = "ReliaKit desktop application (Slint interface over the reliakit library)"
+authors = ["chickenfeetbatman"]
+
+[[bin]]
+name = "reliakit-app"
+path = "src/main.rs"
+
+[dependencies]
+reliakit = { path = ".." }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+slint = "1"
+plotters = { version = "0.3", default-features = false, features = ["line_series", "point_series", "area_series", "all_elements", "bitmap_backend", "bitmap_encoder", "ab_glyph"] }
+
+[build-dependencies]
+slint-build = "1"
