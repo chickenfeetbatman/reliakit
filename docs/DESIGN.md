@@ -229,12 +229,12 @@ The front end is hand-written modules and external stylesheets
 loaded from the app itself, with no inline script, no remote
 origins, and charts drawn as inline SVG markup rather than image
 loads, so the policy holds without exceptions beyond the style
-attribute allowance. The configuration parses in the release
-build (the app crate compiles with the policy in place; linking
-on the build machine used here stops on missing system GTK and
-WebKit libraries, which are installed in CI). A visual check of
-the desktop webview under this policy is part of the release
-screenshot gate and is recorded there.
+attribute allowance. Gate verification (Nov 6, 2026): the app
+crate compiles with the policy in place, the desktop binary
+passes its --headless self-check, and the desktop app was run
+under Xvfb with this policy set; the start page rendered in
+full (screenshot 16-desktop-csp.png in the v0.3.2 gate
+evidence folder), so the policy ships as written.
 
 ## Platform notes
 
